@@ -168,7 +168,7 @@ config.py            # خواندن env و TORTOISE_ORM
 
 موجودی کاربر **محاسباتی** است (`User.get_balance` = مجموع تراکنش‌ها منهای فاکتورها)، نه مقدار ذخیره‌شدهٔ خام.
 
-> ⚠️ `Server.panel_type` و `Service.panel_config` به مدل اضافه شده‌اند ولی **migration هنوز اعمال نشده**. قبل از اجرای ربات لازم است: `aerich migrate && aerich upgrade` (gated — بخش ۱).
+> `Server.panel_type` و `Service.panel_config` به مدل اضافه شده‌اند و migration آن‌ها ساخته شده: `migrations/models/46_*_update.py`. روی استارت کانتینر (`prestart.sh` → `aerich upgrade`) خودکار اعمال می‌شود — اسکریپت نصب/آپدیت هم همین مسیر را می‌رود.
 
 ---
 
@@ -235,7 +235,7 @@ Telegram Bot / Web Panel → Business Services → Panel Adapter Interface
 - مراقب مدل‌های users، resellers/roles، proxies، servers/panels، services، invoices، transactions، payments، settings، texts باش.
 - هنگام M2M یا تغییر مدل به الگوی `_m2m_order` و override متد `describe` در `models/__init__.py` دقت کن (workaround باگ aerich).
 - اگر migration برای deploy لازم است، صریح گزارش کن. روی production خودکار اجرا نکن مگر کاربر بخواهد.
-- **معلق فعلی:** `Server.panel_type` + `Service.panel_config` (افزایشی) — قبل از اجرا اعمال شود.
+- migration پنل (`46_*`) برای `Server.panel_type` + `Service.panel_config` ساخته شده و افزایشی است؛ با `aerich upgrade` اعمال می‌شود.
 
 ---
 
@@ -327,6 +327,12 @@ make tag && make push                      # انتشار (CI روی tag v*.*.* 
 ```
 
 نسخه در `app/__init__.py` (`__version__`). CI: `.github/workflows/` روی push تگ `v*.*.*` ایمیج را به ghcr.io می‌فرستد.
+
+**نصب روی سرور** — `installer/guardino.sh` (منو: نصب/آپدیت/لاگ/بکاپ/ری‌استارت/وضعیت/حذف):
+```bash
+bash <(curl -Ls --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardino.sh)
+```
+سورس را در `/opt/GuardinoBot/src` clone و **محلی build** می‌کند (مستقل از ایمیج ghcr)؛ `.env` و `docker-compose.yml` در `/opt/GuardinoBot`، دیتا در `/var/lib/guardinobot`. migrationها هنگام استارت با `aerich upgrade` اعمال می‌شوند.
 
 ---
 
