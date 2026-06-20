@@ -15,21 +15,15 @@ from app.keyboards.base import MainMenu
 from app.keyboards.user.proxy import Proxies, ProxiesActions
 from app.keyboards.user.purchase import PurchaseService, Services, ServicesActions
 from app.main import bot, redis
-from app.marzban import Marzban
 from app.models.proxy import Proxy
 from app.models.server import Server
 from app.models.service import Service, ServiceMenu
 from app.models.user import GiftPayment, Invoice, Transaction, User
+from app.panels import PanelError, PanelUser, PanelUserStatus, get_panel
 from app.utils import helpers, settings, texts
 from app.utils.filters import IsJoinedToChannel, IsTestServiceName
 from app.utils.misc import RTL
 from app.utils.rate_limit import RateLimit, is_locked, lock
-from marzban_client.api.user import add_user
-from marzban_client.models.user_create import UserCreate
-from marzban_client.models.user_create_inbounds import UserCreateInbounds
-from marzban_client.models.user_create_proxies import UserCreateProxies
-from marzban_client.models.user_response import UserResponse
-from marzban_client.models.user_status import UserStatus
 
 from . import router
 from .proxy import show_proxy
@@ -302,55 +296,57 @@ async def activate_service(
             "❌ کد تخفیف اعمال شده شما منقضی شده است! لطفا دوباره تلاش کنید."
         )
 
-    async def create_user_on_server(max_retry: int = 1, tries: int = 0) -> UserResponse:
-        client = Marzban.get_server(service.server_id)
-        inbounds = await service.get_inbounds()
-        user_inbounds = UserCreateInbounds.from_dict(inbounds)
-        user_proxies = UserCreateProxies.from_dict(
-            {
-                protocol: service.create_proxy_protocols(protocol)
-                for protocol in inbounds
-            }
-        )
+    async def create_user_on_server(max_retry: int = 1, tries: int = 0) -> PanelUser:
+        panel = get_panel(service.server_id)
         await user.fetch_related("setting")
-        proxy_obj = UserCreate(
-            username=await helpers.generate_proxy_username(
-                user, server_id=service.server_id, _settings=_settings
-            ),
-            proxies=user_proxies,
-            inbounds=user_inbounds,
-            data_limit=service.data_limit,
-            data_limit_reset_strategy=service.usage_reset_strategy
-            if service.data_limit
-            else service.UsageResetStrategy.no_reset,
+        username = await helpers.generate_proxy_username(
+            user, server_id=service.server_id, _settings=_settings
         )
+        reset_strategy = (
+            service.usage_reset_strategy.value
+            if service.data_limit
+            else service.UsageResetStrategy.no_reset.value
+        )
+        status = None
+        expire = None
+        on_hold_expire_duration = None
+        on_hold_timeout = None
         if service.create_on_hold_users:
-            proxy_obj.status = UserStatus.ON_HOLD
-            proxy_obj.on_hold_expire_duration = (
-                service.expire_duration if service.expire_duration else None
-            )
-            proxy_obj.on_hold_timeout = dt.now(UTC) + td(
-                seconds=_settings.on_hold_timeout_seconds
-            )
+            status = PanelUserStatus.on_hold
+            on_hold_expire_duration = service.expire_duration or None
+            on_hold_timeout = dt.now(UTC) + td(seconds=_settings.on_hold_timeout_seconds)
         else:
-            proxy_obj.expire = (
+            expire = (
                 helpers.get_expire_timestamp(service.expire_duration)
                 if service.expire_duration
                 else None
             )
 
-        resp = await add_user.asyncio_detailed(client=client, body=proxy_obj)
-        if resp.status_code == 409:  # conflict Error
-            # try to increment total_proxies of the server by 1 and try again
-            if tries < max_retry:
-                await Server.filter(id=service.server_id).update(
-                    total_proxies=TF("total_proxies") + 1
-                )
-                return await create_user_on_server(tries=tries + 1, max_retry=max_retry)
-            raise ServerError(
-                "Could not create user most probably due to Conflict Error"
+        try:
+            return await panel.create_user(
+                username=username,
+                service=service,
+                data_limit=service.data_limit,
+                expire=expire,
+                status=status,
+                data_limit_reset_strategy=reset_strategy,
+                on_hold_expire_duration=on_hold_expire_duration,
+                on_hold_timeout=on_hold_timeout,
             )
-        return resp.parsed
+        except PanelError as exc:
+            if exc.status_code == 409:  # conflict: username already exists
+                # bump server's total_proxies (changes generated username) and retry
+                if tries < max_retry:
+                    await Server.filter(id=service.server_id).update(
+                        total_proxies=TF("total_proxies") + 1
+                    )
+                    return await create_user_on_server(
+                        tries=tries + 1, max_retry=max_retry
+                    )
+                raise ServerError(
+                    "Could not create user most probably due to Conflict Error"
+                )
+            raise
 
     with lock(user_id=user.id):
         async with in_transaction():

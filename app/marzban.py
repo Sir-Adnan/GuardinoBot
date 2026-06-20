@@ -46,4 +46,8 @@ class Marzban:
 
 
 def setup_api(dp: Dispatcher) -> None:
+    from app.panels.registry import PanelRegistry
+
     dp.startup.register(Marzban.refresh_servers)
+    dp.startup.register(PanelRegistry.refresh)
+    dp.shutdown.register(PanelRegistry.aclose_all)

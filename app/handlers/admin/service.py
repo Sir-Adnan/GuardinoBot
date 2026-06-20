@@ -23,6 +23,7 @@ from app.keyboards.admin.service import (
     ConfirmServiceAction,
     EditService,
     EditServiceAction,
+    SelectGroups,
     SelectInbounds,
     SelectServer,
     SelectServicesBulk,
@@ -37,6 +38,7 @@ from app.keyboards.admin.service import (
 )
 from app.main import redis
 from app.marzban import Marzban
+from app.panels import get_panel
 from app.models.proxy import Proxy
 from app.models.server import Server
 from app.models.service import Service
@@ -46,6 +48,11 @@ from app.utils.filters import IsSuperUser
 from marzban_client.api.system import get_inbounds
 
 from . import router
+
+def _is_pasarguard(server: Server) -> bool:
+    """Whether a Server speaks PasarGuard (group-based provisioning)."""
+    return str(getattr(server.panel_type, "value", server.panel_type)) == "pasarguard"
+
 
 cancel_form = CancelFormAdmin().as_markup(resize_keyboard=True, one_time_only=True)
 yes_or_no_form = YesOrNoFormAdmin().as_markup(
@@ -269,33 +276,40 @@ async def get_service_server_id(
     state: FSMContext,
     callback_data: SelectServer.Callback,
 ):
-    try:
-        client = Marzban.get_server(callback_data.server_id)
-    except KeyError:
+    server = await Server.filter(id=callback_data.server_id).first()
+    if not server:
         return await query.answer(
             text=f"خطایی در دریافت سرور {callback_data.server_id!r} رخ داد!"
         )
-    inbounds: dict[str, list[str]] = {
-        protocol: [inbound.tag for inbound in protocol_inbounds]
-        for protocol, protocol_inbounds in (
-            await get_inbounds.asyncio(client=client)
-        ).additional_properties.items()
-    }
     await state.update_data(server_id=callback_data.server_id)
     data = await state.get_data()
-
-    text = f"""
+    info = f"""
 نام: <b>{data.get('name')}</b>
 حجم: <b>{helpers.hr_size(data.get('data_limit')) if data.get('data_limit') else '♾'}</b>
 اعتبار زمانی: <b>{helpers.hr_time(data.get('expire_duration')) if data.get('expire_duration') else '♾'}</b>
 مبلغ: <b>{data.get('price')}</b>
-سرور: <b>{data.get('server_id')}</b>
-
-اینباند‌های این سرور را انتخاب کنید:
-    """
+سرور: <b>{server.identifier}</b>
+"""
     await state.set_state(AddServiceForm.inbounds)
+
+    if _is_pasarguard(server):
+        groups = (await get_panel(server.id).get_inbounds()).get("groups", [])
+        await state.update_data(group_ids=[])
+        return await query.message.edit_text(
+            info + "\nگروه‌های این سرور را انتخاب کنید:",
+            reply_markup=SelectGroups(
+                groups=groups, selected_group_ids=[], server_id=server.id
+            ).as_markup(),
+        )
+
+    inbounds: dict[str, list[str]] = {
+        protocol: [inbound.tag for inbound in protocol_inbounds]
+        for protocol, protocol_inbounds in (
+            await get_inbounds.asyncio(client=Marzban.get_server(server.id))
+        ).additional_properties.items()
+    }
     await query.message.edit_text(
-        text,
+        info + "\nاینباند‌های این سرور را انتخاب کنید:",
         reply_markup=SelectInbounds(
             inbounds=inbounds,
             selected_inbounds={},
@@ -319,6 +333,23 @@ async def edit_service_inbounds(
         await query.answer("سرویس یافت نشد!", show_alert=True)
         return await show_services(query, user)
 
+    server = await Server.filter(id=service.server_id).first()
+    await state.set_state(EditServiceForm.inbounds)
+    if server and _is_pasarguard(server):
+        groups = (await get_panel(service.server_id).get_inbounds()).get("groups", [])
+        selected = list((service.panel_config or {}).get("group_ids", []))
+        await state.update_data(group_ids=selected)
+        return await query.message.edit_text(
+            "گروه‌ها را انتخاب کنید و زخیره را کلیک کنید:",
+            reply_markup=SelectGroups(
+                groups=groups,
+                selected_group_ids=selected,
+                server_id=service.server_id,
+                for_edit=True,
+                service_id=service.id,
+            ).as_markup(),
+        )
+
     client = Marzban.get_server(service.server_id)
     inbounds: dict[str, list[str]] = {
         protocol: [inbound.tag for inbound in protocol_inbounds]
@@ -326,7 +357,6 @@ async def edit_service_inbounds(
             await get_inbounds.asyncio(client=client)
         ).additional_properties.items()
     }
-    await state.set_state(EditServiceForm.inbounds)
     await state.update_data(inbounds=service.inbounds)
     await query.message.edit_text(
         "اینباندها را انتخاب کنید و زخیره را کلیک کنید:",
@@ -387,6 +417,52 @@ async def select_services_to_apply(
         return await query.message.edit_text(text=text, reply_markup=markup)
     except TelegramBadRequest:
         pass
+
+
+@router.callback_query(
+    EditServiceForm.inbounds,
+    IsSuperUser(),
+    SelectGroups.Callback.filter(F.for_edit == True),  # noqa: E712
+)
+@router.callback_query(
+    AddServiceForm.inbounds,
+    IsSuperUser(),
+    SelectGroups.Callback.filter(F.for_edit == False),  # noqa: E712
+)
+async def select_service_groups(
+    query: CallbackQuery,
+    user: User,
+    state: FSMContext,
+    callback_data: SelectGroups.Callback,
+):
+    data = await state.get_data()
+    selected: list[int] = list(data.get("group_ids", []))
+    groups = (await get_panel(callback_data.server_id).get_inbounds()).get("groups", [])
+    if callback_data.group_id is not None:
+        if callback_data.group_id in selected:
+            selected.remove(callback_data.group_id)
+        else:
+            selected.append(callback_data.group_id)
+        await state.update_data(group_ids=selected)
+
+    markup = SelectGroups(
+        groups=groups,
+        selected_group_ids=selected,
+        server_id=callback_data.server_id,
+        for_edit=callback_data.for_edit,
+        service_id=callback_data.service_id,
+    ).as_markup()
+    if not callback_data.for_edit:
+        text = f"""
+نام: <b>{data.get('name')}</b>
+حجم: <b>{helpers.hr_size(data.get('data_limit')) if data.get('data_limit') else '♾'}</b>
+اعتبار زمانی: <b>{helpers.hr_time(data.get('expire_duration')) if data.get('expire_duration') else '♾'}</b>
+مبلغ: <b>{data.get('price')}</b>
+
+گروه‌های انتخاب‌شده: <code>{selected}</code>
+"""
+        return await query.message.edit_text(text, reply_markup=markup)
+    return await query.message.edit_reply_markup(reply_markup=markup)
 
 
 @router.callback_query(
@@ -549,7 +625,7 @@ vless flow
             users=users,
             service=service,
             message=query.message,
-            client=Marzban.get_server(service.server_id),
+            panel=get_panel(service.server_id),
         )
     )
     text = "♻️ عملیات در حال انجام است! نتیجه تا دقایقی دیگر برای شما ارسال می‌شود!"
@@ -591,6 +667,28 @@ async def edit_service_inbounds_save(
             "تغییری ایجاد نشده است! دکمه لغو را کلیک کنید.", show_alert=True
         )
 
+    server = await Server.filter(id=service.server_id).first()
+    if server and _is_pasarguard(server):
+        group_ids = data.get("group_ids")
+        if not group_ids:
+            return await query.answer("گروهی انتخاب نشده است!", show_alert=True)
+        services_pg: list[int] = data.get("apply_services", [])
+        services_pg.append(service.id)
+        for s in await Service.filter(id__in=services_pg):
+            cfg = dict(s.panel_config or {})
+            cfg["group_ids"] = group_ids
+            await Service.filter(id=s.id).update(panel_config=cfg)
+        await state.clear()
+        await query.answer("✅ ویرایش گروه‌ها انجام شد!", show_alert=True)
+        return await show_service(
+            query,
+            user,
+            callback_data=Services.Callback(
+                service_id=service.id, action=ServicesAction.show
+            ),
+            state=None,
+        )
+
     selected_inbounds: dict[str, list[str]] = data.get("inbounds", {})
     if not selected_inbounds:
         return await query.answer("پروتکلی انتخاب نشده است!", show_alert=True)
@@ -628,6 +726,31 @@ async def save_new_service(
     callback_data: SelectInbounds.Callback,
 ):
     data = await state.get_data()
+    server = await Server.filter(id=data.get("server_id")).first()
+
+    if server and _is_pasarguard(server):
+        group_ids = data.get("group_ids") or []
+        if not group_ids:
+            return await query.answer("هیچ گروهی انتخاب نشده است!", show_alert=True)
+        await state.clear()
+        service = await Service.create(
+            name=data.get("name"),
+            data_limit=data.get("data_limit"),
+            expire_duration=data.get("expire_duration"),
+            price=data.get("price"),
+            inbounds={},  # PasarGuard provisions via panel_config.group_ids
+            panel_config={"group_ids": group_ids},
+            server_id=data.get("server_id"),
+        )
+        return await show_service(
+            query,
+            user,
+            callback_data=Services.Callback(
+                service_id=service.id, action=ServicesAction.show
+            ),
+            state=state,
+        )
+
     selected_inbounds: dict[str, list[str]] = data.get("inbounds")
 
     if not selected_inbounds:
@@ -679,6 +802,17 @@ async def show_service(
         await query.answer("سرویس یافت نشد!", show_alert=True)
         return await show_services(query, user)
 
+    if _is_pasarguard(service.server):
+        network_repr = (
+            "گروه‌ها (PasarGuard): <code>"
+            + json.dumps((service.panel_config or {}).get("group_ids", []))
+            + "</code>"
+        )
+    else:
+        network_repr = (
+            "اینباندها: \n<code>" + json.dumps(service.inbounds, indent=2) + "</code>"
+        )
+
     text = f"""
 شناسه: <b>{service.id}</b>
 نام: <b>{service.name}</b>
@@ -686,8 +820,7 @@ async def show_service(
 اعتبار زمانی: <code>{helpers.hr_time(service.expire_duration)}</code>
 مبلغ: <b>{service.price}</b>
 سرور: <b>{service.server.name}</b> ({service.server.id})
-اینباندها: 
-<code>{json.dumps(service.inbounds, indent=2)}</code>
+{network_repr}
 
 راهنما: https://t.me/c/2001448048/43
     """
@@ -1752,6 +1885,6 @@ async def bulk_update_service_proceed(
             action=callback_data.action,
             by_value=callback_data.value,
             message=query.message,
-            client=Marzban.get_server(id=service.server_id),
+            panel=get_panel(service.server_id),
         )
     )

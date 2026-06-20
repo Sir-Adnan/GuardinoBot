@@ -3,13 +3,10 @@ from datetime import datetime as dt
 
 from app.jobs import logger
 from app.main import scheduler
-from app.marzban import Marzban
-from app.models.proxy import Proxy
+from app.models.proxy import Proxy, ProxyStatus
 from app.models.server import Server
+from app.panels import PanelError, get_panel
 from app.utils import settings
-from marzban_client.api.user import get_users, remove_user
-from marzban_client.errors import UnexpectedStatus
-from marzban_client.models.user_status import UserStatus
 
 
 async def refresh_servers() -> None:
@@ -19,7 +16,7 @@ async def refresh_servers() -> None:
     for server in servers:
         not_found_on_server = list()
         logger.info(f"refreshing server {server.id}: {server.identifier}")
-        client = Marzban.get_server(server.id)
+        panel = get_panel(server.id)
         offset = 0
         limit = 50
         q = Proxy.filter(server_id=server.id).offset(offset).limit(limit)
@@ -28,11 +25,8 @@ async def refresh_servers() -> None:
             offset += limit
             q = q.offset(offset)
             try:
-                sv_prs = await get_users.asyncio_detailed(client=client, username=prs)
-                if isinstance(sv_prs, get_users.HTTPValidationError):
-                    logger.error(f"Error: {sv_prs}")
-                    continue
-                for user in sv_prs.parsed.users:
+                sv_users = await panel.get_users(prs)
+                for user in sv_users:
                     prs.remove(user.username)
                     if (  # delete user if expired more than n days ago
                         _settings.delete_expired_users_after_days > 0
@@ -42,7 +36,7 @@ async def refresh_servers() -> None:
                             > _settings.delete_expired_users_after_days
                         )
                     ):
-                        await remove_user.asyncio(username=user.username, client=client)
+                        await panel.remove_user(user.username)
                         await Proxy.filter(username=user.username).delete()
                         logger.info(
                             f"Delete Expired user after {_settings.delete_expired_users_after_days} days: {user.username}"
@@ -51,11 +45,11 @@ async def refresh_servers() -> None:
                         continue
 
                     await Proxy.filter(username=user.username).update(
-                        status=user.status
+                        status=ProxyStatus(user.status.value)
                     )
                 if prs:
                     not_found_on_server.extend(prs)
-            except UnexpectedStatus as exc:
+            except PanelError as exc:
                 logger.error(
                     f"Could not refresh proxies of server {server.id}: {exc.status_code}"
                 )

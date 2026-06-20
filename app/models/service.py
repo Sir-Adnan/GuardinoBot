@@ -9,9 +9,8 @@ from tortoise.expressions import F, Q, RawSQL
 from tortoise.signals import post_save
 from tortoise.validators import MinValueValidator
 
-from app.marzban import Marzban
 from app.models import TimedBase
-from marzban_client.api.system import get_inbounds
+from app.panels import get_panel
 
 if TYPE_CHECKING:
     from .proxy import Proxy
@@ -75,10 +74,14 @@ class Service(TimedBase):
     data_limit = fields.BigIntField(null=False)  # in bytes
     expire_duration = fields.BigIntField(null=False)  # in seconds
     all_inbounds = fields.BooleanField(default=False)
-    inbounds = fields.JSONField(null=False)
+    inbounds = fields.JSONField(null=False)  # Marzban: {protocol: [tags]}
     flow = fields.CharEnumField(
         ServiceProxyFlow, max_length=20, null=True, default=ServiceProxyFlow.none
     )
+    # Panel-specific provisioning that does not fit Marzban's inbounds/flow.
+    # PasarGuard: {"group_ids": [int], "proxy_settings": {...optional...}}.
+    # Guardino (phase 2): {"node_ids": [int], "pricing_mode": "...", ...}.
+    panel_config = fields.JSONField(null=True)
     price = fields.IntField(null=False, validators=[MinValueValidator(0)])  # in Tomans
 
     one_time_only = fields.BooleanField(
@@ -208,17 +211,15 @@ class Service(TimedBase):
             return {"flow": self.flow}
         return {}
 
-    async def get_inbounds(self) -> dict[str, list[str]]:
+    async def get_inbounds(self) -> dict:
+        """Provisioning catalog for this service's server.
+
+        Marzban: {protocol: [tags]}. PasarGuard: {"groups": [...], "inbounds": [...]}.
+        When all_inbounds is False, returns the stored Marzban-style inbounds.
+        """
         if self.all_inbounds:
-            client = Marzban.get_server(self.server_id)
-            return {
-                protocol: [inbound.tag for inbound in inbounds]
-                for protocol, inbounds in (
-                    await get_inbounds.asyncio(client=client)
-                ).additional_properties.items()
-            }
-        else:
-            return self.inbounds
+            return await get_panel(self.server_id).get_inbounds()
+        return self.inbounds
 
 
 async def re_index_service_priorities() -> None:

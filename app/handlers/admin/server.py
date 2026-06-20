@@ -8,7 +8,13 @@ from aiogram.filters import Command, StateFilter
 from aiogram.filters.command import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import (
+    CallbackQuery,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
 from tortoise.expressions import F as TF
 
 from app.keyboards.admin.admin import (
@@ -31,6 +37,7 @@ from app.keyboards.admin.server import (
     ServersAction,
 )
 from app.marzban import Marzban
+from app.panels import PanelRegistry, PanelType, get_panel
 from app.models.proxy import Proxy
 from app.models.server import Server
 from app.models.service import Service
@@ -50,9 +57,15 @@ cancel_form = CancelFormAdmin().as_markup(resize_keyboard=True, one_time_only=Tr
 yes_or_no_form = YesOrNoFormAdmin().as_markup(
     resize_keyboard=True, one_time_keyboard=True
 )
+panel_type_form = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="Marzban"), KeyboardButton(text="PasarGuard")]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
 
 
 class AddServerForm(StatesGroup):
+    panel_type = State()
     name = State()
     host = State()
     port = State()
@@ -146,8 +159,33 @@ async def ping_servers(
     IsSuperUser(),
 )
 async def add_server(query: CallbackQuery, user: User, state: FSMContext):
-    await state.set_state(AddServerForm.name)
+    await state.set_state(AddServerForm.panel_type)
     await query.message.answer(
+        "نوع پنل این سرور را انتخاب کنید:",
+        reply_markup=panel_type_form,
+    )
+
+
+@router.message(
+    AddServerForm.panel_type,
+    IsSuperUser(),
+    ~CommandStart(),
+    ~Command("menu"),
+)
+async def get_server_panel_type(message: Message, user: User, state: FSMContext):
+    choice = (message.text or "").strip().lower()
+    if choice in ("pasarguard", "پاسارگارد", "pasar guard"):
+        panel_type = PanelType.pasarguard.value
+    elif choice in ("marzban", "مرزبان"):
+        panel_type = PanelType.marzban.value
+    else:
+        return await message.answer(
+            "لطفا یکی از گزینه‌ها را انتخاب کنید:",
+            reply_markup=panel_type_form,
+        )
+    await state.update_data(panel_type=panel_type)
+    await state.set_state(AddServerForm.name)
+    await message.answer(
         "نامی برای سرور انتخاب کنید:",
         reply_markup=cancel_form,
     )
@@ -367,6 +405,7 @@ async def get_server_confirm_yes(message: Message, user: User, state: FSMContext
         f"سرور اضافه شد:\nidentifier: {server.identifier}\nurl: {server.url}"
     )
     await Marzban.refresh_servers()
+    await PanelRegistry.refresh()
     await show_servers(message, user)
 
 
@@ -603,6 +642,7 @@ async def edit_server_save(
         "بروزرسانی انجام شد! بروز شده‌ها: " + ", ".join(data), show_alert=True
     )
     await Marzban.refresh_servers()
+    await PanelRegistry.refresh()
     await show_server(
         query,
         user,
@@ -1070,7 +1110,7 @@ async def bulk_update_server_proceed(
             action=callback_data.action,
             by_value=callback_data.value,
             message=query.message,
-            client=Marzban.get_server(id=server.id),
+            panel=get_panel(server.id),
         )
     )
 

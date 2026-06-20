@@ -52,39 +52,25 @@ from app.utils import helpers, qr, settings, texts
 from app.utils.bg import bg_job
 from app.utils.filters import IsJoinedToChannel, IsSubscriptionURL, IsSuperUser
 from app.utils.rate_limit import RateLimit, is_locked, lock
+from app.panels import ModifyUserParams, PanelError, PanelUserStatus, get_panel
 from marzban_client.api.subscription import user_subscription_info
-from marzban_client.api.user import (
-    get_user,
-    modify_user,
-    remove_user,
-    reset_user_data_usage,
-    revoke_user_subscription,
-)
-from marzban_client.errors import UnexpectedStatus
-from marzban_client.models.user_data_limit_reset_strategy import (
-    UserDataLimitResetStrategy,
-)
-from marzban_client.models.user_modify import UserModify, UserStatusModify
-from marzban_client.models.user_modify_inbounds import UserModifyInbounds
-from marzban_client.models.user_modify_proxies import UserModifyProxies
-from marzban_client.models.user_status import UserStatus
 
 from . import logger, router
 
 PROXY_STATUS = {
-    UserStatus.ACTIVE: "فعال ✅",
-    UserStatus.DISABLED: "غیرفعال ❌",
-    UserStatus.LIMITED: "محدود شده 🔒",
-    UserStatus.EXPIRED: "منقضی شده ⏳",
-    UserStatus.ON_HOLD: "در انتظار اولین اتصال ⏸",
+    PanelUserStatus.active: "فعال ✅",
+    PanelUserStatus.disabled: "غیرفعال ❌",
+    PanelUserStatus.limited: "محدود شده 🔒",
+    PanelUserStatus.expired: "منقضی شده ⏳",
+    PanelUserStatus.on_hold: "در انتظار اولین اتصال ⏸",
 }
 
 USAGE_RESET_STRATEGY = {
-    UserDataLimitResetStrategy.NO_RESET: "غیرفعال",
-    UserDataLimitResetStrategy.DAY: "روزانه",
-    UserDataLimitResetStrategy.WEEK: "هفتگی",
-    UserDataLimitResetStrategy.MONTH: "ماهانه",
-    UserDataLimitResetStrategy.YEAR: "سالانه",
+    "no_reset": "غیرفعال",
+    "day": "روزانه",
+    "week": "هفتگی",
+    "month": "ماهانه",
+    "year": "سالانه",
 }
 
 
@@ -218,8 +204,7 @@ async def refresh_proxies_job(query: CallbackQuery, user: User, user_id: int):
 
     for proxy in proxies:
         try:
-            client = Marzban.get_server(proxy.server_id)
-            sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+            sv_proxy = await get_panel(proxy.server_id).get_user(proxy.username)
         except Exception as exc:
             await Proxy.filter(id=proxy.id).update(status=ProxyStatus.disabled)
             logger.error(f"Failed to update proxy {proxy.id}: {exc}")
@@ -230,7 +215,9 @@ async def refresh_proxies_job(query: CallbackQuery, user: User, user_id: int):
             continue
 
         if proxy.status.value != sv_proxy.status.value:
-            await Proxy.filter(id=proxy.id).update(status=sv_proxy.status)
+            await Proxy.filter(id=proxy.id).update(
+                status=ProxyStatus(sv_proxy.status.value)
+            )
 
     await redis.delete(f"proxies_refresh:ongoing:{user_id}")
     await redis.set(f"can_refresh:{user_id}", 0, ex=86400)
@@ -476,15 +463,33 @@ async def show_proxy(
                 return
     await proxy.fetch_related("service")
     _settings = settings.get_settings()
+    sv_proxy = None
+    unavailable_code = None
     try:
-        client = Marzban.get_server(proxy.server_id)
-        resp = await get_user.asyncio_detailed(username=proxy.username, client=client)
-        if resp.status_code in {404, 403}:
-            proxy.status = ProxyStatus.disabled
-            await proxy.save()
-            await proxy.refresh_from_db()
-            text = f"""
-    ❌ امکان دریافت اطلاعات این اشتراک از سرور وجود ندارد! (<code>{resp.status_code}</code>)
+        sv_proxy = await get_panel(proxy.server_id).get_user(proxy.username)
+        if sv_proxy is None:
+            unavailable_code = 404
+    except PanelError as exc:
+        if exc.status_code == 401:
+            raise ServerAuthenticationError(server_id=proxy.server_id)
+        if exc.status_code == 403:
+            unavailable_code = 403
+        else:
+            await qmsg.answer(
+                "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
+            )
+            raise
+    except Exception as err:
+        await qmsg.answer(
+            "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
+        )
+        raise err
+    if unavailable_code is not None:
+        proxy.status = ProxyStatus.disabled
+        await proxy.save()
+        await proxy.refresh_from_db()
+        text = f"""
+    ❌ امکان دریافت اطلاعات این اشتراک از سرور وجود ندارد! (<code>{unavailable_code}</code>)
 
     شناسه پروکسی: {proxy.id}
     نام تنظیم شده: {proxy.custom_name if proxy.custom_name else '-'}
@@ -492,28 +497,18 @@ async def show_proxy(
 
     سرویس: {proxy.service.display_name if proxy.service_id else '-'}
             """
-            reply_markup = ProxyPanel(
-                proxy,
-                _settings=_settings,
-                user_id=user_id,
-                current_page=current_page,
-                show_reserve=False,
-                can_delete=False,
-                renewable=False,
-            ).as_markup()
-            if isinstance(qmsg, CallbackQuery):
-                return await qmsg.message.edit_text(text, reply_markup=reply_markup)
-            return await qmsg.answer(text, reply_markup=reply_markup)
-    except UnexpectedStatus as exc:
-        if exc.status_code == 401:
-            raise ServerAuthenticationError(server_id=proxy.server_id)
-        raise exc
-    except Exception as err:
-        await qmsg.answer(
-            "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
-        )
-        raise err
-    sv_proxy = resp.parsed
+        reply_markup = ProxyPanel(
+            proxy,
+            _settings=_settings,
+            user_id=user_id,
+            current_page=current_page,
+            show_reserve=False,
+            can_delete=False,
+            renewable=False,
+        ).as_markup()
+        if isinstance(qmsg, CallbackQuery):
+            return await qmsg.message.edit_text(text, reply_markup=reply_markup)
+        return await qmsg.answer(text, reply_markup=reply_markup)
     if proxy.status.value != sv_proxy.status.value:
         proxy.status = sv_proxy.status.value
         await proxy.save()
@@ -522,29 +517,29 @@ async def show_proxy(
 ⭐️ شناسه: <code>{sv_proxy.username}</code> {f'({proxy.custom_name})' if proxy.custom_name else ''}
 {f'📱 پلن فعال: <b>{proxy.service.display_name}</b>' if proxy.service_id else ''}
 🌀 وضعیت: <b>{PROXY_STATUS.get(sv_proxy.status)}</b>
-⏳ تاریخ انقضا: <b>{helpers.hr_date(sv_proxy.expire) if sv_proxy.expire else '♾'}</b> {f'<i>({helpers.hr_time(sv_proxy.expire - dt.now().timestamp(), lang="fa")})</i>' if sv_proxy.expire and sv_proxy.status != UserStatus.EXPIRED else ''}
+⏳ تاریخ انقضا: <b>{helpers.hr_date(sv_proxy.expire) if sv_proxy.expire else '♾'}</b> {f'<i>({helpers.hr_time(sv_proxy.expire - dt.now().timestamp(), lang="fa")})</i>' if sv_proxy.expire and sv_proxy.status != PanelUserStatus.expired else ''}
 📊 حجم مصرف شده: <b>{helpers.hr_size(sv_proxy.used_traffic, lang='fa')}</b>
 {f'🔋 حجم باقی‌مانده: <b>{helpers.hr_size(sv_proxy.data_limit - sv_proxy.used_traffic ,lang="fa")}</b>' if sv_proxy.data_limit else ''}
 
 📊 حجم مصرفی تمام دوره‌ها: {helpers.hr_size(sv_proxy.lifetime_used_traffic, lang='fa')}
 
 """
-    if sv_proxy.data_limit_reset_strategy != UserDataLimitResetStrategy.NO_RESET:
+    if sv_proxy.data_limit_reset_strategy != "no_reset":
         text += f"♻️ بازنشانی خودکار حجم: {USAGE_RESET_STRATEGY.get(sv_proxy.data_limit_reset_strategy)}\n\n"
     text += texts.Texts.format(
         texts.get_texts().proxy_help,
         SUBSCRIPTION_URL=sv_proxy.subscription_url,
         CONFIG_LINKS=sv_proxy.links,
         ACTIVE_INBOUNDS=[
-            protocol for protocol in sv_proxy.inbounds.additional_properties
+            protocol for protocol in sv_proxy.inbounds
         ],
     )
-    if sv_proxy.status == UserStatus.ACTIVE and _settings.reset_password_button:
+    if sv_proxy.status == PanelUserStatus.active and _settings.reset_password_button:
         text += """
 
 💡 برای قطع اتصال افراد متصل می‌توانید از دکمه «تغییر پسوورد» استفاده کنید!"""
 
-    if sv_proxy.status in [UserStatus.ACTIVE, UserStatus.ON_HOLD]:
+    if sv_proxy.status in (PanelUserStatus.active, PanelUserStatus.on_hold):
         text += """
 
 💡 برای دریافت لینک‌های اتصال و Qr Code میتوانید از دکمه زیر استفاده کنید👇
@@ -712,14 +707,14 @@ async def disable_proxy(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
-        if sv_proxy.status != proxy.status:
-            proxy.status = sv_proxy.status
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
+        if sv_proxy and sv_proxy.status.value != proxy.status.value:
+            proxy.status = sv_proxy.status.value
             await proxy.save()
-        if sv_proxy.status.value != ProxyStatus.active.value:
+        if (sv_proxy is None) or (sv_proxy.status.value != ProxyStatus.active.value):
             return await query.answer(
-                f"🚫 به دلیل «{PROXY_STATUS.get(sv_proxy.status)}» بودن اشتراک امکان غیرفعال سازی موقت وجود ندارد!",
+                f"🚫 به دلیل «{PROXY_STATUS.get(sv_proxy.status) if sv_proxy else 'نامشخص'}» بودن اشتراک امکان غیرفعال سازی موقت وجود ندارد!",
                 show_alert=True,
             )
     except Exception as err:
@@ -729,11 +724,7 @@ async def disable_proxy(
         raise err
 
     try:
-        sv_proxy = await modify_user.asyncio(
-            username=sv_proxy.username,
-            client=client,
-            body=UserModify(status=UserStatusModify.DISABLED),
-        )
+        sv_proxy = await panel.set_status(proxy.username, PanelUserStatus.disabled)
 
         await query.answer("✅ اشتراک به صورت موقت غیرفعال شد", show_alert=True)
         await show_proxy(
@@ -777,14 +768,14 @@ async def enable_proxy(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
-        if sv_proxy.status.value != proxy.status.value:
-            proxy.status = sv_proxy.status
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
+        if sv_proxy and sv_proxy.status.value != proxy.status.value:
+            proxy.status = sv_proxy.status.value
             await proxy.save()
-        if sv_proxy.status.value != ProxyStatus.disabled.value:
+        if (sv_proxy is None) or (sv_proxy.status.value != ProxyStatus.disabled.value):
             return await query.answer(
-                f"🚫 به دلیل «{PROXY_STATUS.get(sv_proxy.status)}» بودن اشتراک امکان فعال سازی وجود ندارد!",
+                f"🚫 به دلیل «{PROXY_STATUS.get(sv_proxy.status) if sv_proxy else 'نامشخص'}» بودن اشتراک امکان فعال سازی وجود ندارد!",
                 show_alert=True,
             )
     except Exception as err:
@@ -794,11 +785,7 @@ async def enable_proxy(
         raise err
 
     try:
-        sv_proxy = await modify_user.asyncio(
-            username=sv_proxy.username,
-            client=client,
-            body=UserModify(status=UserStatusModify.ACTIVE),
-        )
+        sv_proxy = await panel.set_status(proxy.username, PanelUserStatus.active)
 
         await query.answer("✅ اشتراک فعال شد", show_alert=True)
         await show_proxy(
@@ -842,8 +829,8 @@ async def remove_proxy(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
@@ -852,7 +839,7 @@ async def remove_proxy(
 
     try:
         if sv_proxy:
-            await remove_user.asyncio(username=sv_proxy.username, client=client)
+            await panel.remove_user(proxy.username)
         await proxy.delete()
 
         await query.answer("✅ اشتراک از لیست پروکسی‌های شما حذف شد", show_alert=True)
@@ -923,8 +910,8 @@ async def reset_uuid(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
@@ -932,18 +919,7 @@ async def reset_uuid(
         raise err
     try:
         await proxy.fetch_related("service")
-        sv_proxy = await modify_user.asyncio(
-            username=sv_proxy.username,
-            client=client,
-            body=UserModify(
-                proxies=UserModifyProxies.from_dict(
-                    {
-                        protocol: proxy.service.create_proxy_protocols(protocol)
-                        for protocol in sv_proxy.proxies.additional_properties
-                    }
-                )
-            ),
-        )
+        sv_proxy = await panel.reset_proxy_credentials(proxy.username, proxy.service)
 
         await query.answer("✅ پسوورد پروکسی تغییر یافت", show_alert=True)
 
@@ -990,18 +966,15 @@ async def reset_subscription(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
         )
         raise err
     try:
-        await revoke_user_subscription.asyncio(
-            username=sv_proxy.username,
-            client=client,
-        )
+        await panel.revoke_subscription(proxy.username)
 
         await query.answer("✅ لینک اتصال هوشمند تغییر یافت", show_alert=True)
         await qr.invalidate_qr_cache(proxy.id, proxy.username)
@@ -1075,8 +1048,8 @@ async def delete_with_payback(
         )
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید."
@@ -1105,7 +1078,7 @@ async def delete_with_payback(
                 )
             await invoice.save()
             if sv_proxy:
-                await remove_user.asyncio(username=sv_proxy.username, client=client)
+                await panel.remove_user(proxy.username)
             await proxy.delete()
             await invoice.refresh_from_db()
 
@@ -1142,8 +1115,8 @@ async def proxy_links(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در انجام عملیات رخ داد! لطفا با پشتیبانی تماس بگیرید.",
@@ -1157,7 +1130,7 @@ async def proxy_links(
         )
     links = "\n\n".join([f"<code>{link}</code>" for link in sv_proxy.links])
     text = f"""
-🔑 پروکسی های فعال: {', '.join(f'<b>{protocol.upper()}</b>' for protocol in sv_proxy.inbounds.additional_properties)}:
+🔑 پروکسی های فعال: {', '.join(f'<b>{protocol.upper()}</b>' for protocol in sv_proxy.inbounds)}:
     🔗 لینک‌های اتصال:
     
 {links}
@@ -1225,8 +1198,8 @@ async def generate_qrcode_all(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در انجام عملیات رخ داد! لطفا با پشتیبانی تماس بگیرید.",
@@ -1260,8 +1233,8 @@ async def generate_qrcode_sub(
             return
 
     try:
-        client = Marzban.get_server(proxy.server_id)
-        sv_proxy = await get_user.asyncio(username=proxy.username, client=client)
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
     except Exception as err:
         await query.answer(
             "❌ خطایی در انجام عملیات رخ داد! لطفا با پشتیبانی تماس بگیرید.",
@@ -1517,60 +1490,38 @@ async def renew_proxy_now(
                             proxy=proxy,
                             user=user,
                         )
-                    client = Marzban.get_server(service.server_id)
+                    panel = get_panel(service.server_id)
                     data_limit = service.data_limit
+                    # read remaining BEFORE reset, when carrying over data
                     if (
                         data_limit
                         and proxy.service
                         and proxy.service.data_limit
                         and proxy.service.append_available_data_renew
                     ):
-                        sv_proxy = await get_user.asyncio(
-                            username=proxy.username, client=client
-                        )
-                        data_limit = data_limit + (
-                            sv_proxy.data_limit - sv_proxy.used_traffic
-                        )
-                    updated_user = UserModify(
-                        expire=(
-                            helpers.get_expire_timestamp(service.expire_duration)
-                            if service.expire_duration
-                            else 0
-                        ),
-                        data_limit=data_limit,
-                        data_limit_reset_strategy=service.usage_reset_strategy
-                        if service.data_limit
-                        else service.UsageResetStrategy.no_reset,
-                    )
-                    sv_proxy = await reset_user_data_usage.asyncio(
-                        username=proxy.username, client=client
-                    )
+                        existing = await panel.get_user(proxy.username)
+                        if existing:
+                            data_limit = data_limit + (
+                                (existing.data_limit or 0) - existing.used_traffic
+                            )
+                    sv_proxy = await panel.reset_usage(proxy.username)
                     if not sv_proxy:
                         raise ApiUserError("reset data usage didn't return anything!")
                     if service.id != proxy.service_id:
                         proxy.service_id = service.id
-                    inbounds = await service.get_inbounds()
-                    updated_user.inbounds = UserModifyInbounds.from_dict(inbounds)
-                    proxies = {}
-                    for protocol in inbounds:
-                        if protocol in sv_proxy.proxies:
-                            proxies.update(
-                                {
-                                    protocol: sv_proxy.proxies.additional_properties.get(
-                                        protocol
-                                    )
-                                }
-                            )
-                        else:
-                            proxies.update(
-                                {protocol: service.create_proxy_protocols(protocol)}
-                            )
-                    updated_user.proxies = UserModifyProxies.from_dict(proxies)
-                    sv_proxy = await modify_user.asyncio(
-                        username=proxy.username,
-                        body=updated_user,
-                        client=client,
+                    params = await panel.service_modify_params(service, existing=sv_proxy)
+                    params.expire = (
+                        helpers.get_expire_timestamp(service.expire_duration)
+                        if service.expire_duration
+                        else 0
                     )
+                    params.data_limit = data_limit
+                    params.data_limit_reset_strategy = (
+                        service.usage_reset_strategy.value
+                        if service.data_limit
+                        else service.UsageResetStrategy.no_reset.value
+                    )
+                    sv_proxy = await panel.modify_user(proxy.username, params)
                     proxy.status = sv_proxy.status.value
                     proxy.cost = discounted_price
                     await proxy.save()
@@ -1774,13 +1725,10 @@ async def renew_proxy_reserve(
                         proxy=proxy,
                         user=user,
                     )
-                client = Marzban.get_server(service.server_id)
-                sv_proxy = await get_user.asyncio(
-                    username=proxy.username, client=client
-                )
+                sv_proxy = await get_panel(service.server_id).get_user(proxy.username)
                 if not sv_proxy:
                     raise ApiUserError("reset data usage didn't return anything!")
-                if not sv_proxy.status == UserStatus.ACTIVE:
+                if not sv_proxy.status == PanelUserStatus.active:
                     text = "🚫 به دلیل فعال نبودن اشتراک در حال حاضر امکان رزرو پلن پشتیبان وجود ندارد!"
                     if isinstance(qmsg, CallbackQuery):
                         return await qmsg.answer(text, show_alert=True)

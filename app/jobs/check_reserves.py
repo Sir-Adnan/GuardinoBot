@@ -7,13 +7,9 @@ from tortoise.transactions import in_transaction
 from app.jobs import logger
 from app.keyboards.user.proxy import ProxySettings
 from app.main import bot, scheduler
-from app.marzban import Marzban
 from app.models.proxy import Proxy, ProxyStatus, Reserve
+from app.panels import PanelError, get_panel
 from app.utils import helpers
-from marzban_client.api.user import modify_user, reset_user_data_usage
-from marzban_client.models.user_modify import UserModify
-from marzban_client.models.user_modify_inbounds import UserModifyInbounds
-from marzban_client.models.user_modify_proxies import UserModifyProxies
 
 
 async def activate_reserve(proxy_id: int) -> None:
@@ -25,26 +21,19 @@ async def activate_reserve(proxy_id: int) -> None:
     await proxy.reserve.fetch_related("service")
     service = proxy.reserve.service
     async with in_transaction():
-        client = Marzban.get_server(service.server_id)
-        resp = await reset_user_data_usage.asyncio_detailed(
-            username=proxy.username, client=client
-        )
-        if resp.status_code == 404:
-            await Reserve.filter(proxy_id=proxy.id).delete()
-            await Proxy.filter(id=proxy.id).update(status=ProxyStatus.disabled)
+        panel = get_panel(service.server_id)
+        try:
+            sv_proxy = await panel.reset_usage(proxy.username)
+        except PanelError as exc:
+            if exc.status_code == 404:
+                await Reserve.filter(proxy_id=proxy.id).delete()
+                await Proxy.filter(id=proxy.id).update(status=ProxyStatus.disabled)
+                logger.error(
+                    f"Activating reserve: {proxy.id}:{proxy.username}: proxy not found on server"
+                )
+                return
             logger.error(
-                f"Activating reserve: {proxy.id}:{proxy.username}: proxy not found on server"
-            )
-            return
-        elif resp.status_code == 403:
-            logger.error(
-                f"Activating reserve: {proxy.id}:{proxy.username}: 403 returned from server"
-            )
-            return
-        sv_proxy = resp.parsed
-        if not sv_proxy:
-            logger.error(
-                f"Activating reserve: {proxy.id}:{proxy.username}: reset data usage didn't return anything!"
+                f"Activating reserve: {proxy.id}:{proxy.username}: {exc.status_code} returned from server"
             )
             return
 
@@ -56,42 +45,28 @@ async def activate_reserve(proxy_id: int) -> None:
             and proxy.service.data_limit
             and proxy.service.append_available_data_renew
         ):
-            data_limit = data_limit + (sv_proxy.data_limit - sv_proxy.used_traffic)
-        updated_user = UserModify(
-            expire=helpers.get_expire_timestamp(service.expire_duration)
-            if service.expire_duration
-            else 0,
-            data_limit=data_limit,
-            data_limit_reset_strategy=service.usage_reset_strategy
-            if service.data_limit
-            else service.UsageResetStrategy.no_reset,
-        )
+            data_limit = data_limit + ((sv_proxy.data_limit or 0) - sv_proxy.used_traffic)
         if service.id != proxy.service_id:
             proxy.service_id = service.id
-        inbounds = await service.get_inbounds()
-        updated_user.inbounds = UserModifyInbounds.from_dict(inbounds)
-        proxies = {}
-        for protocol in inbounds:
-            if protocol in sv_proxy.proxies.additional_properties:
-                proxies.update(
-                    {protocol: sv_proxy.proxies.additional_properties.get(protocol)}
-                )
-            else:
-                proxies.update({protocol: service.create_proxy_protocols(protocol)})
-        updated_user.proxies = UserModifyProxies.from_dict(proxies)
-        sv_proxy = await modify_user.asyncio(
-            username=proxy.username,
-            body=updated_user,
-            client=client,
+
+        # Panel-agnostic re-provisioning (Marzban: inbounds/proxies carry-over;
+        # PasarGuard: group_ids). Caller fills expire/data_limit/reset.
+        params = await panel.service_modify_params(service, existing=sv_proxy)
+        params.expire = (
+            helpers.get_expire_timestamp(service.expire_duration)
+            if service.expire_duration
+            else 0
         )
+        params.data_limit = data_limit
+        params.data_limit_reset_strategy = (
+            service.usage_reset_strategy.value
+            if service.data_limit
+            else service.UsageResetStrategy.no_reset.value
+        )
+        sv_proxy = await panel.modify_user(proxy.username, params)
         proxy.status = sv_proxy.status.value
         await proxy.save()
         await Reserve.filter(proxy_id=proxy.id).delete()
-        if not sv_proxy:
-            logger.error(
-                f"Activating reserve: {proxy.id}:{proxy.username}: modify user didn't return anything!"
-            )
-            return
     text = f"""
 ✅ پلن پشتیبان برای پروکسی <code>{proxy.username}</code> فعال شد!
 """

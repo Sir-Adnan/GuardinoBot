@@ -6,13 +6,24 @@ from aiohttp import web
 from app.jobs.check_reserves import activate_reserve
 from app.keyboards.user.proxy import ProxySettings
 from app.main import bot, scheduler
-from app.models.proxy import Proxy, Reserve
+from app.models.proxy import Proxy, ProxyStatus, Reserve
 from app.utils.settings import get_settings
-from marzban_client.models.user_response import UserResponse
 
 from . import logger
 
 routes = web.RouteTableDef()
+
+
+def _proxy_status_from(notification: dict) -> ProxyStatus | None:
+    """Read the user's status from a panel webhook payload, panel-agnostic.
+
+    All supported panels send the same status strings (active/disabled/limited/
+    expired/on_hold) under ``user.status``. Returns None if absent/unknown."""
+    raw = (notification.get("user") or {}).get("status")
+    try:
+        return ProxyStatus(str(raw))
+    except (ValueError, TypeError):
+        return None
 
 
 def validated_webhook_secret(request: web.Request) -> bool:
@@ -51,8 +62,9 @@ async def marzban_webhook_requests(request: web.Request):
 """
 
         if action == "user_limited":
-            sv_proxy = UserResponse.from_dict(notification.get("user"))
-            await Proxy.filter(id=proxy.id).update(status=sv_proxy.status)
+            status = _proxy_status_from(notification)
+            if status is not None:
+                await Proxy.filter(id=proxy.id).update(status=status)
             text += "🔒 اشتراک به دلیل اتمام حجم محدود شد!"
             await bot.send_message(
                 proxy.user_id,
@@ -73,8 +85,9 @@ async def marzban_webhook_requests(request: web.Request):
                 )
 
         elif action == "user_expired":
-            sv_proxy = UserResponse.from_dict(notification.get("user"))
-            await Proxy.filter(id=proxy.id).update(status=sv_proxy.status)
+            status = _proxy_status_from(notification)
+            if status is not None:
+                await Proxy.filter(id=proxy.id).update(status=status)
             text += "⏳ اشتراک به دلیل اتمام دوره منقضی شد!"
             await bot.send_message(
                 proxy.user_id,
@@ -82,8 +95,9 @@ async def marzban_webhook_requests(request: web.Request):
                 reply_markup=ProxySettings(proxy=proxy).as_markup(),
             )
         elif action == "user_enabled":
-            sv_proxy = UserResponse.from_dict(notification.get("user"))
-            await Proxy.filter(id=proxy.id).update(status=sv_proxy.status)
+            status = _proxy_status_from(notification)
+            if status is not None:
+                await Proxy.filter(id=proxy.id).update(status=status)
             text += "✅ اشتراک فعال شد!"
             await bot.send_message(
                 proxy.user_id,
@@ -91,8 +105,9 @@ async def marzban_webhook_requests(request: web.Request):
                 reply_markup=ProxySettings(proxy=proxy).as_markup(),
             )
         elif action == "user_disabled":
-            sv_proxy = UserResponse.from_dict(notification.get("user"))
-            await Proxy.filter(id=proxy.id).update(status=sv_proxy.status)
+            status = _proxy_status_from(notification)
+            if status is not None:
+                await Proxy.filter(id=proxy.id).update(status=status)
             text += "❌ اشتراک غیرفعال شد!"
             await bot.send_message(
                 proxy.user_id,
