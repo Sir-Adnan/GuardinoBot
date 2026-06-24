@@ -117,8 +117,15 @@ class ServiceAct(InlineKeyboardBuilder):
         action: ServiceActAction
         confirmed: bool = False
 
-    def __init__(self, service: Service, *args, **kwargs) -> None:
+    def __init__(
+        self, service: Service, panel_type: str | None = None, *args, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
+        pt = panel_type or "marzban"
+        is_marzban = pt == "marzban"
+        is_guardino = pt == "guardino"
+        is_pasarguard = pt == "pasarguard"
+
         self.button(
             text="حذف سرویس",
             callback_data=self.Callback(
@@ -156,12 +163,15 @@ class ServiceAct(InlineKeyboardBuilder):
                 service_id=service.id, action=ServiceActAction.flip_is_test_service
             ),
         )
-        self.button(
-            text=f"شروع از اولین اتصال: {'✅' if service.create_on_hold_users else '❌'}",
-            callback_data=self.Callback(
-                service_id=service.id, action=ServiceActAction.flip_create_on_hold_users
-            ),
-        )
+        # on_hold ("start on first connect") isn't mapped for Guardino.
+        if not is_guardino:
+            self.button(
+                text=f"شروع از اولین اتصال: {'✅' if service.create_on_hold_users else '❌'}",
+                callback_data=self.Callback(
+                    service_id=service.id,
+                    action=ServiceActAction.flip_create_on_hold_users,
+                ),
+            )
         self.button(
             text=f"بازنشانی خودکار حجم: {USAGE_RESET_STRATEGY.get(service.usage_reset_strategy)}",
             callback_data=self.Callback(
@@ -176,32 +186,44 @@ class ServiceAct(InlineKeyboardBuilder):
                 action=ServiceActAction.flip_append_available_data_renew,
             ),
         )
-        self.button(
-            text=f"ارسال همه اینباند‌ها: {'✅' if service.all_inbounds else '❌'}",
-            callback_data=self.Callback(
-                service_id=service.id,
-                action=ServiceActAction.flip_all_inbounds,
-                confirmed=True,
-            ),
+        # "send all inbounds" + "vless flow" are Marzban-only concepts.
+        if is_marzban:
+            self.button(
+                text=f"ارسال همه اینباند‌ها: {'✅' if service.all_inbounds else '❌'}",
+                callback_data=self.Callback(
+                    service_id=service.id,
+                    action=ServiceActAction.flip_all_inbounds,
+                    confirmed=True,
+                ),
+            )
+        # network edit: inbounds (Marzban) / groups (PasarGuard) / nodes (Guardino).
+        edit_net_label = (
+            "ویرایش نودها"
+            if is_guardino
+            else ("ویرایش گروه‌ها" if is_pasarguard else "ویرایش اینباند‌ها")
         )
         self.button(
-            text="ویرایش اینباند‌ها",
+            text=edit_net_label,
             callback_data=self.Callback(
                 service_id=service.id, action=ServiceActAction.edit_inbounds
             ),
         )
-        self.button(
-            text=f"vless flow: {service.flow.value}",
-            callback_data=self.Callback(
-                service_id=service.id, action=ServiceActAction.cycle_flow
-            ),
-        )
-        self.button(
-            text="اعمال تنظیمات برای کاربران قبلی",
-            callback_data=self.Callback(
-                service_id=service.id, action=ServiceActAction.apply_inbounds_to_users
-            ),
-        )
+        if is_marzban:
+            self.button(
+                text=f"vless flow: {service.flow.value}",
+                callback_data=self.Callback(
+                    service_id=service.id, action=ServiceActAction.cycle_flow
+                ),
+            )
+        # re-applying provisioning to existing users is a no-op for Guardino.
+        if not is_guardino:
+            self.button(
+                text="اعمال تنظیمات برای کاربران قبلی",
+                callback_data=self.Callback(
+                    service_id=service.id,
+                    action=ServiceActAction.apply_inbounds_to_users,
+                ),
+            )
         self.button(
             text="ویرایش سرویس",
             callback_data=self.Callback(
@@ -226,7 +248,7 @@ class ServiceAct(InlineKeyboardBuilder):
                 action=admin.AdminPanelAction.services
             ),
         )
-        self.adjust(1, 1, 2, 1, 1)
+        self.adjust(1)
 
 
 class ServiceActLimitAction(str, Enum):

@@ -239,7 +239,7 @@ async def get_service_expire_duration(message: Message, user: User, state: FSMCo
             elif symbol == "D":
                 expire_duration += 86400 * number
             elif symbol == "M":
-                expire_duration += 2592000 * number
+                expire_duration += 2678400 * number
             elif symbol == "Y":
                 expire_duration = 31104000 * number
         else:
@@ -299,6 +299,15 @@ async def get_service_server_id(
     await state.set_state(AddServiceForm.inbounds)
 
     if _is_guardino(server):
+        ed = data.get("expire_duration") or 0
+        if 0 < ed < 86400:
+            # Guardino only supports whole days; block a sub-day service here.
+            await state.set_state(AddServiceForm.expire_duration)
+            return await query.message.answer(
+                "❌ گاردینو مدت کمتر از ۱ روز را پشتیبانی نمی‌کند.\n"
+                "لطفاً مدت سرویس را حداقل ۱ روز وارد کنید (مثلاً 1d یا 1m):",
+                reply_markup=cancel_form,
+            )
         nodes = (await get_panel(server.id).get_inbounds()).get("nodes", [])
         await state.update_data(node_ids=[])
         return await query.message.edit_text(
@@ -828,6 +837,9 @@ async def save_new_service(
     if server and _is_guardino(server):
         node_ids = data.get("node_ids") or []
         await state.clear()
+        await query.message.answer(
+            "✅ سرویس ساخته شد!", reply_markup=ReplyKeyboardRemove()
+        )
         service = await Service.create(
             name=data.get("name"),
             data_limit=data.get("data_limit"),
@@ -851,6 +863,9 @@ async def save_new_service(
         if not group_ids:
             return await query.answer("هیچ گروهی انتخاب نشده است!", show_alert=True)
         await state.clear()
+        await query.message.answer(
+            "✅ سرویس ساخته شد!", reply_markup=ReplyKeyboardRemove()
+        )
         service = await Service.create(
             name=data.get("name"),
             data_limit=data.get("data_limit"),
@@ -880,6 +895,7 @@ async def save_new_service(
         return await query.answer("هیچ اینباندی انتخاب نشده است!", show_alert=True)
 
     await state.clear()
+    await query.message.answer("✅ سرویس ساخته شد!", reply_markup=ReplyKeyboardRemove())
     service = await Service.create(
         name=data.get("name"),
         data_limit=data.get("data_limit"),
@@ -920,7 +936,15 @@ async def show_service(
         await query.answer("سرویس یافت نشد!", show_alert=True)
         return await show_services(query, user)
 
-    if _is_pasarguard(service.server):
+    if _is_guardino(service.server):
+        cfg = service.panel_config or {}
+        network_repr = (
+            "نودها (Guardino): <code>"
+            + json.dumps(cfg.get("node_ids", []))
+            + f"</code>\nحالت قیمت: <code>{cfg.get('pricing_mode', 'per_node')}</code>"
+            + f"\nسیاست لینک: <code>{getattr(service.server.link_policy, 'value', service.server.link_policy)}</code>"
+        )
+    elif _is_pasarguard(service.server):
         network_repr = (
             "گروه‌ها (PasarGuard): <code>"
             + json.dumps((service.panel_config or {}).get("group_ids", []))
@@ -942,8 +966,12 @@ async def show_service(
 
 راهنما: https://t.me/c/2001448048/43
     """
+    panel_type = getattr(
+        service.server.panel_type, "value", service.server.panel_type
+    )
     await query.message.edit_text(
-        text, reply_markup=ServiceAct(service=service).as_markup()
+        text,
+        reply_markup=ServiceAct(service=service, panel_type=panel_type).as_markup(),
     )
 
 
@@ -1526,14 +1554,19 @@ async def edit_service_save(
             "تغییری ایجاد نشده است! دکمه لغو را کلیک کنید.", show_alert=True
         )
 
-    selected_inbounds: dict[str, list[str]] = data.get("inbounds") or service.inbounds
-    if not selected_inbounds:
-        return await query.answer("پروتکلی انتخاب نشده است!", show_alert=True)
-
-    if not any(
-        [False if not inbounds else True for inbounds in selected_inbounds.values()]
-    ):
-        return await query.answer("اینباندی انتخاب نشده است!", show_alert=True)
+    # Only Marzban provisions via inbounds; PasarGuard/Guardino use panel_config,
+    # so their services legitimately have empty inbounds — don't block the edit.
+    server = await Server.filter(id=service.server_id).first()
+    if not (server and (_is_pasarguard(server) or _is_guardino(server))):
+        selected_inbounds: dict[str, list[str]] = (
+            data.get("inbounds") or service.inbounds
+        )
+        if not selected_inbounds:
+            return await query.answer("پروتکلی انتخاب نشده است!", show_alert=True)
+        if not any(
+            [False if not inbounds else True for inbounds in selected_inbounds.values()]
+        ):
+            return await query.answer("اینباندی انتخاب نشده است!", show_alert=True)
 
     await service.update_from_dict(data).save()
     await state.clear()
@@ -1689,7 +1722,7 @@ async def get_service_expire_duration(message: Message, user: User, state: FSMCo
             elif symbol == "D":
                 expire_duration += 86400 * number
             elif symbol == "M":
-                expire_duration += 2592000 * number
+                expire_duration += 2678400 * number
             elif symbol == "Y":
                 expire_duration = 31104000 * number
         else:
@@ -1697,6 +1730,12 @@ async def get_service_expire_duration(message: Message, user: User, state: FSMCo
     except ValueError:
         return await message.answer(
             "❌ فرمت ارسالی نامعتبر است! دوباره تلاش کنید:",
+            reply_markup=cancel_form,
+        )
+    server = await Server.filter(id=service.server_id).first()
+    if server and _is_guardino(server) and 0 < expire_duration < 86400:
+        return await message.answer(
+            "❌ گاردینو مدت کمتر از ۱ روز را پشتیبانی نمی‌کند؛ حداقل ۱ روز (مثلاً 1d) وارد کنید:",
             reply_markup=cancel_form,
         )
     if service.expire_duration == expire_duration:
@@ -1850,7 +1889,7 @@ async def bulk_update_service_select(
                         elif symbol == "D":
                             value = 86400 * number
                         elif symbol == "M":
-                            value = 2592000 * number
+                            value = 2678400 * number
                         elif symbol == "Y":
                             value = 31104000 * number
                         else:

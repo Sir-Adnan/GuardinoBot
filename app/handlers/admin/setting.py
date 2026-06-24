@@ -1571,6 +1571,7 @@ async def get_pay_buttons(message: Message, user: User, state: FSMContext):
     )
     await state.clear()
     await settings.reload_settings()
+    await message.answer("✅ ذخیره شد.", reply_markup=ReplyKeyboardRemove())
     text = """
 شکل قرارگیری دکمه‌های انتخاب مبلغ پرداخت:
 """

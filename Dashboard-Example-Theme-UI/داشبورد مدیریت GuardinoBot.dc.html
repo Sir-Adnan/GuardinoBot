@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:8px; border:3px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  .ms{ font-family:'Material Symbols Rounded'; font-weight:normal; font-style:normal; line-height:1; letter-spacing:normal; text-transform:none; display:inline-block; white-space:nowrap; direction:ltr; -webkit-font-feature-settings:'liga'; -webkit-font-smoothing:antialiased; }
+  .gb[data-theme="dark"]{
+    --bg:oklch(0.165 0.012 255); --bg2:oklch(0.195 0.013 255); --surface:oklch(0.215 0.014 255); --surface2:oklch(0.245 0.015 255);
+    --border:oklch(0.30 0.015 255); --border2:oklch(0.36 0.016 255);
+    --text:oklch(0.96 0.005 255); --muted:oklch(0.67 0.014 255); --faint:oklch(0.52 0.014 255);
+    --accent:oklch(0.78 0.15 158); --accent-ink:oklch(0.22 0.05 158); --accent-soft:oklch(0.78 0.15 158 / 0.15);
+    --g-fg:oklch(0.84 0.14 158); --g-bg:oklch(0.78 0.15 158 / 0.15);
+    --r-fg:oklch(0.76 0.16 22); --r-bg:oklch(0.66 0.17 22 / 0.17);
+    --a-fg:oklch(0.86 0.13 82); --a-bg:oklch(0.80 0.13 82 / 0.15);
+    --b-fg:oklch(0.80 0.12 242); --b-bg:oklch(0.72 0.13 242 / 0.16);
+    --v-fg:oklch(0.80 0.13 300); --v-bg:oklch(0.72 0.14 300 / 0.16);
+    --n-fg:oklch(0.72 0.012 255); --n-bg:oklch(0.62 0.02 255 / 0.14);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -8px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 60px -20px rgba(0,0,0,.7);
+    color-scheme:dark;
+  }
+  .gb[data-theme="light"]{
+    --bg:oklch(0.975 0.004 255); --bg2:oklch(1 0 0); --surface:oklch(1 0 0); --surface2:oklch(0.982 0.004 255);
+    --border:oklch(0.915 0.006 255); --border2:oklch(0.88 0.007 255);
+    --text:oklch(0.27 0.013 255); --muted:oklch(0.50 0.015 255); --faint:oklch(0.64 0.013 255);
+    --accent:oklch(0.58 0.14 158); --accent-ink:oklch(0.98 0.02 158); --accent-soft:oklch(0.58 0.14 158 / 0.11);
+    --g-fg:oklch(0.52 0.14 158); --g-bg:oklch(0.58 0.14 158 / 0.12);
+    --r-fg:oklch(0.55 0.19 25); --r-bg:oklch(0.62 0.19 25 / 0.12);
+    --a-fg:oklch(0.58 0.12 72); --a-bg:oklch(0.72 0.13 72 / 0.16);
+    --b-fg:oklch(0.52 0.15 250); --b-bg:oklch(0.55 0.15 250 / 0.12);
+    --v-fg:oklch(0.52 0.16 300); --v-bg:oklch(0.55 0.16 300 / 0.12);
+    --n-fg:oklch(0.50 0.013 255); --n-bg:oklch(0.55 0.02 255 / 0.10);
+    --shadow:0 1px 2px rgba(16,22,34,.06),0 8px 24px -12px rgba(16,22,34,.12);
+    --shadow-lg:0 24px 60px -20px rgba(16,22,34,.22);
+    color-scheme:light;
+  }
+  @keyframes gbpulse{ 0%,100%{ opacity:.5; } 50%{ opacity:1; } }
+  @keyframes gbin{ from{ transform:translateY(7px); } to{ transform:none; } }
+  @keyframes gbslide{ from{ transform:translateX(-32px); opacity:0; } to{ transform:none; opacity:1; } }
+</style>
+</helmet>
+<div class="gb" dir="rtl" data-theme="{{ theme }}" style="font-family:'Vazirmatn',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; width:100%; font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;">
+
+  <div style="display:grid; grid-template-columns:266px 1fr; min-height:100vh;">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside style="background:var(--bg2); border-inline-start:1px solid var(--border); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow:hidden;">
+      <div style="display:flex; align-items:center; gap:11px; padding:20px 20px 18px;">
+        <div style="width:40px; height:40px; border-radius:11px; background:linear-gradient(150deg,var(--accent),oklch(0.62 0.15 168)); display:grid; place-items:center; color:var(--accent-ink); box-shadow:0 6px 16px -6px var(--accent-soft); flex:none;">
+          <span class="ms" style="font-size:24px;">shield_person</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-weight:800; font-size:16px; letter-spacing:-.2px;">GuardinoBot</div>
+          <div style="font-size:11.5px; color:var(--muted); font-weight:500;">پنل مدیریت فروش</div>
+        </div>
+      </div>
+
+      <nav style="flex:1; overflow-y:auto; padding:4px 12px 16px;">
+        <div style="font-size:10.5px; font-weight:700; color:var(--faint); letter-spacing:.6px; padding:10px 10px 7px;">عملیات فروش</div>
+        <sc-for list="{{ navTop }}" as="item" hint-placeholder-count="4">
+          <a onClick="{{ item.go }}" style="display:flex; align-items:center; gap:12px; padding:10px 11px; border-radius:10px; cursor:pointer; margin-bottom:2px; font-weight:600; font-size:13.5px; color:{{ item.fg }}; background:{{ item.bg }}; position:relative; transition:background .14s,color .14s; user-select:none;" style-hover="background:var(--surface);">
+            <span class="ms" style="font-size:21px; opacity:{{ item.iconOp }};">{{ item.icon }}</span>
+            <span style="flex:1;">{{ item.label }}</span>
+            <span style="min-width:22px; height:20px; padding:0 6px; border-radius:7px; background:{{ item.badgeBg }}; color:{{ item.badgeFg }}; font-size:11px; font-weight:700; display:{{ item.badgeShow }}; align-items:center; justify-content:center; font-family:'IBM Plex Mono';">{{ item.badge }}</span>
+            <span style="position:absolute; inset-inline-start:-12px; top:50%; transform:translateY(-50%); width:3px; height:22px; border-radius:3px; background:var(--accent); opacity:{{ item.barOp }};"></span>
+          </a>
+        </sc-for>
+
+        <div style="font-size:10.5px; font-weight:700; color:var(--faint); letter-spacing:.6px; padding:16px 10px 7px;">مدیریت سیستم</div>
+        <sc-for list="{{ navBottom }}" as="item" hint-placeholder-count="4">
+          <a onClick="{{ item.go }}" style="display:flex; align-items:center; gap:12px; padding:10px 11px; border-radius:10px; cursor:pointer; margin-bottom:2px; font-weight:600; font-size:13.5px; color:{{ item.fg }}; background:{{ item.bg }}; position:relative; transition:background .14s,color .14s; user-select:none;" style-hover="background:var(--surface);">
+            <span class="ms" style="font-size:21px; opacity:{{ item.iconOp }};">{{ item.icon }}</span>
+            <span style="flex:1;">{{ item.label }}</span>
+            <span style="min-width:22px; height:20px; padding:0 6px; border-radius:7px; background:{{ item.badgeBg }}; color:{{ item.badgeFg }}; font-size:11px; font-weight:700; display:{{ item.badgeShow }}; align-items:center; justify-content:center; font-family:'IBM Plex Mono';">{{ item.badge }}</span>
+            <span style="position:absolute; inset-inline-start:-12px; top:50%; transform:translateY(-50%); width:3px; height:22px; border-radius:3px; background:var(--accent); opacity:{{ item.barOp }};"></span>
+          </a>
+        </sc-for>
+      </nav>
+
+      <div style="padding:12px; border-top:1px solid var(--border);">
+        <div style="display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:11px; background:var(--surface);">
+          <div style="width:34px; height:34px; border-radius:9px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; font-weight:700; flex:none;">آ</div>
+          <div style="min-width:0; flex:1;">
+            <div style="font-weight:700; font-size:13px;">آرمین رستمی</div>
+            <div style="font-size:11px; color:var(--muted);">ادمین اصلی · super_user</div>
+          </div>
+          <span class="ms" style="font-size:18px; color:var(--muted);">unfold_more</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <div style="display:flex; flex-direction:column; min-width:0;">
+
+      <!-- TOPBAR -->
+      <header style="position:sticky; top:0; z-index:30; background:color-mix(in oklch, var(--bg) 82%, transparent); backdrop-filter:blur(14px); border-bottom:1px solid var(--border); padding:14px 26px; display:flex; align-items:center; gap:18px;">
+        <div style="min-width:0;">
+          <div style="font-size:18px; font-weight:800; letter-spacing:-.3px;">{{ pageTitle }}</div>
+          <div style="font-size:12.5px; color:var(--muted);">{{ pageSub }}</div>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:8px 13px; min-width:230px;">
+          <span class="ms" style="font-size:19px; color:var(--muted);">search</span>
+          <input placeholder="جستجوی کاربر، سفارش، اشتراک…" style="border:0; outline:0; background:transparent; color:var(--text); font-family:inherit; font-size:13px; width:100%;" />
+          <span style="font-family:'IBM Plex Mono'; font-size:11px; color:var(--faint); border:1px solid var(--border); border-radius:5px; padding:1px 5px;">/</span>
+        </div>
+        <button onClick="{{ toggleLang }}" style="display:flex; align-items:center; gap:6px; height:40px; padding:0 13px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; font-family:inherit; font-weight:600; font-size:12.5px;" style-hover="border-color:var(--border2);">
+          <span class="ms" style="font-size:18px;">translate</span>{{ langLabel }}
+        </button>
+        <button onClick="{{ toggleTheme }}" title="تغییر تم" style="width:40px; height:40px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; display:grid; place-items:center;" style-hover="border-color:var(--border2);">
+          <span class="ms" style="font-size:20px;">{{ themeIcon }}</span>
+        </button>
+        <button style="width:40px; height:40px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; display:grid; place-items:center; position:relative;" style-hover="border-color:var(--border2);">
+          <span class="ms" style="font-size:20px;">notifications</span>
+          <span style="position:absolute; top:8px; inset-inline-end:9px; width:7px; height:7px; border-radius:50%; background:var(--r-fg); border:1.5px solid var(--surface);"></span>
+        </button>
+      </header>
+
+      <main style="padding:24px 26px 56px; min-width:0;">
+
+        <!-- ====================== DASHBOARD ====================== -->
+        <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+        <div style="animation:gbin .35s ease both;">
+          <!-- KPI ROW -->
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:16px;">
+            <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:17px 18px; box-shadow:var(--shadow); position:relative; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                  <div style="width:38px; height:38px; border-radius:11px; background:{{ k.bg }}; color:{{ k.fg }}; display:grid; place-items:center;">
+                    <span class="ms" style="font-size:21px;">{{ k.icon }}</span>
+                  </div>
+                  <div style="display:inline-flex; align-items:center; gap:3px; font-size:12px; font-weight:700; color:{{ k.deltaFg }}; background:{{ k.deltaBg }}; padding:3px 8px; border-radius:8px;">
+                    <span class="ms" style="font-size:15px;">{{ k.deltaIcon }}</span>{{ k.delta }}
+                  </div>
+                </div>
+                <div style="font-size:25px; font-weight:800; letter-spacing:-.5px; font-family:'IBM Plex Mono';">{{ k.value }}<span style="font-size:13px; font-weight:600; color:var(--muted); font-family:'Vazirmatn'; margin-inline-start:5px;">{{ k.unit }}</span></div>
+                <div style="font-size:12.5px; color:var(--muted); margin-top:3px;">{{ k.label }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- MAIN GRID -->
+          <div style="display:grid; grid-template-columns:1.55fr 1fr; gap:16px; margin-bottom:16px;">
+            <!-- SALES CHART -->
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:18px;">
+                <div>
+                  <div style="font-weight:700; font-size:15px;">روند فروش</div>
+                  <div style="font-size:12px; color:var(--muted);">۱۴ روز گذشته · تومان</div>
+                </div>
+                <div style="display:flex; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:3px;">
+                  <span style="font-size:12px; font-weight:700; padding:5px 11px; border-radius:7px; background:var(--accent); color:var(--accent-ink);">روزانه</span>
+                  <span style="font-size:12px; font-weight:600; padding:5px 11px; border-radius:7px; color:var(--muted); cursor:pointer;">هفتگی</span>
+                  <span style="font-size:12px; font-weight:600; padding:5px 11px; border-radius:7px; color:var(--muted); cursor:pointer;">ماهانه</span>
+                </div>
+              </div>
+              <div style="display:flex; align-items:flex-end; gap:7px; height:178px; padding-top:8px;">
+                <sc-for list="{{ salesBars }}" as="b" hint-placeholder-count="14">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;" title="{{ b.full }}">
+                    <div style="width:100%; border-radius:6px 6px 3px 3px; background:{{ b.fill }}; height:{{ b.h }}; min-height:5px; transition:height .5s cubic-bezier(.2,.7,.2,1);"></div>
+                    <div style="font-size:10px; color:var(--faint); font-family:'IBM Plex Mono';">{{ b.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- LOW BALANCE / ALERTS -->
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow); display:flex; flex-direction:column;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <div style="font-weight:700; font-size:15px;">هشدارها و وضعیت</div>
+                <span style="font-size:11.5px; color:var(--accent); font-weight:600; cursor:pointer;">همه</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="4">
+                  <div style="display:flex; gap:11px; padding:12px; border-radius:12px; background:var(--surface2); border:1px solid var(--border);">
+                    <div style="width:30px; height:30px; border-radius:9px; background:{{ a.bg }}; color:{{ a.fg }}; display:grid; place-items:center; flex:none;">
+                      <span class="ms" style="font-size:18px;">{{ a.icon }}</span>
+                    </div>
+                    <div style="min-width:0;">
+                      <div style="font-size:13px; font-weight:600; line-height:1.45;">{{ a.title }}</div>
+                      <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">{{ a.time }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL HEALTH + RECENT ORDERS -->
+          <div style="display:grid; grid-template-columns:1fr 1.55fr; gap:16px;">
+            <!-- PANEL HEALTH -->
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow);">
+              <div style="font-weight:700; font-size:15px; margin-bottom:4px;">سلامت پنل‌ها</div>
+              <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">اتصال آداپتر چندپنلی</div>
+              <div style="display:flex; flex-direction:column; gap:13px;">
+                <sc-for list="{{ panels }}" as="p" hint-placeholder-count="4">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="width:9px; height:9px; border-radius:50%; background:{{ p.dot }}; box-shadow:0 0 0 4px {{ p.dotHalo }}; flex:none; animation:gbpulse 2.4s ease-in-out infinite;"></div>
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:13px; font-weight:600;">{{ p.name }}</div>
+                      <div style="display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); font-family:'IBM Plex Mono';">{{ p.type }} · {{ p.users }} کاربر</div>
+                    </div>
+                    <div style="text-align:end;">
+                      <div style="font-size:12px; font-weight:700; color:{{ p.latFg }}; font-family:'IBM Plex Mono';">{{ p.latency }}</div>
+                      <div style="font-size:10.5px; color:var(--faint);">{{ p.statusFa }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- RECENT ORDERS -->
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 20px 8px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <div style="font-weight:700; font-size:15px;">سفارش‌های اخیر</div>
+                <span onClick="{{ goOrders }}" style="font-size:11.5px; color:var(--accent); font-weight:600; cursor:pointer;">مشاهده همه</span>
+              </div>
+              <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                  <tr style="color:var(--faint); font-size:11px; text-align:start;">
+                    <th style="text-align:start; font-weight:600; padding:0 0 9px;">کاربر</th>
+                    <th style="text-align:start; font-weight:600; padding:0 0 9px;">پلن</th>
+                    <th style="text-align:start; font-weight:600; padding:0 0 9px;">مبلغ</th>
+                    <th style="text-align:start; font-weight:600; padding:0 0 9px;">درگاه</th>
+                    <th style="text-align:end; font-weight:600; padding:0 0 9px;">وضعیت</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ recentOrders }}" as="o" hint-placeholder-count="6">
+                    <tr style="border-top:1px solid var(--border);">
+                      <td style="padding:11px 0;">
+                        <div style="font-weight:600;">{{ o.user }}</div>
+                        <div style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono';">{{ o.tg }}</div>
+                      </td>
+                      <td style="padding:11px 0; color:var(--muted);">{{ o.plan }}</td>
+                      <td style="padding:11px 0; font-family:'IBM Plex Mono'; font-weight:600;">{{ o.amount }}</td>
+                      <td style="padding:11px 0; color:var(--muted);">{{ o.gateway }}</td>
+                      <td style="padding:11px 0; text-align:end;">
+                        <span style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600; color:{{ o.stFg }}; background:{{ o.stBg }};">{{ o.status }}</span>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== USERS ====================== -->
+        <sc-if value="{{ isUsers }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .35s ease both;">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+            <sc-for list="{{ userChips }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; gap:9px; padding:9px 14px; border-radius:12px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow);">
+                <span class="ms" style="font-size:18px; color:{{ c.fg }};">{{ c.icon }}</span>
+                <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:15px;">{{ c.value }}</span>
+                <span style="font-size:12px; color:var(--muted);">{{ c.label }}</span>
+              </div>
+            </sc-for>
+            <div style="flex:1;"></div>
+            <button style="display:flex; align-items:center; gap:7px; padding:10px 16px; border-radius:11px; border:0; background:var(--accent); color:var(--accent-ink); font-family:inherit; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 8px 20px -8px var(--accent-soft);">
+              <span class="ms" style="font-size:18px;">person_add</span>کاربر جدید
+            </button>
+          </div>
+
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border);">
+              <div style="display:flex; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:3px;">
+                <sc-for list="{{ userFilters }}" as="f" hint-placeholder-count="4">
+                  <span onClick="{{ f.go }}" style="font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:7px; cursor:pointer; color:{{ f.fg }}; background:{{ f.bg }};">{{ f.label }}</span>
+                </sc-for>
+              </div>
+              <div style="flex:1;"></div>
+              <div style="display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12.5px;"><span class="ms" style="font-size:17px;">filter_list</span>فیلتر</div>
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="color:var(--faint); font-size:11.5px; background:var(--surface2);">
+                  <th style="text-align:start; font-weight:600; padding:11px 18px;">کاربر</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">نقش</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">پلن فعال</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">پنل</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">مصرف</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">انقضا</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">وضعیت</th>
+                  <th style="text-align:end; font-weight:600; padding:11px 18px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ users }}" as="u" hint-placeholder-count="8">
+                  <tr style="border-top:1px solid var(--border); cursor:pointer;" style-hover="background:var(--surface2);" onClick="{{ u.open }}">
+                    <td style="padding:13px 18px;">
+                      <div style="display:flex; align-items:center; gap:11px;">
+                        <div style="width:34px; height:34px; border-radius:10px; background:{{ u.avBg }}; color:{{ u.avFg }}; display:grid; place-items:center; font-weight:700; font-size:13px; flex:none;">{{ u.initial }}</div>
+                        <div style="min-width:0;">
+                          <div style="font-weight:600;">{{ u.name }}</div>
+                          <div style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono';">{{ u.tg }}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style="padding:13px 8px;"><span style="font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; color:{{ u.roleFg }}; background:{{ u.roleBg }};">{{ u.role }}</span></td>
+                    <td style="padding:13px 8px; color:var(--muted);">{{ u.plan }}</td>
+                    <td style="padding:13px 8px;"><span style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:7px; color:{{ u.panelFg }}; background:{{ u.panelBg }}; font-family:'IBM Plex Mono';">{{ u.panel }}</span></td>
+                    <td style="padding:13px 8px; min-width:130px;">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; height:6px; border-radius:4px; background:var(--surface2); overflow:hidden;"><div style="height:100%; width:{{ u.usePct }}; background:{{ u.useFill }}; border-radius:4px;"></div></div>
+                        <span style="font-size:11px; color:var(--muted); font-family:'IBM Plex Mono'; white-space:nowrap;">{{ u.traffic }}</span>
+                      </div>
+                    </td>
+                    <td style="padding:13px 8px; font-family:'IBM Plex Mono'; font-size:12.5px; color:{{ u.expFg }};">{{ u.expire }}</td>
+                    <td style="padding:13px 8px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:{{ u.stFg }};"><span style="width:6px; height:6px; border-radius:50%; background:{{ u.stFg }};"></span>{{ u.status }}</span></td>
+                    <td style="padding:13px 18px; text-align:end;"><span class="ms" style="font-size:19px; color:var(--faint);">chevron_left</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== ORDERS ====================== -->
+        <sc-if value="{{ isOrders }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .35s ease both;">
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:16px;">
+            <sc-for list="{{ gateways }}" as="g" hint-placeholder-count="4">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:17px 18px; box-shadow:var(--shadow);">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                  <div style="width:34px; height:34px; border-radius:10px; background:{{ g.bg }}; color:{{ g.fg }}; display:grid; place-items:center; flex:none;"><span class="ms" style="font-size:19px;">{{ g.icon }}</span></div>
+                  <div style="font-size:13px; font-weight:600;">{{ g.name }}</div>
+                </div>
+                <div style="font-size:21px; font-weight:800; font-family:'IBM Plex Mono';">{{ g.amount }}<span style="font-size:11px; color:var(--muted); font-family:'Vazirmatn'; font-weight:500; margin-inline-start:4px;">تومان</span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; font-size:11.5px;">
+                  <span style="color:var(--muted);">{{ g.count }} تراکنش</span>
+                  <span style="color:{{ g.rateFg }}; font-weight:600;">{{ g.rate }} موفق</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1.7fr 1fr; gap:16px;">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); overflow:hidden;">
+              <div style="padding:16px 20px; border-bottom:1px solid var(--border); font-weight:700; font-size:15px;">سفارش‌ها و تراکنش‌ها</div>
+              <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead><tr style="color:var(--faint); font-size:11.5px; background:var(--surface2);">
+                  <th style="text-align:start; font-weight:600; padding:11px 20px;">شناسه</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">کاربر</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">مبلغ</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">درگاه</th>
+                  <th style="text-align:start; font-weight:600; padding:11px 8px;">زمان</th>
+                  <th style="text-align:end; font-weight:600; padding:11px 20px;">وضعیت</th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ orders }}" as="o" hint-placeholder-count="8">
+                    <tr style="border-top:1px solid var(--border);" style-hover="background:var(--surface2);">
+                      <td style="padding:12px 20px; font-family:'IBM Plex Mono'; color:var(--muted); font-size:12px;">{{ o.id }}</td>
+                      <td style="padding:12px 8px; font-weight:600;">{{ o.user }}</td>
+                      <td style="padding:12px 8px; font-family:'IBM Plex Mono'; font-weight:600;">{{ o.amount }}</td>
+                      <td style="padding:12px 8px; color:var(--muted);">{{ o.gateway }}</td>
+                      <td style="padding:12px 8px; color:var(--faint); font-size:12px; font-family:'IBM Plex Mono';">{{ o.time }}</td>
+                      <td style="padding:12px 20px; text-align:end;"><span style="padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600; color:{{ o.stFg }}; background:{{ o.stBg }};">{{ o.status }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); padding:20px;">
+              <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; margin-bottom:4px;"><span class="ms" style="font-size:20px; color:var(--r-fg);">error</span>پرداخت‌های ناموفق</div>
+              <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">نیازمند بررسی دستی</div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <sc-for list="{{ failed }}" as="f" hint-placeholder-count="4">
+                  <div style="padding:13px; border-radius:12px; background:var(--surface2); border:1px solid var(--border);">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                      <span style="font-weight:600; font-size:13px;">{{ f.user }}</span>
+                      <span style="font-family:'IBM Plex Mono'; font-weight:700; font-size:13px;">{{ f.amount }}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:7px;">
+                      <span style="font-size:11.5px; color:var(--r-fg);">{{ f.reason }}</span>
+                      <span style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono';">{{ f.time }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== PLANS ====================== -->
+        <sc-if value="{{ isPlans }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .35s ease both;">
+          <div style="display:flex; align-items:center; margin-bottom:16px;">
+            <div style="font-size:13px; color:var(--muted);">پلن‌های فروش روی هر پنل، با حجم، مدت و قیمت قابل تنظیم</div>
+            <div style="flex:1;"></div>
+            <button style="display:flex; align-items:center; gap:7px; padding:10px 16px; border-radius:11px; border:0; background:var(--accent); color:var(--accent-ink); font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;"><span class="ms" style="font-size:18px;">add</span>پلن جدید</button>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+            <sc-for list="{{ plans }}" as="p" hint-placeholder-count="6">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:19px; box-shadow:var(--shadow); position:relative;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px;">
+                  <div>
+                    <div style="font-weight:700; font-size:15.5px;">{{ p.name }}</div>
+                    <span style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:7px; color:{{ p.panelFg }}; background:{{ p.panelBg }}; font-family:'IBM Plex Mono'; display:inline-block; margin-top:7px;">{{ p.panel }}</span>
+                  </div>
+                  <span style="font-size:11.5px; font-weight:600; color:{{ p.stFg }}; background:{{ p.stBg }}; padding:3px 9px; border-radius:999px;">{{ p.status }}</span>
+                </div>
+                <div style="display:flex; gap:18px; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+                  <div><div style="font-size:11px; color:var(--faint);">حجم</div><div style="font-weight:700; font-family:'IBM Plex Mono'; margin-top:3px;">{{ p.volume }}</div></div>
+                  <div><div style="font-size:11px; color:var(--faint);">مدت</div><div style="font-weight:700; font-family:'IBM Plex Mono'; margin-top:3px;">{{ p.duration }}</div></div>
+                  <div><div style="font-size:11px; color:var(--faint);">فروش</div><div style="font-weight:700; font-family:'IBM Plex Mono'; margin-top:3px;">{{ p.sold }}</div></div>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px;">
+                  <div><span style="font-size:20px; font-weight:800; font-family:'IBM Plex Mono';">{{ p.price }}</span><span style="font-size:11px; color:var(--muted); margin-inline-start:4px;">تومان</span></div>
+                  <div style="display:flex; gap:6px;">
+                    <button style="width:32px; height:32px; border-radius:9px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; display:grid; place-items:center;"><span class="ms" style="font-size:17px;">edit</span></button>
+                    <button style="width:32px; height:32px; border-radius:9px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; display:grid; place-items:center;"><span class="ms" style="font-size:17px;">content_copy</span></button>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== PANELS ====================== -->
+        <sc-if value="{{ isPanels }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .35s ease both;">
+          <div style="display:flex; align-items:center; margin-bottom:16px;">
+            <div style="font-size:13px; color:var(--muted);">پنل‌های متصل از طریق آداپتر چندپنلی — Marzban · PasarGuard · Guardino Hub</div>
+            <div style="flex:1;"></div>
+            <button style="display:flex; align-items:center; gap:7px; padding:10px 16px; border-radius:11px; border:0; background:var(--accent); color:var(--accent-ink); font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;"><span class="ms" style="font-size:18px;">add_link</span>اتصال پنل</button>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+            <sc-for list="{{ panelCards }}" as="p" hint-placeholder-count="4">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow);">
+                <div style="display:flex; align-items:center; gap:13px; margin-bottom:16px;">
+                  <div style="width:44px; height:44px; border-radius:12px; background:{{ p.bg }}; color:{{ p.fg }}; display:grid; place-items:center; flex:none;"><span class="ms" style="font-size:24px;">{{ p.icon }}</span></div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="display:flex; align-items:center; gap:8px;"><span style="font-weight:700; font-size:15px;">{{ p.name }}</span><span style="font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:6px; color:{{ p.fg }}; background:{{ p.bg }}; font-family:'IBM Plex Mono';">{{ p.type }}</span></div>
+                    <div style="font-size:11.5px; color:var(--faint); font-family:'IBM Plex Mono'; margin-top:3px;">{{ p.host }}</div>
+                  </div>
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:{{ p.stFg }};"><span style="width:7px; height:7px; border-radius:50%; background:{{ p.stFg }};"></span>{{ p.statusFa }}</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;">
+                  <div style="background:var(--surface2); border:1px solid var(--border); border-radius:11px; padding:11px;"><div style="font-size:11px; color:var(--faint);">کاربران</div><div style="font-weight:700; font-family:'IBM Plex Mono'; font-size:16px; margin-top:3px;">{{ p.users }}</div></div>
+                  <div style="background:var(--surface2); border:1px solid var(--border); border-radius:11px; padding:11px;"><div style="font-size:11px; color:var(--faint);">تأخیر</div><div style="font-weight:700; font-family:'IBM Plex Mono'; font-size:16px; margin-top:3px; color:{{ p.latFg }};">{{ p.latency }}</div></div>
+                  <div style="background:var(--surface2); border:1px solid var(--border); border-radius:11px; padding:11px;"><div style="font-size:11px; color:var(--faint);">{{ p.unitLabel }}</div><div style="font-weight:700; font-family:'IBM Plex Mono'; font-size:16px; margin-top:3px;">{{ p.unitValue }}</div></div>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:7px;">
+                  <sc-for list="{{ p.tags }}" as="t" hint-placeholder-count="3">
+                    <span style="font-size:11px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:4px 9px;">{{ t }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== RESELLERS ====================== -->
+        <sc-if value="{{ isResellers }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .35s ease both;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:11px; background:var(--a-bg); border:1px solid var(--border); color:var(--a-fg); font-size:12.5px; font-weight:600;"><span class="ms" style="font-size:18px;">visibility</span>حالت «مشاهده به‌عنوان نماینده» برای پشتیبانی فعال است</div>
+            <div style="flex:1;"></div>
+            <button style="display:flex; align-items:center; gap:7px; padding:10px 16px; border-radius:11px; border:0; background:var(--accent); color:var(--accent-ink); font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;"><span class="ms" style="font-size:18px;">store</span>نماینده جدید</button>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead><tr style="color:var(--faint); font-size:11.5px; background:var(--surface2);">
+                <th style="text-align:start; font-weight:600; padding:12px 20px;">نماینده</th>
+                <th style="text-align:start; font-weight:600; padding:12px 8px;">زیرمجموعه</th>
+                <th style="text-align:start; font-weight:600; padding:12px 8px;">کیف پول</th>
+                <th style="text-align:start; font-weight:600; padding:12px 8px;">حاشیه سود</th>
+                <th style="text-align:start; font-weight:600; padding:12px 8px;">فروش ماه</th>
+                <th style="text-align:end; font-weight:600; padding:12px 20px;">وضعیت</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ resellers }}" as="r" hint-placeholder-count="6">
+                  <tr style="border-top:1px solid var(--border);" style-hover="background:var(--surface2);">
+                    <td style="padding:13px 20px;">
+                      <div style="display:flex; align-items:center; gap:11px;">
+                        <div style="width:34px; height:34px; border-radius:10px; background:{{ r.avBg }}; color:{{ r.avFg }}; display:grid; place-items:center; font-weight:700; flex:none;">{{ r.initial }}</div>
+                        <div><div style="font-weight:600;">{{ r.name }}</div><div style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono';">{{ r.tg }}</div></div>
+                      </div>
+                    </td>
+                    <td style="padding:13px 8px; font-family:'IBM Plex Mono'; color:var(--muted);">{{ r.children }} کاربر</td>
+                    <td style="padding:13px 8px; font-family:'IBM Plex Mono'; font-weight:600; color:{{ r.walletFg }};">{{ r.wallet }}</td>
+                    <td style="padding:13px 8px; font-family:'IBM Plex Mono';">{{ r.margin }}</td>
+                    <td style="padding:13px 8px; font-family:'IBM Plex Mono'; font-weight:600;">{{ r.sales }}</td>
+                    <td style="padding:13px 20px; text-align:end;"><span style="padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600; color:{{ r.stFg }}; background:{{ r.stBg }};">{{ r.status }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== REPORTS ====================== -->
+        <sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .35s ease both;">
+          <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:16px; margin-bottom:16px;">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow);">
+              <div style="font-weight:700; font-size:15px; margin-bottom:2px;">درآمد ماهانه</div>
+              <div style="font-size:12px; color:var(--muted); margin-bottom:18px;">۶ ماه گذشته · میلیون تومان</div>
+              <div style="display:flex; align-items:flex-end; gap:16px; height:190px;">
+                <sc-for list="{{ revBars }}" as="b" hint-placeholder-count="6">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:10px; height:100%; justify-content:flex-end;">
+                    <div style="font-size:11px; font-weight:700; font-family:'IBM Plex Mono'; color:var(--muted);">{{ b.val }}</div>
+                    <div style="width:100%; border-radius:8px 8px 4px 4px; background:{{ b.fill }}; height:{{ b.h }}; min-height:6px;"></div>
+                    <div style="font-size:11px; color:var(--faint);">{{ b.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow);">
+              <div style="font-weight:700; font-size:15px; margin-bottom:16px;">سهم درگاه‌های پرداخت</div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <sc-for list="{{ gatewayShare }}" as="s" hint-placeholder-count="4">
+                  <div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;"><span style="font-size:12.5px; font-weight:600;">{{ s.name }}</span><span style="font-size:12px; font-family:'IBM Plex Mono'; color:var(--muted);">{{ s.pct }}</span></div>
+                    <div style="height:8px; border-radius:5px; background:var(--surface2); overflow:hidden;"><div style="height:100%; width:{{ s.pct }}; background:{{ s.fill }}; border-radius:5px;"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); overflow:hidden;">
+            <div style="padding:16px 20px; border-bottom:1px solid var(--border); font-weight:700; font-size:15px;">پرفروش‌ترین پلن‌ها</div>
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead><tr style="color:var(--faint); font-size:11.5px; background:var(--surface2);">
+                <th style="text-align:start; font-weight:600; padding:11px 20px;">پلن</th>
+                <th style="text-align:start; font-weight:600; padding:11px 8px;">پنل</th>
+                <th style="text-align:start; font-weight:600; padding:11px 8px;">تعداد فروش</th>
+                <th style="text-align:start; font-weight:600; padding:11px 8px;">درآمد</th>
+                <th style="text-align:end; font-weight:600; padding:11px 20px;">سهم</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ topPlans }}" as="t" hint-placeholder-count="5">
+                  <tr style="border-top:1px solid var(--border);" style-hover="background:var(--surface2);">
+                    <td style="padding:12px 20px; font-weight:600;">{{ t.name }}</td>
+                    <td style="padding:12px 8px;"><span style="font-size:11px; font-weight:600; padding:3px 8px; border-radius:7px; color:{{ t.panelFg }}; background:{{ t.panelBg }}; font-family:'IBM Plex Mono';">{{ t.panel }}</span></td>
+                    <td style="padding:12px 8px; font-family:'IBM Plex Mono';">{{ t.count }}</td>
+                    <td style="padding:12px 8px; font-family:'IBM Plex Mono'; font-weight:600;">{{ t.revenue }}</td>
+                    <td style="padding:12px 20px; text-align:end; font-family:'IBM Plex Mono'; color:var(--accent); font-weight:700;">{{ t.share }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ====================== SETTINGS ====================== -->
+        <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:gbin .3s ease; display:grid; grid-template-columns:repeat(2,1fr); gap:16px; align-items:start;">
+          <sc-for list="{{ settingGroups }}" as="grp" hint-placeholder-count="4">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:10px; padding:15px 18px; border-bottom:1px solid var(--border);">
+                <div style="width:32px; height:32px; border-radius:9px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center;"><span class="ms" style="font-size:18px;">{{ grp.icon }}</span></div>
+                <div style="font-weight:700; font-size:14.5px;">{{ grp.title }}</div>
+              </div>
+              <div style="padding:6px 18px 12px;">
+                <sc-for list="{{ grp.items }}" as="it" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:center; gap:12px; padding:13px 0; border-bottom:1px solid var(--border);">
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:13.5px; font-weight:600;">{{ it.label }}</div>
+                      <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">{{ it.desc }}</div>
+                    </div>
+                    <div onClick="{{ it.toggle }}" style="width:42px; height:24px; border-radius:999px; background:{{ it.trackBg }}; position:relative; cursor:pointer; flex:none; transition:background .18s;">
+                      <span style="position:absolute; top:3px; inset-inline-start:{{ it.knobPos }}; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:inset-inline-start .18s;"></span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ============ USER DETAIL DRAWER ============ -->
+  <div style="position:fixed; inset:0; z-index:60; pointer-events:{{ drawerEvents }};">
+    <div onClick="{{ closeUser }}" style="position:absolute; inset:0; background:rgba(8,11,16,.55); backdrop-filter:blur(2px); opacity:{{ drawerOverlay }}; transition:opacity .26s;"></div>
+    <aside style="position:absolute; inset-block:0; inset-inline-start:0; width:480px; max-width:92vw; background:var(--bg2); border-inline-end:1px solid var(--border); box-shadow:var(--shadow-lg); transform:translateX({{ drawerX }}); transition:transform .3s cubic-bezier(.3,.8,.3,1); display:flex; flex-direction:column;">
+      <div style="padding:20px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:13px;">
+        <div style="width:48px; height:48px; border-radius:13px; background:{{ du.avBg }}; color:{{ du.avFg }}; display:grid; place-items:center; font-weight:800; font-size:18px; flex:none;">{{ du.initial }}</div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:800; font-size:17px;">{{ du.name }}</div>
+          <div style="font-size:12px; color:var(--muted); font-family:'IBM Plex Mono';">{{ du.tg }} · {{ du.id }}</div>
+        </div>
+        <button onClick="{{ closeUser }}" style="width:34px; height:34px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; display:grid; place-items:center;"><span class="ms" style="font-size:19px;">close</span></button>
+      </div>
+
+      <div style="display:flex; gap:3px; padding:10px 16px 0; border-bottom:1px solid var(--border); overflow-x:auto;">
+        <sc-for list="{{ userTabs }}" as="t" hint-placeholder-count="6">
+          <span onClick="{{ t.go }}" style="font-size:12.5px; font-weight:600; padding:9px 13px; cursor:pointer; white-space:nowrap; color:{{ t.fg }}; border-bottom:2px solid {{ t.border }};">{{ t.label }}</span>
+        </sc-for>
+      </div>
+
+      <div style="flex:1; overflow-y:auto; padding:20px;">
+        <!-- OVERVIEW TAB -->
+        <sc-if value="{{ tabOverview }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:11px;">
+            <sc-for list="{{ du.stats }}" as="s" hint-placeholder-count="4">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:14px;">
+                <div style="font-size:11.5px; color:var(--muted);">{{ s.label }}</div>
+                <div style="font-weight:800; font-size:17px; font-family:'IBM Plex Mono'; margin-top:5px; color:{{ s.fg }};">{{ s.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;"><span style="font-size:13px; font-weight:700;">مصرف ترافیک</span><span style="font-size:12px; color:var(--muted); font-family:'IBM Plex Mono';">{{ du.traffic }}</span></div>
+            <div style="height:9px; border-radius:6px; background:var(--surface2); overflow:hidden;"><div style="height:100%; width:{{ du.usePct }}; background:{{ du.useFill }}; border-radius:6px;"></div></div>
+          </div>
+          <div style="display:flex; gap:9px;">
+            <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:11px; border-radius:11px; border:0; background:var(--accent); color:var(--accent-ink); font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;"><span class="ms" style="font-size:18px;">autorenew</span>تمدید</button>
+            <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:11px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-family:inherit; font-weight:600; font-size:13px; cursor:pointer;"><span class="ms" style="font-size:18px;">restart_alt</span>ریست مصرف</button>
+            <button style="width:44px; display:grid; place-items:center; border-radius:11px; border:1px solid var(--r-bg); background:var(--r-bg); color:var(--r-fg); cursor:pointer;"><span class="ms" style="font-size:18px;">block</span></button>
+          </div>
+        </div>
+        </sc-if>
+        <!-- LINKS TAB -->
+        <sc-if value="{{ tabLinks }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:13px;">
+          <sc-for list="{{ du.links }}" as="l" hint-placeholder-count="3">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><span style="font-size:12.5px; font-weight:700;">{{ l.label }}</span><span style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:6px; color:{{ l.fg }}; background:{{ l.bg }};">{{ l.kind }}</span></div>
+              <div style="display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:9px 11px;">
+                <span style="flex:1; font-family:'IBM Plex Mono'; font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:ltr; text-align:left;">{{ l.url }}</span>
+                <span class="ms" style="font-size:17px; color:var(--accent); cursor:pointer;">content_copy</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+        <!-- ORDERS TAB -->
+        <sc-if value="{{ tabOrders }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <sc-for list="{{ du.orders }}" as="o" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px;">
+              <div style="width:34px; height:34px; border-radius:10px; background:{{ o.bg }}; color:{{ o.fg }}; display:grid; place-items:center; flex:none;"><span class="ms" style="font-size:18px;">{{ o.icon }}</span></div>
+              <div style="flex:1; min-width:0;"><div style="font-size:13px; font-weight:600;">{{ o.plan }}</div><div style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono';">{{ o.time }}</div></div>
+              <div style="text-align:end;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:13px;">{{ o.amount }}</div><div style="font-size:11px; color:{{ o.stFg }};">{{ o.status }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+        <!-- PAYMENTS TAB -->
+        <sc-if value="{{ tabPayments }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <sc-for list="{{ du.payments }}" as="p" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px;">
+              <div style="flex:1; min-width:0;"><div style="font-size:13px; font-weight:600;">{{ p.gateway }}</div><div style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono';">{{ p.time }} · {{ p.ref }}</div></div>
+              <div style="text-align:end;"><div style="font-family:'IBM Plex Mono'; font-weight:700; font-size:13px; color:{{ p.amtFg }};">{{ p.amount }}</div><div style="font-size:11px; color:{{ p.stFg }};">{{ p.status }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+        <!-- PANEL STATUS TAB -->
+        <sc-if value="{{ tabPanel }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:13px;">
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:16px;">
+            <div style="display:flex; align-items:center; gap:11px; margin-bottom:13px;">
+              <div style="width:38px; height:38px; border-radius:11px; background:{{ du.panelBg }}; color:{{ du.panelFg }}; display:grid; place-items:center;"><span class="ms" style="font-size:20px;">{{ du.panelIcon }}</span></div>
+              <div><div style="font-weight:700; font-size:13.5px;">{{ du.server }}</div><div style="font-size:11.5px; color:var(--muted); font-family:'IBM Plex Mono';">{{ du.panelType }}</div></div>
+            </div>
+            <sc-for list="{{ du.panelRows }}" as="row" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-top:1px solid var(--border);">
+                <span style="font-size:12.5px; color:var(--muted);">{{ row.k }}</span>
+                <span style="font-size:12.5px; font-weight:600; font-family:'IBM Plex Mono'; color:{{ row.fg }};">{{ row.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+        <!-- LOGS TAB -->
+        <sc-if value="{{ tabLogs }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:0;">
+          <sc-for list="{{ du.logs }}" as="g" hint-placeholder-count="6">
+            <div style="display:flex; gap:12px; padding-bottom:18px; position:relative;">
+              <div style="display:flex; flex-direction:column; align-items:center; flex:none;">
+                <div style="width:11px; height:11px; border-radius:50%; background:{{ g.fg }}; border:2px solid var(--bg2); box-shadow:0 0 0 2px {{ g.fg }};"></div>
+                <div style="width:2px; flex:1; background:var(--border); margin-top:3px;"></div>
+              </div>
+              <div style="padding-bottom:2px;"><div style="font-size:13px; font-weight:600;">{{ g.action }}</div><div style="font-size:11px; color:var(--faint); font-family:'IBM Plex Mono'; margin-top:2px;">{{ g.time }} · {{ g.by }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+    </aside>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:960},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
+class Component extends DCLogic {
+  state = { theme: 'dark', lang: 'fa', screen: 'dashboard', userFilter: 'all', userId: null, drawerOpen: false, userTab: 'overview', settings: {} };
+
+  componentDidMount(){
+    const t = this.props.defaultTheme;
+    if (t === 'light' || t === 'dark') this.setState({ theme: t });
+  }
+
+  faNum(s){
+    const d = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+    return String(s).replace(/[0-9]/g, n => d[+n]);
+  }
+  money(n){ return this.faNum(n.toLocaleString('en-US')); }
+
+  tone(name){
+    const m = {
+      green:['var(--g-fg)','var(--g-bg)'], red:['var(--r-fg)','var(--r-bg)'], amber:['var(--a-fg)','var(--a-bg)'],
+      blue:['var(--b-fg)','var(--b-bg)'], violet:['var(--v-fg)','var(--v-bg)'], gray:['var(--n-fg)','var(--n-bg)'],
+    };
+    return m[name] || m.gray;
+  }
+  panelTone(t){
+    if (t === 'marzban') return ['var(--b-fg)','var(--b-bg)'];
+    if (t === 'pasarguard') return ['var(--v-fg)','var(--v-bg)'];
+    return ['var(--g-fg)','var(--g-bg)'];
+  }
+  statusTone(s){
+    const map = { 'فعال':'green','موفق':'green','آنلاین':'green','پرداخت‌شده':'green','فعال ':'green',
+      'منقضی':'red','ناموفق':'red','آفلاین':'red','مسدود':'red',
+      'در انتظار':'amber','کندی':'amber','هشدار':'amber',
+      'غیرفعال':'gray','تعلیق':'gray' };
+    return this.tone(map[s] || 'gray');
+  }
+
+  navItem(id, label, icon, badge){
+    const active = this.state.screen === id;
+    const [bf, bb] = badge ? this.tone('red') : ['',''];
+    return {
+      id, label, icon,
+      go: () => this.setState({ screen: id }),
+      fg: active ? 'var(--accent)' : 'var(--muted)',
+      bg: active ? 'var(--accent-soft)' : 'transparent',
+      iconOp: active ? '1' : '.85',
+      barOp: active ? '1' : '0',
+      badge: badge ? this.faNum(badge) : '',
+      badgeShow: badge ? 'flex' : 'none',
+      badgeFg: bf, badgeBg: bb,
+    };
+  }
+
+  usersData(){
+    return [
+      { id:'#10293', name:'سینا کاظمی', tg:'@sina_kz', initial:'س', role:'کاربر', plan:'پایه ۵۰گ', panel:'marzban', traffic:'۳۲/۵۰گ', usePct:'64%', expire:'۱۸ روز', status:'فعال', server:'Marzban DE-01' },
+      { id:'#10288', name:'مریم احمدی', tg:'@maryam_a', initial:'م', role:'کاربر', plan:'حرفه‌ای ۱۰۰گ', panel:'pasarguard', traffic:'۸۸/۱۰۰گ', usePct:'88%', expire:'۴ روز', status:'فعال', server:'PasarGuard NL-Core' },
+      { id:'#10281', name:'حمید نوری', tg:'@hamidnoori', initial:'ح', role:'نماینده', plan:'نامحدود ۳۰روز', panel:'guardino', traffic:'۲۱۰/∞گ', usePct:'42%', expire:'۲۶ روز', status:'فعال', server:'Guardino Hub' },
+      { id:'#10277', name:'الهام رضایی', tg:'@elham_rz', initial:'ا', role:'کاربر', plan:'پایه ۵۰گ', panel:'marzban', traffic:'۵۰/۵۰گ', usePct:'100%', expire:'منقضی', status:'منقضی', server:'Marzban DE-01' },
+      { id:'#10270', name:'پارسا مرادی', tg:'@parsa_m', initial:'پ', role:'کاربر', plan:'حرفه‌ای ۱۰۰گ', panel:'guardino', traffic:'۱۲/۱۰۰گ', usePct:'12%', expire:'۲۹ روز', status:'فعال', server:'Guardino Hub' },
+      { id:'#10268', name:'نگار سلطانی', tg:'@negar_s', initial:'ن', role:'کاربر', plan:'تست ۱گ', panel:'pasarguard', traffic:'۰٫۴/۱گ', usePct:'40%', expire:'۱ روز', status:'در انتظار', server:'PasarGuard NL-Core' },
+      { id:'#10261', name:'رضا قاسمی', tg:'@reza_gh', initial:'ر', role:'کاربر', plan:'پایه ۵۰گ', panel:'marzban', traffic:'۰/۵۰گ', usePct:'0%', expire:'غیرفعال', status:'غیرفعال', server:'Marzban TR-02' },
+      { id:'#10255', name:'سارا یوسفی', tg:'@sara_y', initial:'س', role:'کاربر', plan:'حرفه‌ای ۱۰۰گ', panel:'guardino', traffic:'۶۷/۱۰۰گ', usePct:'67%', expire:'۱۱ روز', status:'فعال', server:'Guardino Hub' },
+    ];
+  }
+
+  buildUserRow(u){
+    const [stFg] = this.statusTone(u.status);
+    const [roleFg, roleBg] = u.role === 'نماینده' ? this.tone('violet') : (u.role === 'ادمین' ? this.tone('blue') : this.tone('gray'));
+    const [pFg, pBg] = this.panelTone(u.panel);
+    const pctNum = parseInt(u.usePct) || 0;
+    const useFill = pctNum >= 90 ? 'var(--r-fg)' : (pctNum >= 70 ? 'var(--a-fg)' : 'var(--accent)');
+    const expFg = (u.expire.includes('روز') && (parseInt(u.expire) <= 4)) ? 'var(--a-fg)' : (u.status==='منقضی'||u.status==='غیرفعال' ? 'var(--faint)' : 'var(--text)');
+    const [avFg, avBg] = this.panelTone(u.panel);
+    return { ...u, stFg, roleFg, roleBg, panelFg:pFg, panelBg:pBg, useFill, expFg, avFg, avBg:`color-mix(in oklch, ${avFg} 18%, transparent)`,
+      open: () => this.setState({ userId: u.id, drawerOpen: true, userTab: 'overview' }) };
+  }
+
+  renderVals(){
+    const S = this.state;
+    const navTop = [
+      this.navItem('dashboard','داشبورد','space_dashboard'),
+      this.navItem('users','کاربران و اشتراک‌ها','group'),
+      this.navItem('orders','سفارش‌ها و پرداخت‌ها','receipt_long','5'),
+      this.navItem('plans','پلن‌ها و فروش','sell'),
+    ];
+    const navBottom = [
+      this.navItem('panels','پنل‌ها و نودها','dns','1'),
+      this.navItem('resellers','نمایندگان','storefront'),
+      this.navItem('reports','گزارش‌ها','monitoring'),
+      this.navItem('settings','تنظیمات','settings'),
+    ];
+
+    const titles = {
+      dashboard:['داشبورد','نمای کلی فروش و سلامت سیستم'],
+      users:['کاربران و اشتراک‌ها','مدیریت کاربران، تمدید و وضعیت اشتراک'],
+      orders:['سفارش‌ها و پرداخت‌ها','تراکنش‌ها، درگاه‌ها و پرداخت‌های ناموفق'],
+      plans:['پلن‌ها و فروش','تعریف پلن روی پنل‌های مختلف'],
+      panels:['پنل‌ها و نودها','اتصال و سلامت پنل‌های فروش'],
+      resellers:['نمایندگان','کیف پول، حاشیه سود و زیرمجموعه'],
+      reports:['گزارش‌ها','درآمد، فروش و عملکرد درگاه‌ها'],
+      settings:['تنظیمات','پیکربندی ربات، امنیت و آستانه‌ها'],
+    };
+    const [pageTitle, pageSub] = titles[S.screen] || titles.dashboard;
+
+    // KPIs
+    const kpiDef = [
+      { label:'فروش امروز', value:this.money(2480000), unit:'تومان', icon:'payments', tone:'green', delta:'+۱۲٪', up:true },
+      { label:'سفارش موفق امروز', value:this.faNum(47), unit:'', icon:'shopping_bag', tone:'blue', delta:'+۸٪', up:true },
+      { label:'کاربران فعال', value:this.money(1284), unit:'', icon:'group', tone:'violet', delta:'+۳٪', up:true },
+      { label:'اشتراک فعال', value:this.money(1036), unit:'', icon:'vpn_lock', tone:'amber', delta:'−۲٪', up:false },
+    ];
+    const kpis = kpiDef.map(k => {
+      const [fg, bg] = this.tone(k.tone);
+      const [dFg, dBg] = k.up ? this.tone('green') : this.tone('red');
+      return { ...k, fg, bg, deltaFg:dFg, deltaBg:dBg, deltaIcon: k.up ? 'trending_up':'trending_down' };
+    });
+
+    // Sales bars (14 days)
+    const raw = [42,55,48,63,58,71,66,52,60,74,69,81,77,88];
+    const days = ['۱۱','۱۲','۱۳','۱۴','۱۵','۱۶','۱۷','۱۸','۱۹','۲۰','۲۱','۲۲','۲۳','۲۴'];
+    const peak = Math.max(...raw);
+    const salesBars = raw.map((v,i) => ({
+      h: Math.round(v/peak*100) + '%', label: days[i],
+      fill: i === raw.length-1 ? 'var(--accent)' : 'color-mix(in oklch, var(--accent) 32%, transparent)',
+      full: this.money(v*38000) + ' تومان',
+    }));
+
+    const alerts = [
+      { icon:'account_balance_wallet', tone:'amber', title:'موجودی نماینده Guardino نزدیک آستانه هشدار (۹۰۰٬۰۰۰ تومان)', time:'۱۲ دقیقه پیش' },
+      { icon:'wifi_tethering_error', tone:'red', title:'پنل Marzban TR-02 با تأخیر بالا پاسخ می‌دهد', time:'۳۴ دقیقه پیش' },
+      { icon:'campaign', tone:'blue', title:'پخش پیام همگانی در حال اجراست — ۷۲٪ تکمیل شده', time:'۱ ساعت پیش' },
+      { icon:'verified', tone:'green', title:'پشتیبان‌گیری خودکار پایگاه‌داده با موفقیت انجام شد', time:'۳ ساعت پیش' },
+    ].map(a => { const [fg,bg]=this.tone(a.tone); return { ...a, fg, bg }; });
+
+    const panelsRaw = [
+      { name:'Marzban DE-01', type:'marzban', users:'۴۱۲', latency:'۳۸ms', status:'online', statusFa:'آنلاین', lat:'green' },
+      { name:'PasarGuard NL-Core', type:'pasarguard', users:'۳۸۸', latency:'۵۲ms', status:'online', statusFa:'آنلاین', lat:'green' },
+      { name:'Guardino Hub', type:'guardino', users:'۲۳۶', latency:'۷۱ms', status:'online', statusFa:'آنلاین', lat:'green' },
+      { name:'Marzban TR-02', type:'marzban', users:'۸۴', latency:'۱۸۰ms', status:'degraded', statusFa:'کندی', lat:'amber' },
+    ];
+    const panels = panelsRaw.map(p => {
+      const dot = p.status==='online' ? 'var(--g-fg)' : (p.status==='degraded' ? 'var(--a-fg)' : 'var(--r-fg)');
+      const [latFg] = this.tone(p.lat);
+      return { ...p, dot, dotHalo:`color-mix(in oklch, ${dot} 22%, transparent)`, latFg };
+    });
+
+    const ordersRaw = [
+      { id:'TX-88421', user:'سینا کاظمی', tg:'@sina_kz', plan:'پایه ۵۰گ', amount:this.money(120000), gateway:'زرین‌پال', status:'موفق', time:'۱۴:۳۲' },
+      { id:'TX-88420', user:'مریم احمدی', tg:'@maryam_a', plan:'حرفه‌ای ۱۰۰گ', amount:this.money(240000), gateway:'کارت به کارت', status:'در انتظار', time:'۱۴:۱۸' },
+      { id:'TX-88419', user:'پارسا مرادی', tg:'@parsa_m', plan:'حرفه‌ای ۱۰۰گ', amount:this.money(240000), gateway:'کریپتو', status:'موفق', time:'۱۳:۵۹' },
+      { id:'TX-88418', user:'نگار سلطانی', tg:'@negar_s', plan:'تست ۱گ', amount:this.money(0), gateway:'رایگان', status:'موفق', time:'۱۳:۴۱' },
+      { id:'TX-88417', user:'رضا قاسمی', tg:'@reza_gh', plan:'پایه ۵۰گ', amount:this.money(120000), gateway:'زیبال', status:'ناموفق', time:'۱۳:۲۰' },
+      { id:'TX-88416', user:'سارا یوسفی', tg:'@sara_y', plan:'حرفه‌ای ۱۰۰گ', amount:this.money(240000), gateway:'زرین‌پال', status:'موفق', time:'۱۲:۵۵' },
+    ];
+    const recentOrders = ordersRaw.map(o => { const [stFg,stBg]=this.statusTone(o.status); return { ...o, stFg, stBg }; });
+
+    // Users screen
+    const allUsers = this.usersData();
+    const filtered = S.userFilter==='all' ? allUsers
+      : S.userFilter==='active' ? allUsers.filter(u=>u.status==='فعال')
+      : S.userFilter==='reseller' ? allUsers.filter(u=>u.role==='نماینده')
+      : allUsers.filter(u=>u.status==='منقضی'||u.status==='غیرفعال');
+    const users = filtered.map(u => this.buildUserRow(u));
+    const userFilters = [
+      ['all','همه'],['active','فعال'],['reseller','نمایندگان'],['expired','منقضی/غیرفعال']
+    ].map(([id,label]) => {
+      const a = S.userFilter===id;
+      return { label, go:()=>this.setState({userFilter:id}), fg:a?'var(--accent-ink)':'var(--muted)', bg:a?'var(--accent)':'transparent' };
+    });
+    const userChips = [
+      { icon:'group', tone:'blue', value:this.money(1284), label:'کل کاربران' },
+      { icon:'bolt', tone:'green', value:this.money(1036), label:'اشتراک فعال' },
+      { icon:'schedule', tone:'amber', value:this.faNum(38), label:'نزدیک انقضا' },
+      { icon:'storefront', tone:'violet', value:this.faNum(12), label:'نماینده' },
+    ].map(c => { const [fg]=this.tone(c.tone); return { ...c, fg }; });
+
+    // Orders screen
+    const gateways = [
+      { name:'زرین‌پال', icon:'account_balance', tone:'blue', amount:this.money(8420000), count:this.faNum(142), rate:'۹۷٪', rateFg:'var(--g-fg)' },
+      { name:'کارت به کارت', icon:'credit_card', tone:'violet', amount:this.money(5180000), count:this.faNum(63), rate:'۸۹٪', rateFg:'var(--a-fg)' },
+      { name:'کریپتو', icon:'currency_bitcoin', tone:'amber', amount:this.money(3260000), count:this.faNum(41), rate:'۹۹٪', rateFg:'var(--g-fg)' },
+      { name:'زیبال', icon:'account_balance_wallet', tone:'green', amount:this.money(2110000), count:this.faNum(28), rate:'۹۴٪', rateFg:'var(--g-fg)' },
+    ].map(g => { const [fg,bg]=this.tone(g.tone); return { ...g, fg, bg }; });
+    const orders = ordersRaw.concat([
+      { id:'TX-88415', user:'حمید نوری', plan:'نامحدود', amount:this.money(450000), gateway:'کریپتو', status:'موفق', time:'۱۲:۳۰' },
+      { id:'TX-88414', user:'الهام رضایی', plan:'پایه ۵۰گ', amount:this.money(120000), gateway:'کارت به کارت', status:'موفق', time:'۱۱:۵۸' },
+    ]).map(o => { const [stFg,stBg]=this.statusTone(o.status); return { ...o, stFg, stBg }; });
+    const failed = [
+      { user:'رضا قاسمی', amount:this.money(120000), reason:'انصراف کاربر در درگاه', time:'۱۳:۲۰' },
+      { user:'کیان عباسی', amount:this.money(240000), reason:'عدم تطبیق مبلغ کارت', time:'۱۱:۰۴' },
+      { user:'لیلا کرمی', amount:this.money(120000), reason:'پایان مهلت پرداخت', time:'۰۹:۴۷' },
+    ];
+
+    // Plans screen
+    const plans = [
+      { name:'پایه ۵۰گ', panel:'marzban', volume:'۵۰ گ', duration:'۳۰ روز', sold:'۴۸۲', price:this.money(120000), status:'فعال' },
+      { name:'حرفه‌ای ۱۰۰گ', panel:'pasarguard', volume:'۱۰۰ گ', duration:'۳۰ روز', sold:'۳۹۱', price:this.money(240000), status:'فعال' },
+      { name:'نامحدود ۳۰روز', panel:'guardino', volume:'∞', duration:'۳۰ روز', sold:'۱۵۶', price:this.money(450000), status:'فعال' },
+      { name:'تست رایگان', panel:'pasarguard', volume:'۱ گ', duration:'۱ روز', sold:'۹۲۰', price:this.money(0), status:'فعال' },
+      { name:'اقتصادی ۲۰گ', panel:'marzban', volume:'۲۰ گ', duration:'۳۰ روز', sold:'۲۱۴', price:this.money(70000), status:'فعال' },
+      { name:'ویژه ۲۰۰گ', panel:'guardino', volume:'۲۰۰ گ', duration:'۶۰ روز', sold:'۴۷', price:this.money(820000), status:'غیرفعال' },
+    ].map(p => { const [pf,pb]=this.panelTone(p.panel); const [sf,sb]=this.statusTone(p.status); return { ...p, panelFg:pf, panelBg:pb, stFg:sf, stBg:sb }; });
+
+    // Panels screen cards
+    const panelCards = [
+      { name:'Marzban DE-01', type:'marzban', host:'de01.guardino.net:8000', icon:'shield', status:'online', statusFa:'آنلاین', users:'۴۱۲', latency:'۳۸ms', lat:'green', unitLabel:'اینباند', unitValue:'۶', tags:['VLESS','VMess','Trojan','Reality'] },
+      { name:'PasarGuard NL-Core', type:'pasarguard', host:'nl.pasar.guardino.net', icon:'security', status:'online', statusFa:'آنلاین', users:'۳۸۸', latency:'۵۲ms', lat:'green', unitLabel:'گروه', unitValue:'۴', tags:['Group: Premium','Group: Standard','proxy_settings'] },
+      { name:'Guardino Hub', type:'guardino', host:'hub.guardino.net/api/v1', icon:'hub', status:'online', statusFa:'آنلاین', users:'۲۳۶', latency:'۷۱ms', lat:'green', unitLabel:'نود', unitValue:'۹', tags:['Reseller','master_first','موجودی: ۳٫۱۵M'] },
+      { name:'Marzban TR-02', type:'marzban', host:'tr02.guardino.net:8000', icon:'shield', status:'degraded', statusFa:'کندی', users:'۸۴', latency:'۱۸۰ms', lat:'amber', unitLabel:'اینباند', unitValue:'۳', tags:['VLESS','Trojan','بازبینی لازم'] },
+    ].map(p => { const [fg,bg]=this.panelTone(p.type); const [latFg]=this.tone(p.lat); const stFg = p.status==='online'?'var(--g-fg)':(p.status==='degraded'?'var(--a-fg)':'var(--r-fg)'); return { ...p, fg, bg, latFg, stFg }; });
+
+    // Resellers
+    const resellers = [
+      { name:'حمید نوری', tg:'@hamidnoori', initial:'ح', children:'۸۴', wallet:this.money(2400000), margin:'۲۰٪', sales:this.money(6200000), status:'فعال', walletTone:'green' },
+      { name:'مهدی شریفی', tg:'@mehdi_sh', initial:'م', children:'۵۱', wallet:this.money(900000), margin:'۱۵٪', sales:this.money(3100000), status:'هشدار', walletTone:'amber' },
+      { name:'زهرا کریمی', tg:'@zahra_k', initial:'ز', children:'۳۷', wallet:this.money(1750000), margin:'۲۵٪', sales:this.money(2800000), status:'فعال', walletTone:'green' },
+      { name:'بهنام راد', tg:'@behnam_rad', initial:'ب', children:'۲۲', wallet:this.money(120000), margin:'۱۸٪', sales:this.money(1400000), status:'تعلیق', walletTone:'red' },
+      { name:'نیما فلاحی', tg:'@nima_f', initial:'ن', children:'۱۹', wallet:this.money(3200000), margin:'۳۰٪', sales:this.money(2100000), status:'فعال', walletTone:'green' },
+    ].map(r => {
+      const [stFg,stBg]=this.statusTone(r.status);
+      const [wf]=this.tone(r.walletTone);
+      const avFg='var(--v-fg)';
+      return { ...r, stFg, stBg, walletFg:wf, avFg, avBg:'var(--v-bg)' };
+    });
+
+    // Reports
+    const revRaw=[28,34,31,42,47,53]; const revMon=['دی','بهمن','اسفند','فروردین','اردیبهشت','خرداد']; const revPeak=Math.max(...revRaw);
+    const revBars=revRaw.map((v,i)=>({ h:Math.round(v/revPeak*100)+'%', val:this.faNum(v), label:revMon[i], fill:i===revRaw.length-1?'var(--accent)':'color-mix(in oklch, var(--accent) 34%, transparent)' }));
+    const gatewayShare=[
+      { name:'زرین‌پال', pct:'44%', fill:'var(--b-fg)' },
+      { name:'کارت به کارت', pct:'27%', fill:'var(--v-fg)' },
+      { name:'کریپتو', pct:'17%', fill:'var(--a-fg)' },
+      { name:'زیبال', pct:'12%', fill:'var(--g-fg)' },
+    ];
+    const topPlans=[
+      { name:'حرفه‌ای ۱۰۰گ', panel:'pasarguard', count:this.faNum(391), revenue:this.money(9384000), share:'۳۲٪' },
+      { name:'پایه ۵۰گ', panel:'marzban', count:this.faNum(482), revenue:this.money(5784000), share:'۲۰٪' },
+      { name:'نامحدود ۳۰روز', panel:'guardino', count:this.faNum(156), revenue:this.money(7020000), share:'۲۴٪' },
+      { name:'ویژه ۲۰۰گ', panel:'guardino', count:this.faNum(47), revenue:this.money(3854000), share:'۱۳٪' },
+      { name:'اقتصادی ۲۰گ', panel:'marzban', count:this.faNum(214), revenue:this.money(1498000), share:'۵٪' },
+    ].map(t => { const [pf,pb]=this.panelTone(t.panel); return { ...t, panelFg:pf, panelBg:pb }; });
+
+    // Settings
+    const sg = S.settings;
+    const tg = (key, def) => {
+      const on = sg[key] === undefined ? def : sg[key];
+      return { on, trackBg: on ? 'var(--accent)' : 'var(--border2)', knobPos: on ? '21px' : '3px',
+        toggle: () => this.setState(st => ({ settings: { ...st.settings, [key]: !(st.settings[key]===undefined?def:st.settings[key]) } })) };
+    };
+    const settingGroups = [
+      { icon:'smart_toy', title:'تنظیمات ربات', items:[
+        { key:'sell', label:'فروش فعال', desc:'امکان خرید اشتراک برای کاربران', def:true },
+        { key:'test', label:'سرویس تست رایگان', desc:'سقف روزانه تست برای هر کاربر', def:true },
+        { key:'maint', label:'حالت تعمیر', desc:'توقف موقت ربات با پیام اطلاع‌رسانی', def:false },
+      ]},
+      { icon:'groups', title:'عضویت اجباری', items:[
+        { key:'fj', label:'عضویت اجباری کانال', desc:'بررسی عضویت قبل از استفاده', def:true },
+        { key:'ref', label:'سیستم زیرمجموعه‌گیری', desc:'پاداش معرفی کاربر جدید', def:true },
+      ]},
+      { icon:'shield_lock', title:'امنیت', items:[
+        { key:'2fa', label:'ورود دومرحله‌ای ادمین', desc:'کد یکبارمصرف برای پنل وب', def:true },
+        { key:'audit', label:'ثبت لاگ عملیات', desc:'ذخیره اقدامات ادمین و نماینده', def:true },
+        { key:'ipw', label:'محدودیت IP پنل', desc:'دسترسی فقط از آدرس‌های مجاز', def:false },
+      ]},
+      { icon:'notifications_active', title:'هشدار و آستانه‌ها', items:[
+        { key:'lowbal', label:'هشدار موجودی Guardino', desc:'اطلاع به ادمین زیر آستانه', def:true },
+        { key:'panelerr', label:'هشدار خطای پنل', desc:'اعلان تأخیر یا قطع اتصال', def:true },
+        { key:'broadcast', label:'پخش غیرمسدودکننده', desc:'ارسال صف‌بندی‌شده پیام همگانی', def:true },
+      ]},
+    ].map(g => ({ ...g, items: g.items.map(it => { const t = tg(it.key, it.def); return { label:it.label, desc:it.desc, trackBg:t.trackBg, knobPos:t.knobPos, toggle:t.toggle }; }) }));
+
+    // Drawer / user detail
+    const cur = allUsers.find(u => u.id === S.userId) || allUsers[0];
+    const [duPf, duPb] = this.panelTone(cur.panel);
+    const curPct = parseInt(cur.usePct)||0;
+    const du = {
+      id: cur.id, name: cur.name, tg: cur.tg, initial: cur.initial,
+      avFg: duPf, avBg: 'color-mix(in oklch, '+duPf+' 18%, transparent)',
+      traffic: cur.traffic, usePct: cur.usePct, useFill: curPct>=90?'var(--r-fg)':(curPct>=70?'var(--a-fg)':'var(--accent)'),
+      server: cur.server, panelType: cur.panel, panelFg: duPf, panelBg: duPb, panelIcon: cur.panel==='guardino'?'hub':(cur.panel==='pasarguard'?'security':'shield'),
+      stats: [
+        { label:'وضعیت', value:cur.status, fg: this.statusTone(cur.status)[0] },
+        { label:'نقش', value:cur.role, fg:'var(--text)' },
+        { label:'انقضا', value:cur.expire, fg:'var(--text)' },
+        { label:'موجودی کیف', value:this.money(85000), fg:'var(--g-fg)' },
+      ],
+      links: [
+        { label:'لینک اشتراک (Master)', kind:'master', url:'https://hub.guardino.net/api/v1/sub/9f3a...c21', fg:'var(--g-fg)', bg:'var(--g-bg)' },
+        { label:'لینک نود — Reality', kind:'node', url:'vless://9f3a...@de01.guardino.net:443?type=tcp', fg:'var(--b-fg)', bg:'var(--b-bg)' },
+        { label:'لینک نود — Trojan', kind:'node', url:'trojan://c21b...@nl.guardino.net:443?sni=cdn', fg:'var(--b-fg)', bg:'var(--b-bg)' },
+      ],
+      orders: ordersRaw.slice(0,4).map(o => { const [stFg]=this.statusTone(o.status); const [fg,bg]=o.status==='موفق'?this.tone('green'):this.tone('amber'); return { plan:o.plan, time:'۱۴۰۴/۰۳/'+this.faNum(20-( ordersRaw.indexOf(o))), amount:o.amount, status:o.status, stFg, icon:'shopping_bag', fg, bg }; }),
+      payments: [
+        { gateway:'زرین‌پال', time:'۱۴۰۴/۰۳/۲۴', ref:'A-7741', amount:'+'+this.money(120000), amtFg:'var(--g-fg)', status:'پرداخت‌شده', stFg:'var(--g-fg)' },
+        { gateway:'کیف پول', time:'۱۴۰۴/۰۳/۱۰', ref:'W-2210', amount:'−'+this.money(120000), amtFg:'var(--r-fg)', status:'خرید اشتراک', stFg:'var(--muted)' },
+        { gateway:'کریپتو', time:'۱۴۰۴/۰۲/۲۸', ref:'C-9087', amount:'+'+this.money(240000), amtFg:'var(--g-fg)', status:'پرداخت‌شده', stFg:'var(--g-fg)' },
+      ],
+      panelRows: [
+        { k:'شناسه پنل', v:cur.panel==='guardino'?'#hub-40219':cur.tg.replace('@',''), fg:'var(--text)' },
+        { k:'وضعیت پنل', v:'active', fg:'var(--g-fg)' },
+        { k:'حجم مصرفی', v:cur.traffic, fg:'var(--text)' },
+        { k:'سیاست لینک', v:cur.panel==='guardino'?'master_first':'—', fg:'var(--muted)' },
+      ],
+      logs: [
+        { action:'تمدید اشتراک ۳۰ روزه', time:'۱۴۰۴/۰۳/۲۴ ۱۴:۳۲', by:'سیستم', tone:'green' },
+        { action:'پرداخت موفق از زرین‌پال', time:'۱۴۰۴/۰۳/۲۴ ۱۴:۳۰', by:'درگاه', tone:'green' },
+        { action:'ریست مصرف توسط ادمین', time:'۱۴۰۴/۰۳/۱۸ ۰۹:۱۲', by:'آرمین رستمی', tone:'amber' },
+        { action:'تغییر نود اتصال', time:'۱۴۰۴/۰۳/۱۲ ۱۶:۴۰', by:'کاربر', tone:'blue' },
+        { action:'ایجاد اشتراک', time:'۱۴۰۴/۰۳/۰۲ ۱۱:۰۵', by:'سیستم', tone:'green' },
+      ].map(g => { const [fg]=this.tone(g.tone); return { ...g, fg }; }),
+    };
+
+    const tabsDef = [['overview','نمای کلی'],['links','لینک‌ها'],['orders','سفارش‌ها'],['payments','پرداخت‌ها'],['panel','وضعیت پنل'],['logs','لاگ‌ها']];
+    const userTabs = tabsDef.map(([id,label]) => { const a = S.userTab===id; return { label, go:()=>this.setState({userTab:id}), fg:a?'var(--accent)':'var(--muted)', border:a?'var(--accent)':'transparent' }; });
+
+    return {
+      theme: S.theme,
+      toggleTheme: () => this.setState(s => ({ theme: s.theme==='dark'?'light':'dark' })),
+      themeIcon: S.theme==='dark' ? 'light_mode' : 'dark_mode',
+      toggleLang: () => this.setState(s => ({ lang: s.lang==='fa'?'en':'fa' })),
+      langLabel: S.lang==='fa' ? 'EN' : 'فا',
+      navTop, navBottom, pageTitle, pageSub,
+      goOrders: () => this.setState({ screen:'orders' }),
+      isDashboard: S.screen==='dashboard', isUsers: S.screen==='users', isOrders: S.screen==='orders',
+      isPlans: S.screen==='plans', isPanels: S.screen==='panels', isResellers: S.screen==='resellers',
+      isReports: S.screen==='reports', isSettings: S.screen==='settings',
+      kpis, salesBars, alerts, panels, recentOrders,
+      users, userFilters, userChips,
+      gateways, orders, failed, plans, panelCards, resellers,
+      revBars, gatewayShare, topPlans, settingGroups,
+      // drawer
+      drawerEvents: S.drawerOpen ? 'auto' : 'none',
+      drawerOverlay: S.drawerOpen ? '1' : '0',
+      drawerX: S.drawerOpen ? '0' : '100%',
+      closeUser: () => this.setState({ drawerOpen:false }),
+      du, userTabs,
+      tabOverview: S.userTab==='overview', tabLinks: S.userTab==='links', tabOrders: S.userTab==='orders',
+      tabPayments: S.userTab==='payments', tabPanel: S.userTab==='panel', tabLogs: S.userTab==='logs',
+    };
+  }
+}
+</script>
+</body>
+</html>

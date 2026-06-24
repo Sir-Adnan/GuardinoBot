@@ -285,7 +285,10 @@ class GuardinoPanel(BasePanel):
             )
         days = int(cfg.get("days") or 0)
         if not days and expire:
-            days = max(0, (int(expire) - int(datetime.now(timezone.utc).timestamp())) // 86400)
+            remaining = int(expire) - int(datetime.now(timezone.utc).timestamp())
+            # finite duration -> round UP to at least 1 whole day; Guardino has no
+            # sub-day granularity and days=0 would mean "unlimited" on the hub.
+            days = max(1, -(-remaining // 86400)) if remaining > 0 else 0
 
         body: dict[str, Any] = {
             "label": username,
@@ -430,10 +433,13 @@ class GuardinoPanel(BasePanel):
         cfg = self._gconfig(service)
         data_limit = getattr(service, "data_limit", 0) or 0
         expire_duration = getattr(service, "expire_duration", 0) or 0
+        days = int(cfg.get("days") or 0)
+        if not days and expire_duration:
+            days = max(1, -(-expire_duration // 86400))  # ceil, min 1 day
         body: dict[str, Any] = {
             "label": label,
             "total_gb": int(cfg.get("total_gb") or (data_limit // GIB)),
-            "days": int(cfg.get("days") or (expire_duration // 86400)),
+            "days": days,
             "pricing_mode": cfg.get("pricing_mode", "per_node"),
         }
         if cfg.get("node_ids"):

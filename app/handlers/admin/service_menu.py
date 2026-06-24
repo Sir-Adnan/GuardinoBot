@@ -297,6 +297,7 @@ async def save_menu_services(
         show_alert=True,
     )
     await state.clear()
+    await query.message.answer("✅ انجام شد.", reply_markup=ReplyKeyboardRemove())
     await show_menues(
         query,
         user,

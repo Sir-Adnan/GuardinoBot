@@ -305,6 +305,7 @@ async def save_discount(query: CallbackQuery, user: User, state: FSMContext):
         show_alert=True,
     )
     await state.clear()
+    await query.message.answer("✅ انجام شد.", reply_markup=ReplyKeyboardRemove())
     await show_discount(
         query,
         user,

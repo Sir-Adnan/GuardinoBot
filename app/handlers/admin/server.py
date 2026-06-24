@@ -41,6 +41,7 @@ from app.panels import PanelRegistry, PanelType, get_panel
 from app.panels.base import PanelAuthError, PanelError
 from app.panels.guardino import login as guardino_login
 from app.panels.guardino import validate as guardino_validate
+from app.panels.pasarguard import validate_token as pg_validate_token
 from app.models.proxy import Proxy
 from app.models.server import LinkPolicy, Server
 from app.models.service import Service
@@ -479,27 +480,40 @@ async def get_server_token_handler(message: Message, user: User, state: FSMConte
         else:
             access_token = token.get("token")
 
-        client = AuthenticatedClient(
-            url, token=access_token, raise_on_unexpected_status=True
+        if data.get("panel_type") == PanelType.pasarguard.value:
+            # PasarGuard's /api/admin has no `is_sudo` (it exposes role.is_owner);
+            # validate via the adapter helper instead of the Marzban client.
+            admin_info = await pg_validate_token(url, access_token)
+            admin_username, admin_is_sudo = admin_info.username, admin_info.is_sudo
+        else:
+            client = AuthenticatedClient(
+                url, token=access_token, raise_on_unexpected_status=True
+            )
+            resp = await get_current_admin.asyncio_detailed(client=client)
+            if resp.status_code != 200:
+                raise UnexpectedStatus(resp.status_code, resp.content)
+            admin_username, admin_is_sudo = resp.parsed.username, resp.parsed.is_sudo
+
+        text = f"""
+اتصال به سرور موفقیت آمیز بود!
+نام کاربری: {admin_username}
+سودو: {'✅' if admin_is_sudo else '❌'}
+        """
+        await state.update_data(token=access_token)
+        await state.set_state(AddServerForm.confirm)
+        await message.answer(text=text)
+        return await message.answer(
+            "اطلاعات زیر صحیح است؟?\n"
+            f"نام سرور: {data['name']}\n"
+            f"آدرس: {url}\n",
+            reply_markup=yes_or_no_form,
         )
-        resp = await get_current_admin.asyncio_detailed(client=client)
-        if resp.status_code == 200:
-            text = f"""
-اتصال به سرور موفقیت آمیز بود! 
-نام کاربری: {resp.parsed.username}
-سودو: {'✅' if resp.parsed.is_sudo else '❌'}
-            """
-            await state.update_data(token=access_token)
-            await state.set_state(AddServerForm.confirm)
-            await message.answer(
-                text=text,
-            )
-            return await message.answer(
-                "اطلاعات زیر صحیح است؟?\n"
-                f"نام سرور: {data['name']}\n"
-                f"آدرس: {url}\n",
-                reply_markup=yes_or_no_form,
-            )
+    except PanelAuthError:
+        await message.answer(
+            text=f"خطای احراز هویت در اتصال به پنل! یوزرنیم/پسوورد یا توکن را بررسی کنید\n\n{TOKEN_VALIDATION_ERR_TEXT}",
+            reply_markup=cancel_form,
+        )
+        return
     except UnexpectedStatus as exc:
         if exc.status_code == 401:
             text = f"خطای احراز هویت در اتصال به پنل! توکن یا یوزرنیم/پسوورد ارسال شده را بررسی کنید\n\n{TOKEN_VALIDATION_ERR_TEXT}"
@@ -530,10 +544,12 @@ async def get_server_token_handler(message: Message, user: User, state: FSMConte
 )
 async def get_server_confirm_yes(message: Message, user: User, state: FSMContext):
     data = await state.get_data()
+    await state.clear()  # prevent a second "بله" from creating a duplicate
     server = await Server.create(**data)
 
     await message.reply(
-        f"سرور اضافه شد:\nidentifier: {server.identifier}\nurl: {server.url}"
+        f"سرور اضافه شد:\nidentifier: {server.identifier}\nurl: {server.url}",
+        reply_markup=ReplyKeyboardRemove(),
     )
     await Marzban.refresh_servers()
     await PanelRegistry.refresh()
