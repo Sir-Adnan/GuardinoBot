@@ -190,11 +190,13 @@ Remaining (minor): `reset_proxy_credentials` unsupported on PasarGuard (raises) 
 | Subscription | `/sub/{token}` | `/sub/{token}` | `master_sub_token` → `/api/v1/sub/{token}` + per-node links |
 | Key ops | modify/reset/revoke/remove | + `set_status`, `active_next` | extend/renew/add-traffic/decrease-time/change-nodes/refund/set-status/reset-usage/revoke |
 
-**Guardino status (phase 2 — in progress):**
+**Guardino status (phase 2 — core done):**
 - ✅ Stage 0 (model + migration 47): `Server.link_policy`, `Proxy.panel_user_id`+`sub_token`, widen `Server.username`.
 - ✅ Stage 1 (adapter `app/panels/guardino.py`): login (2FA-aware) with token cache + 401 re-auth; GB↔bytes, days↔seconds mapping; BasePanel methods (`get_admin`, `get_inbounds`=catalog, `create_user`, `modify_user`=status only, `get_user/get_users` by id, `remove_user`=refund-delete, `reset_usage`, `revoke`); Guardino-only methods: **`quote`, `get_balance`, `renew_user`, `extend`, `add_traffic`, `change_nodes`, `get_links(policy)`**. Id-based: pass `str(user_id)` in the username slot; `create_user` returns it as `PanelUser.remote_id` and stashes `master_sub_token`/`charged_amount`/`balance_after` in `raw`. Module helpers `login()/validate()` for the connect flow.
 - ✅ Stage 2 (admin UX): `handlers/admin/server.py` add-server flow has a **Guardino** option → reseller user/pass login (`guardino.login`+`validate`) + **link_policy** step (master_first/node_first), stored on the new `Server` row; `ping_servers` is now panel-agnostic via `get_panel().get_admin()`. `handlers/admin/service.py` + `keyboards/admin/service.py` add a **`SelectNodes`** picker (parallel to `SelectGroups`) → `Service.panel_config = {node_ids, pricing_mode}`; node selection is optional (empty → hub default node mode); volume/time reuse the standard `data_limit`/`expire_duration` fields (adapter derives total_gb/days).
-- ⏳ Next: Stage 3 purchase/data-plane (quote→balance check→create→store `panel_user_id`/`sub_token`→`get_links`→QR; id-based ops use `str(panel_user_id)`), Stage 4 low-balance alert job.
+- ✅ Stage 3 (purchase + manage): `purchase.py` Guardino create stores `panel_user_id`/`sub_token` and pre-checks hub balance via `quote`/`get_balance`. The adapter resolves a passed label→user_id (cached) and `get_user` enriches `subscription_url`/`links` from `get_links`, so the existing display/QR/enable/disable/delete/revoke/reset-usage paths work for Guardino **unchanged**; `proxy.py` renew has a Guardino branch (`renew_user`). Also fixed §17 bug 2 (reseller test counting) + `count >= limit`.
+- ✅ Stage 4 (low-balance alerts): `jobs/check_hub_balance.py` — every 30 min reads each Guardino server's reseller balance (`get_balance`) and warns super-users (`config.SUPER_USERS`) on two thresholds (`guardino_balance_warn`=1,000,000 / `guardino_balance_critical`=500,000 in settings), with Redis anti-spam (alert only on worsening severity).
+- **Known gaps (deferred):** Guardino **reserves** (pre-bought backup plan, `check_reserves`/`renew_proxy_reserve`) still use the modify(expire/data_limit) path → not supported for Guardino; the generic `refresh_proxies` sync works for Guardino but is per-user (resolve+fetch) — a dedicated paginated reseller-sync would be more efficient. Guardino **on_hold** create isn't mapped (services with `create_on_hold_users` shouldn't target Guardino yet).
 - ⚠️ **2FA must be OFF for the bot account** (unattended re-login can't solve a TOTP challenge) or the adapter raises a clear error. `modify_user` only supports `status`; volume/time changes go through `renew_user/add_traffic/extend`.
 
 **Guardino — locked decisions (agreed with owner):**
@@ -369,11 +371,11 @@ Report: what changed, what was checked, what was **not** checked, whether a migr
 
 **Priority bugs:**
 1. **Blocking broadcast [critical]:** with many users, sending runs in a sync loop; Telegram rate-limits and the whole bot hangs until done. Fix: move broadcast to a **non-blocking background worker** (APScheduler job or `asyncio.create_task`) that throttles (~25–30 msg/s global), handles `TelegramRetryAfter` with `await asyncio.sleep(e.retry_after)`, persists progress/resumability in Redis, marks blockers via the existing `blocked_bot` field, and never blocks the polling loop.
-2. **Reseller test-service counting:** in `app/handlers/user/purchase.py`, `record_purchase_service` has `if user.Role == User.Role.reseller:` which compares the enum class to a member and is **always False** (should be `user.role`) — so the reseller daily test cap never increments. While fixing, recheck the `count > limit` condition in `can_get_test_service` (likely should be `>=`).
+2. ✅ **Fixed — Reseller test-service counting:** `record_purchase_service` now uses `user.role` (was `user.Role`, always False) so the reseller daily test cap increments; the Redis incr key was unified with `can_get_test_service`'s read key (+ TTL), and `can_get_test_service` now casts the Redis count to int and uses `count >= limit`.
 
 **Improvement backlog (with user approval):**
 - ✅ Multi-panel adapter layer + **PasarGuard complete** (data-plane + admin UI + webhook) — §6. Only native `reset_proxy_credentials` remains.
-- Guardino Hub (phase 2, §6): id-based, GB/days, hub pricing. Stages 0–1 done; 2–4 pending.
+- ✅ Guardino Hub (phase 2, §6): id-based, GB/days, hub pricing. Stages 0–4 done (model+migration, adapter, admin UX, purchase/manage, low-balance job); reserves + efficient sync + on_hold deferred.
 - Brand migration `marzbot`/`Marzdemo` → GuardinoBot/Guardino (§2), gradually.
 - Admin/reseller web panel (§9).
 - Review `aiogram==3.4.1` (old); `parse_mode=` on the constructor is deprecated in newer versions (`DefaultBotProperties`). Upgrade only with testing + approval.

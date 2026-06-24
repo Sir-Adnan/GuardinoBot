@@ -93,6 +93,10 @@ class Settings(BaseModel):
     cancel_payback_fee: int = 10000
     cancel_payback_days: int = 5
 
+    # Guardino reseller-wallet low-balance alert thresholds (toman)
+    guardino_balance_warn: int = 1_000_000
+    guardino_balance_critical: int = 500_000
+
     marzban_webhook_secret: str | None = None
     force_join_chats: dict[str, str] | None = config.FORCE_JOIN_CHATS
 

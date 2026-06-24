@@ -1491,40 +1491,75 @@ async def renew_proxy_now(
                             user=user,
                         )
                     panel = get_panel(service.server_id)
-                    data_limit = service.data_limit
-                    # read remaining BEFORE reset, when carrying over data
-                    if (
-                        data_limit
-                        and proxy.service
-                        and proxy.service.data_limit
-                        and proxy.service.append_available_data_renew
-                    ):
-                        existing = await panel.get_user(proxy.username)
-                        if existing:
-                            data_limit = data_limit + (
-                                (existing.data_limit or 0) - existing.used_traffic
+                    if getattr(panel, "panel_managed_billing", False):
+                        # Guardino: renew is a single hub op (reset + recharge),
+                        # priced by the hub from days/total_gb.
+                        cfg = service.panel_config or {}
+                        days = (
+                            service.expire_duration // 86400
+                            if service.expire_duration
+                            else 0
+                        )
+                        total_gb = int(
+                            cfg.get("total_gb")
+                            or (
+                                (service.data_limit // (1024**3))
+                                if service.data_limit
+                                else 0
                             )
-                    sv_proxy = await panel.reset_usage(proxy.username)
-                    if not sv_proxy:
-                        raise ApiUserError("reset data usage didn't return anything!")
-                    if service.id != proxy.service_id:
-                        proxy.service_id = service.id
-                    params = await panel.service_modify_params(service, existing=sv_proxy)
-                    params.expire = (
-                        helpers.get_expire_timestamp(service.expire_duration)
-                        if service.expire_duration
-                        else 0
-                    )
-                    params.data_limit = data_limit
-                    params.data_limit_reset_strategy = (
-                        service.usage_reset_strategy.value
-                        if service.data_limit
-                        else service.UsageResetStrategy.no_reset.value
-                    )
-                    sv_proxy = await panel.modify_user(proxy.username, params)
-                    proxy.status = sv_proxy.status.value
-                    proxy.cost = discounted_price
-                    await proxy.save()
+                        )
+                        await panel.renew_user(
+                            proxy.username,
+                            days=days,
+                            total_gb=total_gb,
+                            pricing_mode=cfg.get("pricing_mode", "bundle"),
+                        )
+                        if service.id != proxy.service_id:
+                            proxy.service_id = service.id
+                        sv_proxy = await panel.get_user(proxy.username)
+                        if sv_proxy:
+                            proxy.status = sv_proxy.status.value
+                        proxy.cost = discounted_price
+                        await proxy.save()
+                    else:
+                        data_limit = service.data_limit
+                        # read remaining BEFORE reset, when carrying over data
+                        if (
+                            data_limit
+                            and proxy.service
+                            and proxy.service.data_limit
+                            and proxy.service.append_available_data_renew
+                        ):
+                            existing = await panel.get_user(proxy.username)
+                            if existing:
+                                data_limit = data_limit + (
+                                    (existing.data_limit or 0) - existing.used_traffic
+                                )
+                        sv_proxy = await panel.reset_usage(proxy.username)
+                        if not sv_proxy:
+                            raise ApiUserError(
+                                "reset data usage didn't return anything!"
+                            )
+                        if service.id != proxy.service_id:
+                            proxy.service_id = service.id
+                        params = await panel.service_modify_params(
+                            service, existing=sv_proxy
+                        )
+                        params.expire = (
+                            helpers.get_expire_timestamp(service.expire_duration)
+                            if service.expire_duration
+                            else 0
+                        )
+                        params.data_limit = data_limit
+                        params.data_limit_reset_strategy = (
+                            service.usage_reset_strategy.value
+                            if service.data_limit
+                            else service.UsageResetStrategy.no_reset.value
+                        )
+                        sv_proxy = await panel.modify_user(proxy.username, params)
+                        proxy.status = sv_proxy.status.value
+                        proxy.cost = discounted_price
+                        await proxy.save()
                     if discount:
                         discount.used_times = TF("used_times") + 1
                         await discount.save(update_fields=["used_times"])

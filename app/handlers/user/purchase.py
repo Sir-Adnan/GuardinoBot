@@ -5,7 +5,6 @@ from datetime import timedelta as td
 from aiogram import F
 from aiogram.types import CallbackQuery, Message
 from jdatetime import datetime as jdt
-from jdatetime import timedelta as jtd
 from tortoise.expressions import F as TF
 from tortoise.expressions import Q, RawSQL
 from tortoise.transactions import in_transaction
@@ -43,17 +42,20 @@ async def can_get_test_service(
                 await qmsg.answer("❌ شما قبلا یک بار این سرویس را فعال کرده‌اید!")
             return False
     elif user.role == User.Role.reseller:
-        count = (
-            await redis.get(
-                f"service:{service.id}:purchased:daily:_{jdt.today().strftime(format='%Y%m%d')}:{user.id}"
+        count = int(
+            (
+                await redis.get(
+                    f"service:{service.id}:purchased:daily:_{jdt.today().strftime(format='%Y%m%d')}:{user.id}"
+                )
             )
-        ) or 0
+            or 0
+        )
         limit = (
             user.setting.daily_test_services
             if user.setting
             else _settings.default_daily_test_services
         )
-        if count > limit:
+        if count >= limit:
             if isinstance(qmsg, CallbackQuery):
                 await qmsg.answer(
                     f"❌ شما نمی‌توانید بیش از {limit} بار در روز این سرویس را فعال کنید!",
@@ -69,14 +71,16 @@ async def can_get_test_service(
 
 async def record_purchase_service(user: User, service: Service) -> None:
     await service.purchased_by.add(user)
-    if user.Role == User.Role.reseller:
+    if user.role == User.Role.reseller:
         today = jdt.today()
-        await redis.incr(
-            f"service:{service.id}:purchased:daily:_{today.strftime(format='%Y%m%d')}:{user.id}"
+        # same key shape that can_get_test_service reads (date is in the key, so
+        # the daily limit resets per day); TTL only prevents stale-key buildup.
+        key = (
+            f"service:{service.id}:purchased:daily:"
+            f"_{today.strftime(format='%Y%m%d')}:{user.id}"
         )
-        await redis.expireat(
-            f"service:{service.id}:purchased:daily:{user.id}", today + jtd(days=1)
-        )
+        await redis.incr(key)
+        await redis.expire(key, 2 * 86400)
 
 
 @router.message(F.text == MainMenu.purchase, IsJoinedToChannel())
@@ -298,6 +302,24 @@ async def activate_service(
 
     async def create_user_on_server(max_retry: int = 1, tries: int = 0) -> PanelUser:
         panel = get_panel(service.server_id)
+        if getattr(panel, "panel_managed_billing", False):
+            # Guardino: the hub charges the reseller wallet on create. Best-effort
+            # pre-check so we don't attempt a doomed create / sell when the
+            # reseller's hub balance is empty.
+            try:
+                price_quote = await panel.quote(service)
+                hub_balance = await panel.get_balance()
+            except PanelError:
+                price_quote = hub_balance = None
+            if (
+                price_quote is not None
+                and hub_balance is not None
+                and hub_balance < int(price_quote.get("total_amount") or 0)
+            ):
+                raise PurchaseError(
+                    "❌ ظرفیت پنل برای فعالسازی این سرویس در حال حاضر کافی نیست! "
+                    "لطفاً بعداً تلاش کنید یا با پشتیبانی تماس بگیرید."
+                )
         await user.fetch_related("setting")
         username = await helpers.generate_proxy_username(
             user, server_id=service.server_id, _settings=_settings
@@ -364,6 +386,10 @@ async def activate_service(
                 user_id=user.id,
                 cost=price,
                 server_id=service.server_id,
+                # id-based panels (Guardino): remote user id + master sub token.
+                # None for Marzban; PasarGuard returns an id we simply keep.
+                panel_user_id=sv_proxy.remote_id,
+                sub_token=(sv_proxy.raw or {}).get("master_sub_token"),
             )
             if (
                 invoice_id

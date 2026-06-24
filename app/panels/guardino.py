@@ -92,6 +92,7 @@ class GuardinoPanel(BasePanel):
         super().__init__(server)
         self._token: Optional[str] = server.token or None
         self._client: Optional[httpx.AsyncClient] = None
+        self._label_ids: dict[str, int] = {}  # label -> hub user_id cache
 
     # -- transport -------------------------------------------------------------
     def _http(self) -> httpx.AsyncClient:
@@ -177,11 +178,35 @@ class GuardinoPanel(BasePanel):
         )
 
     @staticmethod
-    def _uid(ref: Any) -> int:
+    def _try_int(ref: Any) -> Optional[int]:
         try:
             return int(ref)
-        except (TypeError, ValueError) as exc:
-            raise PanelError(f"Guardino requires a numeric user id, got {ref!r}") from exc
+        except (TypeError, ValueError):
+            return None
+
+    async def _resolve(self, ref: Any) -> int:
+        """Resolve an identifier to the hub's integer user_id. A numeric ref is
+        used directly; otherwise it's treated as a label and looked up via the
+        list endpoint (cached). Raises PanelError(404) on no exact-label match —
+        so the bot's data-plane can keep passing ``proxy.username`` (the label)
+        and id-resolution stays inside the adapter."""
+        n = self._try_int(ref)
+        if n is not None:
+            return n
+        if ref in self._label_ids:
+            return self._label_ids[ref]
+        resp = await self._request("GET", _USERS, params={"q": ref, "limit": 50})
+        self._ok(resp, allow=(200,))
+        for item in resp.json().get("items", []):
+            if item.get("label") == ref:
+                uid = int(item["id"])
+                self._label_ids[ref] = uid
+                return uid
+        raise PanelError(
+            f"Guardino user with label {ref!r} not found",
+            status_code=404,
+            server_id=self.server_id,
+        )
 
     @staticmethod
     def _gconfig(service: Any) -> dict:
@@ -296,7 +321,7 @@ class GuardinoPanel(BasePanel):
         changes don't map to a single Guardino call — use ``renew_user`` /
         ``add_traffic`` / ``extend`` instead (the Guardino purchase/manage path
         does)."""
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         if params.is_set("status"):
             new = PanelUserStatus(params.status).value
             resp = await self._request(
@@ -317,21 +342,34 @@ class GuardinoPanel(BasePanel):
         return user
 
     async def get_user(self, username: str) -> Optional[PanelUser]:
-        uid = self._uid(username)
+        try:
+            uid = await self._resolve(username)
+        except PanelError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
         resp = await self._request("GET", _USER.format(id=uid))
         if resp.status_code == 404:
             return None
         self._ok(resp, allow=(200,))
-        return self._to_user(resp.json())
+        user = self._to_user(resp.json())
+        # Enrich with the subscription link(s) per link policy so the bot's
+        # generic display/QR code (which reads subscription_url/links) works.
+        try:
+            links = await self._links_for(uid)
+            user.subscription_url = links.get("primary") or ""
+            user.links = list(links.get("node_urls") or [])
+        except PanelError:
+            pass
+        return user
 
     async def get_users(self, usernames: list[str]) -> list[PanelUser]:
-        """Guardino has no batch-by-id endpoint; fetch each id individually.
-        Non-numeric refs are skipped. For full reseller sync use the paginated
-        list endpoint in the Guardino balance/sync job instead."""
+        """No batch-by-id endpoint; resolve + fetch each. For full reseller sync
+        use the paginated list endpoint in the Guardino balance/sync job."""
         out: list[PanelUser] = []
         for ref in usernames or []:
             try:
-                uid = self._uid(ref)
+                uid = await self._resolve(ref)
             except PanelError:
                 continue
             resp = await self._request("GET", _USER.format(id=uid))
@@ -342,7 +380,7 @@ class GuardinoPanel(BasePanel):
         return out
 
     async def remove_user(self, username: str) -> bool:
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         resp = await self._request(
             "POST", _USER.format(id=uid) + "/refund", json={"action": "delete"}
         )
@@ -352,7 +390,7 @@ class GuardinoPanel(BasePanel):
         return True
 
     async def reset_usage(self, username: str) -> PanelUser:
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         resp = await self._request("POST", _USER.format(id=uid) + "/reset-usage")
         self._ok(resp, allow=(200,))
         user = await self.get_user(username)
@@ -361,7 +399,7 @@ class GuardinoPanel(BasePanel):
         return user
 
     async def revoke_subscription(self, username: str) -> PanelUser:
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         resp = await self._request("POST", _USER.format(id=uid) + "/revoke")
         self._ok(resp, allow=(200,))
         user = await self.get_user(username)
@@ -375,16 +413,27 @@ class GuardinoPanel(BasePanel):
         # Node changes go through change_nodes explicitly; nothing to carry over.
         return ModifyUserParams()
 
+    async def reset_proxy_credentials(self, username: str, service: Any) -> PanelUser:
+        # Guardino has no "rotate proxy creds, keep sub" primitive; use revoke.
+        raise PanelError(
+            "Reset password is not supported on Guardino Hub; use revoke instead",
+            server_id=self.server_id,
+        )
+
     # -- Guardino-specific ops (used by the Guardino-aware paths) --------------
     async def quote(self, service: Any, *, label: str = "quote") -> dict:
         """Ask the hub what a (total_gb, days, nodes) plan would cost the
         reseller. Returns PriceQuoteResponse: {total_amount, per_node_amount,
-        time_amount}. Use before create to pre-check balance."""
+        time_amount}. Use before create to pre-check balance. total_gb/days come
+        from panel_config, falling back to the service's data_limit/
+        expire_duration (same derivation as create_user)."""
         cfg = self._gconfig(service)
+        data_limit = getattr(service, "data_limit", 0) or 0
+        expire_duration = getattr(service, "expire_duration", 0) or 0
         body: dict[str, Any] = {
             "label": label,
-            "total_gb": int(cfg.get("total_gb") or 0),
-            "days": int(cfg.get("days") or 0),
+            "total_gb": int(cfg.get("total_gb") or (data_limit // GIB)),
+            "days": int(cfg.get("days") or (expire_duration // 86400)),
             "pricing_mode": cfg.get("pricing_mode", "per_node"),
         }
         if cfg.get("node_ids"):
@@ -406,7 +455,7 @@ class GuardinoPanel(BasePanel):
     ) -> dict:
         """Renew (reset+recharge) a user. Returns the hub OpResult (with
         charged_amount / new_balance)."""
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         resp = await self._request(
             "POST",
             _USER.format(id=uid) + "/renew",
@@ -416,7 +465,7 @@ class GuardinoPanel(BasePanel):
         return resp.json()
 
     async def extend(self, username: str, days: int) -> dict:
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         resp = await self._request(
             "POST", _USER.format(id=uid) + "/extend", json={"days": int(days)}
         )
@@ -424,7 +473,7 @@ class GuardinoPanel(BasePanel):
         return resp.json()
 
     async def add_traffic(self, username: str, add_gb: int) -> dict:
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         resp = await self._request(
             "POST", _USER.format(id=uid) + "/add-traffic", json={"add_gb": int(add_gb)}
         )
@@ -438,7 +487,7 @@ class GuardinoPanel(BasePanel):
         add_node_ids: Optional[list[int]] = None,
         remove_node_ids: Optional[list[int]] = None,
     ) -> dict:
-        uid = self._uid(username)
+        uid = await self._resolve(username)
         body: dict[str, Any] = {}
         if add_node_ids:
             body["add_node_ids"] = [int(x) for x in add_node_ids]
@@ -450,14 +499,9 @@ class GuardinoPanel(BasePanel):
         self._ok(resp, allow=(200,))
         return resp.json()
 
-    async def get_links(self, username: str, *, policy: Optional[str] = None) -> dict:
-        """Fetch subscription links and pick the primary one per link policy.
-
-        Returns: {"primary": str|None, "master_link": str|None,
-                  "node_links": [NodeLink,...]}.
-        ``policy`` defaults to the server's ``link_policy`` (master_first /
-        node_first). The bot shows / QR-encodes ``primary``."""
-        uid = self._uid(username)
+    async def _links_for(self, uid: int, *, policy: Optional[str] = None) -> dict:
+        """links endpoint + policy pick. Returns {primary, master_link,
+        node_links, node_urls}."""
         resp = await self._request("GET", _USER.format(id=uid) + "/links")
         self._ok(resp, allow=(200,))
         data = resp.json()
@@ -470,9 +514,21 @@ class GuardinoPanel(BasePanel):
         def _node_url(nl: dict) -> Optional[str]:
             return nl.get("full_url") or nl.get("direct_url") or nl.get("config_download_url")
 
-        node_primary = next((u for u in (_node_url(n) for n in nodes) if u), None)
+        node_urls = [u for u in (_node_url(n) for n in nodes) if u]
+        node_primary = node_urls[0] if node_urls else None
         primary = (node_primary or master) if pol == "node_first" else (master or node_primary)
-        return {"primary": primary, "master_link": master, "node_links": nodes}
+        return {
+            "primary": primary,
+            "master_link": master,
+            "node_links": nodes,
+            "node_urls": node_urls,
+        }
+
+    async def get_links(self, username: str, *, policy: Optional[str] = None) -> dict:
+        """Fetch subscription links and pick the primary one per link policy.
+        The bot shows / QR-encodes ``primary``."""
+        uid = await self._resolve(username)
+        return await self._links_for(uid, policy=policy)
 
 
 # --- one-shot helpers for the admin server-setup flow ------------------------
