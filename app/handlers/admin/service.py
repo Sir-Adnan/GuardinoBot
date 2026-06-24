@@ -39,7 +39,8 @@ from app.keyboards.admin.service import (
 )
 from app.main import redis
 from app.marzban import Marzban
-from app.panels import get_panel
+from app.panels import get_panel, PanelError
+from app.logger import get_logger
 from app.models.proxy import Proxy
 from app.models.server import Server
 from app.models.service import Service
@@ -50,6 +51,8 @@ from marzban_client.api.system import get_inbounds
 
 from . import router
 
+logger = get_logger("handlers/admin/service")
+
 def _is_pasarguard(server: Server) -> bool:
     """Whether a Server speaks PasarGuard (group-based provisioning)."""
     return str(getattr(server.panel_type, "value", server.panel_type)) == "pasarguard"
@@ -58,6 +61,41 @@ def _is_pasarguard(server: Server) -> bool:
 def _is_guardino(server: Server) -> bool:
     """Whether a Server speaks Guardino Hub (node-based, id-keyed)."""
     return str(getattr(server.panel_type, "value", server.panel_type)) == "guardino"
+
+
+async def _fetch_panel_catalog(
+    server: Server, key: str
+) -> tuple[list | None, str | None]:
+    """Fetch the panel's selectable catalog (``groups`` for PasarGuard /
+    ``nodes`` for Guardino) via the adapter.
+
+    Returns ``(items, None)`` on success or ``(None, message)`` on failure so
+    the caller surfaces a clear Persian error instead of letting a ``PanelError``
+    bubble up unhandled — which previously looked like "nothing happens" when an
+    admin picked a PasarGuard/Guardino server while building a service. The raw
+    panel detail is logged (not shown) per the no-secret-leak rule.
+    """
+    try:
+        catalog = await get_panel(server.id).get_inbounds()
+        return list(catalog.get(key, []) or []), None
+    except PanelError as exc:
+        logger.warning("server %s get_inbounds failed: %s", server.id, exc)
+        code = getattr(exc, "status_code", None)
+        return None, (
+            "❌ ارتباط با پنل برقرار نشد"
+            + (f" (کد {code})" if code else "")
+            + ".\nاتصال، آدرس و توکن/رمز سرور را بررسی کنید و دوباره سرور را انتخاب کنید."
+        )
+    except KeyError:
+        logger.warning("server %s has no cached panel adapter", server.id)
+        return None, (
+            "❌ آداپتر این سرور یافت نشد. ربات را یک‌بار ری‌استارت کنید یا سرور را دوباره اضافه کنید."
+        )
+    except Exception:  # noqa: BLE001 - never silently swallow
+        logger.exception("server %s get_inbounds crashed", server.id)
+        return None, (
+            "❌ خطای ناشناخته در دریافت اطلاعات از پنل. لاگ سرور را بررسی کنید."
+        )
 
 
 cancel_form = CancelFormAdmin().as_markup(resize_keyboard=True, one_time_only=True)
@@ -308,7 +346,10 @@ async def get_service_server_id(
                 "لطفاً مدت سرویس را حداقل ۱ روز وارد کنید (مثلاً 1d یا 1m):",
                 reply_markup=cancel_form,
             )
-        nodes = (await get_panel(server.id).get_inbounds()).get("nodes", [])
+        nodes, err = await _fetch_panel_catalog(server, "nodes")
+        if err is not None:
+            await state.set_state(AddServiceForm.server_id)
+            return await query.message.answer(err)
         await state.update_data(node_ids=[])
         return await query.message.edit_text(
             info + "\nنودهای این سرور را انتخاب کنید (اختیاری — خالی = نودهای پیش‌فرض هاب):",
@@ -318,7 +359,16 @@ async def get_service_server_id(
         )
 
     if _is_pasarguard(server):
-        groups = (await get_panel(server.id).get_inbounds()).get("groups", [])
+        groups, err = await _fetch_panel_catalog(server, "groups")
+        if err is not None:
+            await state.set_state(AddServiceForm.server_id)
+            return await query.message.answer(err)
+        if not groups:
+            await state.set_state(AddServiceForm.server_id)
+            return await query.message.answer(
+                "❌ این پنل پاسارگارد هیچ گروهی (Group) ندارد.\n"
+                "ابتدا در پنل پاسارگارد یک گروه بسازید، سپس دوباره سرور را انتخاب کنید."
+            )
         await state.update_data(group_ids=[])
         return await query.message.edit_text(
             info + "\nگروه‌های این سرور را انتخاب کنید:",
@@ -361,7 +411,10 @@ async def edit_service_inbounds(
     server = await Server.filter(id=service.server_id).first()
     await state.set_state(EditServiceForm.inbounds)
     if server and _is_guardino(server):
-        nodes = (await get_panel(service.server_id).get_inbounds()).get("nodes", [])
+        nodes, err = await _fetch_panel_catalog(server, "nodes")
+        if err is not None:
+            await state.clear()
+            return await query.answer(err, show_alert=True)
         selected = list((service.panel_config or {}).get("node_ids", []))
         await state.update_data(node_ids=selected)
         return await query.message.edit_text(
@@ -376,7 +429,10 @@ async def edit_service_inbounds(
         )
 
     if server and _is_pasarguard(server):
-        groups = (await get_panel(service.server_id).get_inbounds()).get("groups", [])
+        groups, err = await _fetch_panel_catalog(server, "groups")
+        if err is not None:
+            await state.clear()
+            return await query.answer(err, show_alert=True)
         selected = list((service.panel_config or {}).get("group_ids", []))
         await state.update_data(group_ids=selected)
         return await query.message.edit_text(
@@ -477,7 +533,10 @@ async def select_service_groups(
 ):
     data = await state.get_data()
     selected: list[int] = list(data.get("group_ids", []))
-    groups = (await get_panel(callback_data.server_id).get_inbounds()).get("groups", [])
+    server = await Server.filter(id=callback_data.server_id).first()
+    groups, err = await _fetch_panel_catalog(server, "groups") if server else (None, "❌ سرور یافت نشد.")
+    if err is not None:
+        return await query.answer(err, show_alert=True)
     if callback_data.group_id is not None:
         if callback_data.group_id in selected:
             selected.remove(callback_data.group_id)
@@ -523,7 +582,10 @@ async def select_service_nodes(
 ):
     data = await state.get_data()
     selected: list[int] = list(data.get("node_ids", []))
-    nodes = (await get_panel(callback_data.server_id).get_inbounds()).get("nodes", [])
+    server = await Server.filter(id=callback_data.server_id).first()
+    nodes, err = await _fetch_panel_catalog(server, "nodes") if server else (None, "❌ سرور یافت نشد.")
+    if err is not None:
+        return await query.answer(err, show_alert=True)
     if callback_data.node_id is not None:
         if callback_data.node_id in selected:
             selected.remove(callback_data.node_id)
