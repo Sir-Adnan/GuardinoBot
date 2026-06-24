@@ -838,7 +838,16 @@ async def edit_server_action(
         )
     elif callback_data.action == EditServerAction.token:
         await state.set_state(EditServerForm.token)
-        await query.message.reply(TOKEN_TEXT, reply_markup=cancel_form)
+        panel_type = str(
+            getattr(server.panel_type, "value", server.panel_type)
+            or PanelType.marzban.value
+        )
+        prompt = (
+            GUARDINO_CREDS_TEXT
+            if panel_type == PanelType.guardino.value
+            else TOKEN_TEXT
+        )
+        await query.message.reply(prompt, reply_markup=cancel_form)
     elif callback_data.action == EditServerAction.https:
         https = (await state.get_data()).get("https") or server.https
         if https:
@@ -941,40 +950,85 @@ async def edit_server_token(message: Message, user: User, state: FSMContext):
             "خطایی رخ داد! با دستور /admin دوباره تنظیمات را باز کنید"
         )
 
+    panel_type = str(
+        getattr(server.panel_type, "value", server.panel_type)
+        or PanelType.marzban.value
+    )
+
     try:
-        token = await IsSubscriptionURL()(message)
-        if not token:
+        if panel_type == PanelType.guardino.value:
+            # Guardino connects with reseller username/password (login), not a
+            # Bearer token; validate via the Guardino adapter helpers.
             try:
                 username, password = message.text.split("\n")
+                username, password = username.strip(), password.strip()
             except ValueError:
-                return await message.answer(TOKEN_VALIDATION_ERR_TEXT)
-
-            try:
-                access_token = await get_token_from_username_password(
-                    server.url, username, password
+                return await message.answer(GUARDINO_CREDS_TEXT, reply_markup=cancel_form)
+            token_resp = await guardino_login(server.url, username, password)
+            if token_resp.get("requires_2fa"):
+                return await message.answer(
+                    "حساب گاردینو 2FA فعال دارد. لطفا 2FA را غیرفعال کنید یا از حسابی بدون 2FA استفاده کنید.",
+                    reply_markup=cancel_form,
                 )
-            except GetTokenError as exc:
-                return await message.answer(text=str(exc), reply_markup=cancel_form)
+            access_token = token_resp.get("access_token")
+            if not access_token:
+                return await message.answer(
+                    "توکنی از گاردینو هاب دریافت نشد!", reply_markup=cancel_form
+                )
+            admin_info = await guardino_validate(server.url, access_token)
+            admin_username, admin_is_sudo = admin_info.username, admin_info.is_sudo
             await state.update_data(username=username, password=password)
         else:
-            access_token = token.get("token")
+            token = await IsSubscriptionURL()(message)
+            if not token:
+                try:
+                    username, password = message.text.split("\n")
+                except ValueError:
+                    return await message.answer(TOKEN_VALIDATION_ERR_TEXT)
 
-        client = AuthenticatedClient(
-            server.url, token=access_token, raise_on_unexpected_status=True
-        )
-        resp = await get_current_admin.asyncio_detailed(client=client)
-        if resp.status_code == 200:
-            text = f"""
-اتصال به سرور موفقیت آمیز بود! 
-نام کاربری: {resp.parsed.username}
-سودو: {'✅' if resp.parsed.is_sudo else '❌'}
-            """
-            if server.token == message.text:
-                return await message.answer(
-                    "توکن جدید نمی‌تواند با توکن قدیمی برابر باشد! دوباره وارد کنید یا دکمه لغو را بزنید:"
+                try:
+                    access_token = await get_token_from_username_password(
+                        server.url, username, password
+                    )
+                except GetTokenError as exc:
+                    return await message.answer(text=str(exc), reply_markup=cancel_form)
+                await state.update_data(username=username, password=password)
+            else:
+                access_token = token.get("token")
+
+            if panel_type == PanelType.pasarguard.value:
+                # PasarGuard's /api/admin has no `is_sudo` (it exposes
+                # role.is_owner); validate via the adapter, not the Marzban client.
+                admin_info = await pg_validate_token(server.url, access_token)
+                admin_username, admin_is_sudo = admin_info.username, admin_info.is_sudo
+            else:
+                client = AuthenticatedClient(
+                    server.url, token=access_token, raise_on_unexpected_status=True
                 )
-            await state.update_data(token=access_token)
-            return await edit_server(message, user, state)
+                resp = await get_current_admin.asyncio_detailed(client=client)
+                if resp.status_code != 200:
+                    raise UnexpectedStatus(resp.status_code, resp.content)
+                admin_username, admin_is_sudo = resp.parsed.username, resp.parsed.is_sudo
+
+        if server.token == access_token:
+            return await message.answer(
+                "توکن جدید نمی‌تواند با توکن قدیمی برابر باشد! دوباره وارد کنید یا دکمه لغو را بزنید:"
+            )
+
+        text = f"""
+اتصال به سرور موفقیت آمیز بود!
+نام کاربری: {admin_username}
+سودو: {'✅' if admin_is_sudo else '❌'}
+        """
+        await message.answer(text)
+        await state.update_data(token=access_token)
+        return await edit_server(message, user, state)
+    except PanelAuthError:
+        await message.answer(
+            text=f"خطای احراز هویت در اتصال به پنل! یوزرنیم/پسوورد یا توکن را بررسی کنید\n\n{TOKEN_VALIDATION_ERR_TEXT}",
+            reply_markup=cancel_form,
+        )
+        return
     except UnexpectedStatus as exc:
         if exc.status_code == 401:
             text = f"خطای احراز هویت در اتصال به پنل! توکن یا یوزرنیم/پسوورد ارسال شده را بررسی کنید\n\n{TOKEN_VALIDATION_ERR_TEXT}"

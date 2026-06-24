@@ -208,23 +208,77 @@ class PasarGuardPanel(BasePanel):
             raw=data,
         )
 
-    async def get_inbounds(self) -> dict:
-        resp = await self._request("GET", "/api/groups", params={"limit": 1000})
+    async def _allowed_group_ids(self) -> Optional[list[int]]:
+        """The group ids the current admin may assign, or ``None`` when
+        unrestricted (owner, or no group scope set).
+
+        PasarGuard is role-based: only owners can list every group via
+        ``/api/groups``; a restricted admin is 403'd there and instead carries
+        its assignable groups in ``role.access.allowed_group_ids`` on its own
+        admin record (``/api/admin``)."""
+        resp = await self._request("GET", "/api/admin")
+        if resp.status_code != 200:
+            return None
+        role = resp.json().get("role") or {}
+        if role.get("is_owner"):
+            return None
+        ids = (role.get("access") or {}).get("allowed_group_ids")
+        if ids is None:
+            return None  # unrestricted
+        return [int(i) for i in ids]
+
+    async def _list_groups(self, *, detailed: bool) -> Optional[list[dict]]:
+        """List groups, normalized to ``{id, name, inbound_tags}``.
+
+        Returns ``None`` when the admin is forbidden (403) so the caller can
+        fall back. ``detailed`` hits ``/api/groups`` (with ``inbound_tags``);
+        otherwise ``/api/groups/simple`` (id + name only, lighter perms)."""
+        path = "/api/groups" if detailed else "/api/groups/simple"
+        resp = await self._request("GET", path, params={"limit": 1000})
+        if resp.status_code == 403:
+            return None
         self._ok(resp, allow=(200,))
-        groups = resp.json().get("groups", [])
-        # Flat protocol->tags view (best effort) plus the raw group list so the
-        # admin UI can offer group selection.
+        out: list[dict] = []
+        for g in resp.json().get("groups", []):
+            out.append(
+                {
+                    "id": g.get("id"),
+                    "name": g.get("name") or str(g.get("id")),
+                    "inbound_tags": list(g.get("inbound_tags", []) or []) if detailed else [],
+                }
+            )
+        return out
+
+    async def get_inbounds(self) -> dict:
+        """Return the groups this admin may assign — PasarGuard's analogue of
+        Marzban's inbounds — handling restricted (non-owner) admins.
+
+        Owners get the full ``/api/groups`` list; restricted admins fall back to
+        ``/api/groups/simple`` and finally to the id-only ``allowed_group_ids``
+        from their admin record, so a non-owner bot account no longer dead-ends
+        on a 403 when building a service.
+        """
+        allowed_ids = await self._allowed_group_ids()
+
+        groups = await self._list_groups(detailed=True)
+        if groups is None:
+            groups = await self._list_groups(detailed=False)
+        if groups is None:
+            # No group-listing permission at all: build from the admin's own
+            # allowed ids (names unknown → shown by id).
+            groups = [
+                {"id": gid, "name": str(gid), "inbound_tags": []}
+                for gid in (allowed_ids or [])
+            ]
+        elif allowed_ids is not None:
+            wanted = set(allowed_ids)
+            groups = [g for g in groups if g.get("id") in wanted]
+
         flat: dict[str, list[str]] = {}
         for g in groups:
             for tag in g.get("inbound_tags", []) or []:
                 flat.setdefault("inbounds", []).append(tag)
-        return {
-            "groups": [
-                {"id": g.get("id"), "name": g.get("name"), "inbound_tags": g.get("inbound_tags", [])}
-                for g in groups
-            ],
-            "inbounds": flat.get("inbounds", []),
-        }
+        return {"groups": groups, "inbounds": flat.get("inbounds", [])}
 
     async def create_user(
         self,
