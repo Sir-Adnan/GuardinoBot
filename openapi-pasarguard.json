@@ -3,7 +3,7 @@
   "info": {
     "title": "PasarGuardAPI",
     "description": "Unified GUI Censorship Resistant Solution",
-    "version": "5.0.1"
+    "version": "5.0.3"
   },
   "paths": {
     "/": {
@@ -18843,7 +18843,7 @@
             "$ref": "#/components/schemas/RoleAccess"
           },
           "hwid": {
-            "$ref": "#/components/schemas/HWIDSettings"
+            "$ref": "#/components/schemas/RoleHWIDSettings"
           },
           "disabled_when_limited": {
             "type": "boolean",
@@ -18903,7 +18903,7 @@
             "$ref": "#/components/schemas/RoleAccess"
           },
           "hwid": {
-            "$ref": "#/components/schemas/HWIDSettings"
+            "$ref": "#/components/schemas/RoleHWIDSettings"
           },
           "disabled_when_limited": {
             "type": "boolean",
@@ -18982,7 +18982,7 @@
           "hwid": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/HWIDSettings"
+                "$ref": "#/components/schemas/RoleHWIDSettings"
               },
               {
                 "type": "null"
@@ -19046,7 +19046,7 @@
             "$ref": "#/components/schemas/RoleAccess"
           },
           "hwid": {
-            "$ref": "#/components/schemas/HWIDSettings"
+            "$ref": "#/components/schemas/RoleHWIDSettings"
           },
           "disabled_when_limited": {
             "type": "boolean",
@@ -19421,6 +19421,11 @@
           "recommended": {
             "type": "boolean",
             "title": "Recommended",
+            "default": false
+          },
+          "show_when_hwid_enabled": {
+            "type": "boolean",
+            "title": "Show When Hwid Enabled",
             "default": false
           },
           "platform": {
@@ -21880,6 +21885,15 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HWIDMode": {
+        "type": "string",
+        "enum": [
+          "disabled",
+          "use_global",
+          "override"
+        ],
+        "title": "HWIDMode"
+      },
       "HWIDSettings": {
         "properties": {
           "enabled": {
@@ -21891,6 +21905,11 @@
             "type": "boolean",
             "title": "Forced",
             "default": false
+          },
+          "require_hwid_for_manual_sub": {
+            "type": "boolean",
+            "title": "Require Hwid For Manual Sub",
+            "default": true
           },
           "fallback_limit": {
             "anyOf": [
@@ -24117,6 +24136,67 @@
         "type": "object",
         "title": "RoleFeatures"
       },
+      "RoleHWIDSettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "forced": {
+            "type": "boolean",
+            "title": "Forced",
+            "default": false
+          },
+          "require_hwid_for_manual_sub": {
+            "type": "boolean",
+            "title": "Require Hwid For Manual Sub",
+            "default": true
+          },
+          "fallback_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Limit"
+          },
+          "min_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Limit"
+          },
+          "max_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Limit"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/HWIDMode",
+            "default": "use_global"
+          }
+        },
+        "type": "object",
+        "title": "RoleHWIDSettings"
+      },
       "RoleLimits": {
         "properties": {
           "max_users": {
@@ -24195,6 +24275,28 @@
               }
             ],
             "title": "Max Hwid Per User"
+          },
+          "on_hold_timeout_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Hold Timeout Min"
+          },
+          "on_hold_timeout_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Hold Timeout Max"
           }
         },
         "type": "object",
