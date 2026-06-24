@@ -34,6 +34,11 @@ class Proxy(TimedBase):
     )
     renewed_at = fields.DatetimeField(null=True)
 
+    # id-based panels (Guardino hub): remote integer user id + master sub token.
+    # Null for username-based panels (Marzban / PasarGuard).
+    panel_user_id = fields.BigIntField(null=True)
+    sub_token = fields.CharField(max_length=128, null=True)
+
     service: fields.ForeignKeyNullableRelation["Service"] = fields.ForeignKeyField(
         "models.Service",
         "proxies",

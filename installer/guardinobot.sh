@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 #
 # GuardinoBot installer / manager
-# Usage:
-#   bash <(curl -Ls --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardino.sh)
+# Repo:   https://github.com/Sir-Adnan/GuardinoBot
+# Author: UnknownZero
 #
-# Menu: install · update · logs · backup · restart · status · edit env · uninstall
+# Usage:
+#   bash <(curl -Ls --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardinobot.sh)
+#
+# Menu: install | update | logs | backup | restart | status | edit env | uninstall
 #
 set -euo pipefail
 
@@ -12,7 +15,7 @@ set -euo pipefail
 APP_NAME="GuardinoBot"
 REPO_URL="https://github.com/Sir-Adnan/GuardinoBot.git"
 REPO_BRANCH="main"
-RAW_SCRIPT="https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardino.sh"
+RAW_SCRIPT="https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardinobot.sh"
 
 APP_DIR="/opt/GuardinoBot"        # holds generated compose + .env
 SRC_DIR="${APP_DIR}/src"          # git clone of the repo (build context)
@@ -37,7 +40,7 @@ hr()    { echo "${BLUE}--------------------------------------------------${NC}";
 # ----------------------------------------------------------------------------- preflight
 need_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
-        die "این اسکریپت باید با کاربر root اجرا شود. از sudo استفاده کنید."
+        die "This script must run as root. Use sudo."
     fi
 }
 
@@ -52,21 +55,21 @@ detect_pkg_manager() {
 install_prereqs() {
     detect_pkg_manager
     local pkgs=(curl git tar openssl ca-certificates)
-    info "نصب پیش‌نیازها (${pkgs[*]}) ..."
+    info "Installing prerequisites (${pkgs[*]}) ..."
     case "$PKG" in
         apt) apt-get update -y >/dev/null 2>&1 || true; DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}" >/dev/null 2>&1 || true ;;
         dnf) dnf install -y "${pkgs[@]}" >/dev/null 2>&1 || true ;;
         yum) yum install -y "${pkgs[@]}" >/dev/null 2>&1 || true ;;
-        *)   warn "پکیج‌منیجر ناشناخته؛ مطمئن شوید curl/git/tar/openssl نصب‌اند." ;;
+        *)   warn "Unknown package manager; make sure curl/git/tar/openssl are installed." ;;
     esac
 }
 
 install_docker() {
     if command -v docker >/dev/null 2>&1; then
-        info "Docker از قبل نصب است."
+        info "Docker is already installed."
     else
-        info "نصب Docker ..."
-        curl -fsSL --ipv4 https://get.docker.com | sh || die "نصب Docker ناموفق بود."
+        info "Installing Docker ..."
+        curl -fsSL --ipv4 https://get.docker.com | sh || die "Docker installation failed."
         systemctl enable --now docker >/dev/null 2>&1 || true
     fi
     # docker compose v2 plugin / fallback to v1
@@ -75,14 +78,14 @@ install_docker() {
     elif command -v docker-compose >/dev/null 2>&1; then
         DC="docker-compose"
     else
-        warn "افزونهٔ docker compose یافت نشد؛ تلاش برای نصب ..."
+        warn "docker compose plugin not found; trying to install ..."
         detect_pkg_manager
         case "$PKG" in
             apt) apt-get install -y docker-compose-plugin >/dev/null 2>&1 || true ;;
             dnf) dnf install -y docker-compose-plugin >/dev/null 2>&1 || true ;;
             yum) yum install -y docker-compose-plugin >/dev/null 2>&1 || true ;;
         esac
-        if docker compose version >/dev/null 2>&1; then DC="docker compose"; else die "Docker Compose در دسترس نیست."; fi
+        if docker compose version >/dev/null 2>&1; then DC="docker compose"; else die "Docker Compose is not available."; fi
     fi
 }
 
@@ -117,13 +120,13 @@ load_or_make_creds() {
 clone_or_update_src() {
     mkdir -p "$APP_DIR" "$DATA_DIR" "$BACKUP_DIR"
     if [[ -d "${SRC_DIR}/.git" ]]; then
-        info "به‌روزرسانی سورس از گیت‌هاب ..."
-        git -C "$SRC_DIR" fetch --depth 1 origin "$REPO_BRANCH" >/dev/null 2>&1 || die "git fetch ناموفق."
-        git -C "$SRC_DIR" reset --hard "origin/${REPO_BRANCH}" >/dev/null 2>&1 || die "git reset ناموفق."
+        info "Updating source from GitHub ..."
+        git -C "$SRC_DIR" fetch --depth 1 origin "$REPO_BRANCH" >/dev/null 2>&1 || die "git fetch failed."
+        git -C "$SRC_DIR" reset --hard "origin/${REPO_BRANCH}" >/dev/null 2>&1 || die "git reset failed."
     else
-        info "دریافت سورس از ${REPO_URL} ..."
+        info "Cloning source from ${REPO_URL} ..."
         rm -rf "$SRC_DIR"
-        git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$SRC_DIR" >/dev/null 2>&1 || die "git clone ناموفق."
+        git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$SRC_DIR" >/dev/null 2>&1 || die "git clone failed."
     fi
 }
 
@@ -172,31 +175,31 @@ services:
       timeout: 5s
       retries: 12
 YAML
-    info "docker-compose.yml ساخته شد: ${COMPOSE_FILE}"
+    info "Wrote docker-compose.yml: ${COMPOSE_FILE}"
 }
 
 # ----------------------------------------------------------------------------- .env
 write_env() {
     if [[ -f "$ENV_FILE" ]]; then
-        warn ".env از قبل وجود دارد؛ حفظ شد (برای تغییر از گزینهٔ «ویرایش .env» استفاده کنید)."
+        warn ".env already exists; kept as-is (use the 'Edit .env' menu option to change it)."
         return
     fi
 
     echo
-    read -rp "${CYAN}توکن ربات تلگرام (BOT_TOKEN): ${NC}" BOT_TOKEN
-    [[ -n "$BOT_TOKEN" ]] || die "BOT_TOKEN الزامی است."
+    read -rp "${CYAN}Telegram bot token (BOT_TOKEN): ${NC}" BOT_TOKEN
+    [[ -n "$BOT_TOKEN" ]] || die "BOT_TOKEN is required."
 
-    echo "${CYAN}آیدی عددی سوپر-ادمین(ها) را وارد کنید (هر کدام در یک خط، با Enter خالی پایان دهید):${NC}"
+    echo "${CYAN}Super-admin numeric ID(s). One per line, empty line to finish:${NC}"
     local SUPER_USERS="" line
     while true; do
         read -rp "  user id: " line || true
         [[ -z "$line" ]] && break
         SUPER_USERS+="${line}"$'\n'
     done
-    [[ -n "$SUPER_USERS" ]] || warn "هیچ سوپر-ادمینی وارد نشد؛ بعداً در .env اضافه کنید."
+    [[ -n "$SUPER_USERS" ]] || warn "No super-admin entered; add one later in .env."
 
     local ip; ip="$(public_ip)"
-    read -rp "${CYAN}آدرس پایهٔ وب‌هوک/کال‌بک (WEBHOOK_BASE_URL) [http://${ip}:3333]: ${NC}" WEBHOOK_BASE_URL
+    read -rp "${CYAN}Webhook/callback base URL (WEBHOOK_BASE_URL) [http://${ip}:3333]: ${NC}" WEBHOOK_BASE_URL
     WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-http://${ip}:3333}"
 
     umask 077
@@ -237,16 +240,15 @@ MYSQL_USER = "${DB_USER}"
 MYSQL_PASSWORD = "${DB_PASS}"
 ENV
     chmod 600 "$ENV_FILE"
-    info ".env ساخته شد: ${ENV_FILE} (اسرار به‌صورت تصادفی تولید شدند)."
+    info "Wrote .env: ${ENV_FILE} (secrets were generated randomly)."
 }
 
 install_cli() {
     # save a local copy + a convenience command
-    install -m 0755 -D "$SRC_DIR/installer/guardino.sh" "$BIN_PATH" 2>/dev/null || {
-        # fallback: fetch fresh copy
+    install -m 0755 -D "$SRC_DIR/installer/guardinobot.sh" "$BIN_PATH" 2>/dev/null || {
         curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$BIN_PATH" 2>/dev/null && chmod 0755 "$BIN_PATH" || true
     }
-    [[ -f "$BIN_PATH" ]] && info "دستور مدیریت نصب شد: ${CYAN}guardinobot${NC}"
+    [[ -f "$BIN_PATH" ]] && info "Management command installed: ${CYAN}guardinobot${NC}"
 }
 
 # ----------------------------------------------------------------------------- actions
@@ -259,19 +261,19 @@ do_install() {
     write_compose
     write_env
     install_cli
-    info "ساخت ایمیج و اجرا (ممکن است چند دقیقه طول بکشد) ..."
+    info "Building image and starting (this may take a few minutes) ..."
     dc up -d --build
     hr
-    info "${APP_NAME} نصب و اجرا شد."
-    echo "  • مدیریت بعدی:    ${CYAN}guardinobot${NC}"
-    echo "  • لاگ زنده:        ${CYAN}guardinobot${NC} → گزینهٔ لاگ"
-    echo "  • فایل تنظیمات:    ${ENV_FILE}"
-    echo "  • migration دیتابیس به‌صورت خودکار هنگام استارت اعمال می‌شود (aerich upgrade)."
+    info "${APP_NAME} is installed and running."
+    echo "  - Manage later:     ${CYAN}guardinobot${NC}"
+    echo "  - Live logs:        ${CYAN}guardinobot${NC} -> Logs option"
+    echo "  - Config file:      ${ENV_FILE}"
+    echo "  - DB migrations are applied automatically on start (aerich upgrade)."
     hr
 }
 
 require_installed() {
-    [[ -f "$COMPOSE_FILE" ]] || die "${APP_NAME} نصب نشده است. ابتدا گزینهٔ نصب را اجرا کنید."
+    [[ -f "$COMPOSE_FILE" ]] || die "${APP_NAME} is not installed. Run the install option first."
     # pick the available compose command for management actions
     if docker compose version >/dev/null 2>&1; then DC="docker compose"
     elif command -v docker-compose >/dev/null 2>&1; then DC="docker-compose"; fi
@@ -282,15 +284,15 @@ do_update() {
     clone_or_update_src
     load_or_make_creds
     write_compose   # refresh compose in case the template changed
-    info "ساخت مجدد ایمیج و راه‌اندازی ..."
+    info "Rebuilding image and starting ..."
     dc up -d --build
     dc image prune -f >/dev/null 2>&1 || true
-    info "به‌روزرسانی کامل شد. (migration هنگام استارت اعمال شد.)"
+    info "Update complete. (Migrations applied on start.)"
 }
 
 do_logs() {
     require_installed
-    echo "سرویس؟ [bot] / mariadb / redis  (Enter = bot، خروج با Ctrl+C)"
+    echo "Service? [bot] / mariadb / redis  (Enter = bot, exit with Ctrl+C)"
     read -rp "service: " svc || true
     svc="${svc:-bot}"
     dc logs -f --tail=200 "$svc"
@@ -301,7 +303,7 @@ do_backup() {
     mkdir -p "$BACKUP_DIR"
     local ts; ts="$(date +%Y%m%d-%H%M%S)"
     local tmp; tmp="$(mktemp -d)"
-    info "تهیهٔ بکاپ ..."
+    info "Creating backup ..."
 
     # parse DB creds from .env DATABASE_URL: mysql://user:pass@host:port/db
     local url user pass db
@@ -311,9 +313,9 @@ do_backup() {
     db="$(echo "$url"   | sed -E 's#.*/([^/?]+)(\?.*)?$#\1#')"
 
     if [[ -n "$db" && -n "$user" ]]; then
-        info "دامپ دیتابیس ${db} ..."
+        info "Dumping database ${db} ..."
         dc exec -T mariadb sh -c "exec mysqldump -u'${user}' -p'${pass}' --single-transaction --routines --triggers '${db}'" \
-            > "${tmp}/database.sql" 2>/dev/null || warn "دامپ دیتابیس ناموفق بود (آیا کانتینر بالا است؟)."
+            > "${tmp}/database.sql" 2>/dev/null || warn "Database dump failed (is the container up?)."
     fi
     cp -f "$ENV_FILE" "${tmp}/.env" 2>/dev/null || true
     cp -f "$COMPOSE_FILE" "${tmp}/docker-compose.yml" 2>/dev/null || true
@@ -324,28 +326,28 @@ do_backup() {
     local out="${BACKUP_DIR}/guardinobot-backup-${ts}.tar.gz"
     tar -czf "$out" -C "$tmp" . 2>/dev/null
     rm -rf "$tmp"
-    info "بکاپ ساخته شد: ${CYAN}${out}${NC}"
+    info "Backup created: ${CYAN}${out}${NC}"
     ls -1t "$BACKUP_DIR"/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f   # keep last 10
 }
 
-do_restart() { require_installed; dc restart; info "ری‌استارت شد."; }
-do_stop()    { require_installed; dc down; info "متوقف شد."; }
-do_start()   { require_installed; dc up -d; info "اجرا شد."; }
+do_restart() { require_installed; dc restart; info "Restarted."; }
+do_stop()    { require_installed; dc down; info "Stopped."; }
+do_start()   { require_installed; dc up -d; info "Started."; }
 do_status()  { require_installed; dc ps; }
-do_edit_env(){ require_installed; "${EDITOR:-nano}" "$ENV_FILE"; warn "برای اعمال تغییرات، ربات را ری‌استارت کنید."; }
+do_edit_env(){ require_installed; "${EDITOR:-nano}" "$ENV_FILE"; warn "Restart the bot to apply changes."; }
 
 do_uninstall() {
     need_root; require_installed
-    warn "این کار کانتینرها را حذف می‌کند."
-    read -rp "ادامه؟ (yes/no): " a; [[ "$a" == "yes" ]] || { info "لغو شد."; return; }
+    warn "This will remove the containers."
+    read -rp "Continue? (yes/no): " a; [[ "$a" == "yes" ]] || { info "Cancelled."; return; }
     dc down || true
-    read -rp "${RED}دیتابیس و داده‌ها (${DATA_DIR}) هم پاک شوند؟ این کار برگشت‌ناپذیر است (yes/no): ${NC}" b
+    read -rp "${RED}Also delete database and data (${DATA_DIR})? This is irreversible (yes/no): ${NC}" b
     if [[ "$b" == "yes" ]]; then
         rm -rf "$DATA_DIR" "$APP_DIR"
         rm -f "$BIN_PATH"
-        info "همه‌چیز حذف شد."
+        info "Everything removed."
     else
-        info "کانتینرها حذف شدند؛ داده‌ها در ${DATA_DIR} حفظ شد."
+        info "Containers removed; data kept in ${DATA_DIR}."
     fi
 }
 
@@ -354,21 +356,21 @@ menu() {
     while true; do
         echo
         hr
-        echo "  ${CYAN}${APP_NAME}${NC} — مدیریت نصب"
+        echo "  ${CYAN}${APP_NAME}${NC} - management"
         hr
-        echo "  1) نصب / نصب مجدد"
-        echo "  2) به‌روزرسانی (git pull + rebuild)"
-        echo "  3) مشاهدهٔ لاگ"
-        echo "  4) تهیهٔ بکاپ"
-        echo "  5) ری‌استارت"
-        echo "  6) توقف"
-        echo "  7) اجرا"
-        echo "  8) وضعیت سرویس‌ها"
-        echo "  9) ویرایش فایل تنظیمات (.env)"
-        echo " 10) حذف نصب"
-        echo "  0) خروج"
+        echo "  1) Install / Reinstall"
+        echo "  2) Update (git pull + rebuild)"
+        echo "  3) View logs"
+        echo "  4) Backup"
+        echo "  5) Restart"
+        echo "  6) Stop"
+        echo "  7) Start"
+        echo "  8) Status"
+        echo "  9) Edit config (.env)"
+        echo " 10) Uninstall"
+        echo "  0) Exit"
         hr
-        read -rp "انتخاب: " choice || exit 0
+        read -rp "Choice: " choice || exit 0
         case "$choice" in
             1) do_install ;;
             2) do_update ;;
@@ -381,7 +383,7 @@ menu() {
             9) do_edit_env ;;
             10) do_uninstall ;;
             0) exit 0 ;;
-            *) warn "گزینهٔ نامعتبر." ;;
+            *) warn "Invalid option." ;;
         esac
     done
 }
@@ -398,5 +400,5 @@ case "${1:-}" in
     status)    do_status ;;
     uninstall) do_uninstall ;;
     "")        menu ;;
-    *)         die "زیردستور ناشناخته: ${1}. مجاز: install|update|logs|backup|restart|stop|start|status|uninstall" ;;
+    *)         die "Unknown subcommand: ${1}. Allowed: install|update|logs|backup|restart|stop|start|status|uninstall" ;;
 esac

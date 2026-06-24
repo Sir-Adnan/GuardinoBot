@@ -13,12 +13,12 @@ services:
     networks:
       - marznet
   bot:
-    image: ghcr.io/govfvck/marzbot:latest
+    image: ghcr.io/sir-adnan/guardinobot:latest
     restart: on-failure
     env_file:
-      - .env.marzbot
+      - .env.guardinobot
     depends_on:
-      - marzbot-db
+      - guardinobot-db
       - redis
     networks:
       - marznet
@@ -32,15 +32,15 @@ services:
     networks:
       - marznet
 
-  marzbot-db:
+  guardinobot-db:
     image: "mariadb:latest"
     restart: always
     volumes:
-      - /var/lib/marzban/docker-volumes/marzbot-mariadb:/var/lib/mysql
+      - /var/lib/marzban/docker-volumes/guardinobot-mariadb:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: 1234sss
-      MYSQL_DATABASE: marzbot
-      MYSQL_USER: marzbot
+      MYSQL_DATABASE: guardino
+      MYSQL_USER: guardino
       MYSQL_PASSWORD: 1234sss
     networks:
       - marznet
@@ -64,7 +64,7 @@ services:
     ports:
       - "127.0.0.1:8010:80"
     environment:
-      - PMA_HOST: marzbot-db, marzban-db
+      - PMA_HOST: guardinobot-db, marzban-db
       - PMA_ARBITRARY: 1
     networks:
       - marznet

@@ -25,6 +25,7 @@ from app.keyboards.admin.service import (
     EditServiceAction,
     SelectGroups,
     SelectInbounds,
+    SelectNodes,
     SelectServer,
     SelectServicesBulk,
     ServiceAct,
@@ -52,6 +53,11 @@ from . import router
 def _is_pasarguard(server: Server) -> bool:
     """Whether a Server speaks PasarGuard (group-based provisioning)."""
     return str(getattr(server.panel_type, "value", server.panel_type)) == "pasarguard"
+
+
+def _is_guardino(server: Server) -> bool:
+    """Whether a Server speaks Guardino Hub (node-based, id-keyed)."""
+    return str(getattr(server.panel_type, "value", server.panel_type)) == "guardino"
 
 
 cancel_form = CancelFormAdmin().as_markup(resize_keyboard=True, one_time_only=True)
@@ -292,6 +298,16 @@ async def get_service_server_id(
 """
     await state.set_state(AddServiceForm.inbounds)
 
+    if _is_guardino(server):
+        nodes = (await get_panel(server.id).get_inbounds()).get("nodes", [])
+        await state.update_data(node_ids=[])
+        return await query.message.edit_text(
+            info + "\nنودهای این سرور را انتخاب کنید (اختیاری — خالی = نودهای پیش‌فرض هاب):",
+            reply_markup=SelectNodes(
+                nodes=nodes, selected_node_ids=[], server_id=server.id
+            ).as_markup(),
+        )
+
     if _is_pasarguard(server):
         groups = (await get_panel(server.id).get_inbounds()).get("groups", [])
         await state.update_data(group_ids=[])
@@ -335,6 +351,21 @@ async def edit_service_inbounds(
 
     server = await Server.filter(id=service.server_id).first()
     await state.set_state(EditServiceForm.inbounds)
+    if server and _is_guardino(server):
+        nodes = (await get_panel(service.server_id).get_inbounds()).get("nodes", [])
+        selected = list((service.panel_config or {}).get("node_ids", []))
+        await state.update_data(node_ids=selected)
+        return await query.message.edit_text(
+            "نودها را انتخاب کنید و ذخیره را کلیک کنید:",
+            reply_markup=SelectNodes(
+                nodes=nodes,
+                selected_node_ids=selected,
+                server_id=service.server_id,
+                for_edit=True,
+                service_id=service.id,
+            ).as_markup(),
+        )
+
     if server and _is_pasarguard(server):
         groups = (await get_panel(service.server_id).get_inbounds()).get("groups", [])
         selected = list((service.panel_config or {}).get("group_ids", []))
@@ -460,6 +491,52 @@ async def select_service_groups(
 مبلغ: <b>{data.get('price')}</b>
 
 گروه‌های انتخاب‌شده: <code>{selected}</code>
+"""
+        return await query.message.edit_text(text, reply_markup=markup)
+    return await query.message.edit_reply_markup(reply_markup=markup)
+
+
+@router.callback_query(
+    EditServiceForm.inbounds,
+    IsSuperUser(),
+    SelectNodes.Callback.filter(F.for_edit == True),  # noqa: E712
+)
+@router.callback_query(
+    AddServiceForm.inbounds,
+    IsSuperUser(),
+    SelectNodes.Callback.filter(F.for_edit == False),  # noqa: E712
+)
+async def select_service_nodes(
+    query: CallbackQuery,
+    user: User,
+    state: FSMContext,
+    callback_data: SelectNodes.Callback,
+):
+    data = await state.get_data()
+    selected: list[int] = list(data.get("node_ids", []))
+    nodes = (await get_panel(callback_data.server_id).get_inbounds()).get("nodes", [])
+    if callback_data.node_id is not None:
+        if callback_data.node_id in selected:
+            selected.remove(callback_data.node_id)
+        else:
+            selected.append(callback_data.node_id)
+        await state.update_data(node_ids=selected)
+
+    markup = SelectNodes(
+        nodes=nodes,
+        selected_node_ids=selected,
+        server_id=callback_data.server_id,
+        for_edit=callback_data.for_edit,
+        service_id=callback_data.service_id,
+    ).as_markup()
+    if not callback_data.for_edit:
+        text = f"""
+نام: <b>{data.get('name')}</b>
+حجم: <b>{helpers.hr_size(data.get('data_limit')) if data.get('data_limit') else '♾'}</b>
+اعتبار زمانی: <b>{helpers.hr_time(data.get('expire_duration')) if data.get('expire_duration') else '♾'}</b>
+مبلغ: <b>{data.get('price')}</b>
+
+نودهای انتخاب‌شده: <code>{selected}</code>
 """
         return await query.message.edit_text(text, reply_markup=markup)
     return await query.message.edit_reply_markup(reply_markup=markup)
@@ -668,6 +745,26 @@ async def edit_service_inbounds_save(
         )
 
     server = await Server.filter(id=service.server_id).first()
+    if server and _is_guardino(server):
+        node_ids = data.get("node_ids", [])
+        services_g: list[int] = data.get("apply_services", [])
+        services_g.append(service.id)
+        for s in await Service.filter(id__in=services_g):
+            cfg = dict(s.panel_config or {})
+            cfg["node_ids"] = node_ids
+            cfg.setdefault("pricing_mode", "per_node")
+            await Service.filter(id=s.id).update(panel_config=cfg)
+        await state.clear()
+        await query.answer("✅ ویرایش نودها انجام شد!", show_alert=True)
+        return await show_service(
+            query,
+            user,
+            callback_data=Services.Callback(
+                service_id=service.id, action=ServicesAction.show
+            ),
+            state=None,
+        )
+
     if server and _is_pasarguard(server):
         group_ids = data.get("group_ids")
         if not group_ids:
@@ -727,6 +824,27 @@ async def save_new_service(
 ):
     data = await state.get_data()
     server = await Server.filter(id=data.get("server_id")).first()
+
+    if server and _is_guardino(server):
+        node_ids = data.get("node_ids") or []
+        await state.clear()
+        service = await Service.create(
+            name=data.get("name"),
+            data_limit=data.get("data_limit"),
+            expire_duration=data.get("expire_duration"),
+            price=data.get("price"),
+            inbounds={},  # Guardino provisions via panel_config (nodes/GB/days)
+            panel_config={"node_ids": node_ids, "pricing_mode": "per_node"},
+            server_id=data.get("server_id"),
+        )
+        return await show_service(
+            query,
+            user,
+            callback_data=Services.Callback(
+                service_id=service.id, action=ServicesAction.show
+            ),
+            state=state,
+        )
 
     if server and _is_pasarguard(server):
         group_ids = data.get("group_ids") or []

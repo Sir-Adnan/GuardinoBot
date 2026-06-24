@@ -38,8 +38,11 @@ from app.keyboards.admin.server import (
 )
 from app.marzban import Marzban
 from app.panels import PanelRegistry, PanelType, get_panel
+from app.panels.base import PanelAuthError, PanelError
+from app.panels.guardino import login as guardino_login
+from app.panels.guardino import validate as guardino_validate
 from app.models.proxy import Proxy
-from app.models.server import Server
+from app.models.server import LinkPolicy, Server
 from app.models.service import Service
 from app.models.user import User
 from app.utils import helpers, proxy_management
@@ -58,7 +61,15 @@ yes_or_no_form = YesOrNoFormAdmin().as_markup(
     resize_keyboard=True, one_time_keyboard=True
 )
 panel_type_form = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="Marzban"), KeyboardButton(text="PasarGuard")]],
+    keyboard=[
+        [KeyboardButton(text="Marzban"), KeyboardButton(text="PasarGuard")],
+        [KeyboardButton(text="Guardino")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+link_policy_form = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="مستر گاردینو"), KeyboardButton(text="لینک نود")]],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
@@ -71,6 +82,8 @@ class AddServerForm(StatesGroup):
     port = State()
     https = State()
     token = State()
+    guardino_creds = State()  # Guardino: reseller username/password
+    link_policy = State()  # Guardino: which sub link to show
     username = State()
     password = State()
     confirm = State()
@@ -125,26 +138,25 @@ async def ping_servers(
     callback_data: ServerAct.Callback,
 ):
     try:
-        client = Marzban.get_server(callback_data.server_id)
-        resp = await get_current_admin.asyncio_detailed(client=client)
-        if resp.status_code == 200:
-            text = f"""
-اتصال به سرور موفقیت آمیز بود! 
-نام کاربری: {resp.parsed.username}
-سودو: {'✅' if resp.parsed.is_sudo else '❌'}
+        panel = get_panel(callback_data.server_id)
+        admin = await panel.get_admin()
+        text = f"""
+اتصال به سرور موفقیت آمیز بود!
+نام کاربری: {admin.username}
+سودو: {'✅' if admin.is_sudo else '❌'}
             """
-            return query.answer(text=text, show_alert=True)
-    except UnexpectedStatus as exc:
-        if exc.status_code == 401:
-            return await query.answer(
-                "خطای احراز هویت در اتصال به پنل! توکن تنظیم شده را بررسی کنید"
-            )
-    except httpx.ConnectError as exc:
-        await query.answer(
-            text="امکان اتصال به سرور وجود ندارد! آدرس و پورت سرور را بررسی کنید",
+        return await query.answer(text=text, show_alert=True)
+    except PanelAuthError:
+        return await query.answer(
+            "خطای احراز هویت در اتصال به پنل! اعتبارنامه تنظیم‌شده را بررسی کنید",
             show_alert=True,
         )
-        raise exc
+    except PanelError as exc:
+        return await query.answer(
+            text="امکان اتصال به سرور وجود ندارد! آدرس/پورت/اعتبارنامه را بررسی کنید\n"
+            + str(exc),
+            show_alert=True,
+        )
     except Exception as exc:
         await query.answer(
             text="خطای ناشناخته در اتصال به سرور!\n" + str(exc),
@@ -176,6 +188,8 @@ async def get_server_panel_type(message: Message, user: User, state: FSMContext)
     choice = (message.text or "").strip().lower()
     if choice in ("pasarguard", "پاسارگارد", "pasar guard"):
         panel_type = PanelType.pasarguard.value
+    elif choice in ("guardino", "گاردینو", "guardino hub", "گاردینو هاب"):
+        panel_type = PanelType.guardino.value
     elif choice in ("marzban", "مرزبان"):
         panel_type = PanelType.marzban.value
     else:
@@ -272,6 +286,12 @@ async def get_server_https_yes_or_no(message: Message, user: User, state: FSMCon
     else:
         await state.update_data(https=True)
 
+    data = await state.get_data()
+    if data.get("panel_type") == PanelType.guardino.value:
+        # Guardino connects with reseller username/password (login), not a token.
+        await state.set_state(AddServerForm.guardino_creds)
+        return await message.answer(text=GUARDINO_CREDS_TEXT, reply_markup=cancel_form)
+
     await state.set_state(AddServerForm.token)
     await message.answer(text=TOKEN_TEXT, reply_markup=cancel_form)
 
@@ -285,6 +305,117 @@ async def get_server_https_yes_or_no(message: Message, user: User, state: FSMCon
 async def get_server_https_unknown(message: Message, user: User, state: FSMContext):
     await message.answer(
         text="جواب نامشخص! لطفا یکی از گزینه‌ها را انتخاب کنید:",
+        reply_markup=yes_or_no_form,
+    )
+
+
+GUARDINO_CREDS_TEXT = """
+یوزرنیم و پسوورد رسلر (یا سوپرادمین) گاردینو هاب را وارد کنید (هر کدام در یک خط):
+
+<blockquote>
+username
+password
+</blockquote>
+
+⚠️ حساب ربات باید 2FA غیرفعال داشته باشد."""
+
+
+def _build_server_url(data: dict) -> str:
+    url = "https://" if data.get("https", False) else "http://"
+    url += data["host"]
+    if data.get("port"):
+        url += f":{data['port']}"
+    return url
+
+
+@router.message(
+    AddServerForm.guardino_creds,
+    IsSuperUser(),
+    ~CommandStart(),
+    ~Command("menu"),
+)
+async def get_server_guardino_creds(message: Message, user: User, state: FSMContext):
+    data = await state.get_data()
+    url = _build_server_url(data)
+    try:
+        username, password = message.text.split("\n")
+        username, password = username.strip(), password.strip()
+    except ValueError:
+        return await message.answer(GUARDINO_CREDS_TEXT, reply_markup=cancel_form)
+
+    try:
+        token_resp = await guardino_login(url, username, password)
+    except PanelAuthError:
+        return await message.answer(
+            "خطا در احراز هویت گاردینو هاب! یوزرنیم/پسوورد را بررسی کنید.",
+            reply_markup=cancel_form,
+        )
+    except PanelError as exc:
+        await message.answer(
+            "امکان اتصال به گاردینو هاب نبود! آدرس/پورت را بررسی کنید.\n" + str(exc),
+            reply_markup=cancel_form,
+        )
+        raise exc
+
+    if token_resp.get("requires_2fa"):
+        return await message.answer(
+            "حساب گاردینو 2FA فعال دارد. لطفا 2FA را غیرفعال کنید یا از حسابی بدون 2FA استفاده کنید.",
+            reply_markup=cancel_form,
+        )
+    access_token = token_resp.get("access_token")
+    if not access_token:
+        return await message.answer(
+            "توکنی از گاردینو هاب دریافت نشد!", reply_markup=cancel_form
+        )
+
+    try:
+        admin = await guardino_validate(url, access_token)
+    except PanelAuthError:
+        return await message.answer(
+            "اعتبارسنجی توکن گاردینو ناموفق بود!", reply_markup=cancel_form
+        )
+
+    me = admin.raw or {}
+    await state.update_data(username=username, password=password, token=access_token)
+    await state.set_state(AddServerForm.link_policy)
+    balance = me.get("balance")
+    text = (
+        "✅ اتصال به گاردینو هاب موفق بود!\n"
+        f"کاربر: {admin.username}\n"
+        f"نقش: {me.get('role', '-')}\n"
+        f"موجودی: {balance if balance is not None else '-'} تومان\n\n"
+        "سیاست نمایش لینک اشتراک به کاربر را انتخاب کنید:\n"
+        "• «مستر گاردینو»: لینک مرکزی هاب (در صورت روشن بودن)\n"
+        "• «لینک نود»: لینک پنل زیرین (PasarGuard/WireGuard)"
+    )
+    await message.answer(text, reply_markup=link_policy_form)
+
+
+@router.message(
+    AddServerForm.link_policy,
+    IsSuperUser(),
+    ~CommandStart(),
+    ~Command("menu"),
+)
+async def get_server_link_policy(message: Message, user: User, state: FSMContext):
+    choice = (message.text or "").strip().lower()
+    if choice in ("مستر گاردینو", "مستر", "master", "master_first"):
+        policy = LinkPolicy.master_first.value
+    elif choice in ("لینک نود", "نود", "node", "node_first"):
+        policy = LinkPolicy.node_first.value
+    else:
+        return await message.answer(
+            "لطفا یکی از گزینه‌ها را انتخاب کنید:", reply_markup=link_policy_form
+        )
+    await state.update_data(link_policy=policy)
+    data = await state.get_data()
+    await state.set_state(AddServerForm.confirm)
+    await message.answer(
+        "اطلاعات زیر صحیح است؟\n"
+        f"نام سرور: {data['name']}\n"
+        f"آدرس: {_build_server_url(data)}\n"
+        "پنل: Guardino Hub\n"
+        f"سیاست لینک: {'مستر گاردینو' if policy == LinkPolicy.master_first.value else 'لینک نود'}\n",
         reply_markup=yes_or_no_form,
     )
 

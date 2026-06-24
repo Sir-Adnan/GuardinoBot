@@ -15,9 +15,9 @@ router = Router(name="start")
 
 
 @router.message(Command("version"))
-async def marzbot_info(message: Message, user: User):
+async def version_info(message: Message, user: User):
     text = f"""
-Marzbot <code>v{__version__}</code> Developed by <a href='https://github.com/govfvck'>GovFvck</a>
+GuardinoBot <code>v{__version__}</code> Developed by <a href='https://github.com/Sir-Adnan/GuardinoBot'>UnknownZero</a>
 """
     await message.reply(text=text)
 

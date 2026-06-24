@@ -1,40 +1,40 @@
-version: '3'
+name: guardinobot
 
 services:
   bot:
-    image: ghcr.io/govfvck/marzbot:latest
+    image: ghcr.io/sir-adnan/guardinobot:latest
+    build: .
     restart: on-failure
     ports:
       - "127.0.0.1:3333:3333"
     env_file:
       - .env
-
     depends_on:
-      - mariadb
-      - redis
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   redis:
     image: redis:alpine
     restart: always
-    volumes:
-      - "/var/lib/marzbot/docker-volumes/redis:/data"
     command: redis-server --appendonly yes --replica-read-only no
+    volumes:
+      - "/var/lib/guardinobot/docker-volumes/redis:/data"
 
   mariadb:
-    image: "mariadb:latest"
+    image: mariadb:11
     restart: always
     volumes:
-      - /var/lib/marzbot/docker-volumes/mariadb:/var/lib/mysql
+      - /var/lib/guardinobot/docker-volumes/mariadb:/var/lib/mysql
     environment:
-      MYSQL_ROOT_PASSWORD: pass
-      MYSQL_DATABASE: marzbot
-      MYSQL_USER: marzbot
-      MYSQL_PASSWORD: pass
-
-  phpmyadmin:
-    image: phpmyadmin
-    restart: always
-    ports:
-      - "127.0.0.1:8010:80"
-    environment:
-      - PMA_HOST=mariadb
+      # change these and keep them in sync with DATABASE_URL in .env
+      MYSQL_ROOT_PASSWORD: change_me_root
+      MYSQL_DATABASE: guardino
+      MYSQL_USER: guardino
+      MYSQL_PASSWORD: change_me
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12

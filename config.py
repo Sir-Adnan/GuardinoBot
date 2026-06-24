@@ -61,13 +61,13 @@ PARSE_MODE = config("PARSE_MODE", default="HTML")
 DATABASE_URL = config(
     "DATABASE_URL", default="sqlite://db.sqlite3"
 )  # example: 'mysql://user:pass@localhost:3306/db'
-# exmaple: 'sqlite:///marzbot.db'
+# example: 'sqlite:///guardino.db'
 
 if DATABASE_URL is None:
     raise ValueError("'DATABASE_URL' environment variable has to be set!")
 
 
-DEFAULT_USERNAME_PREFIX = config("DEFAULT_USERNAME_PREFIX", default="Marzdemo")
+DEFAULT_USERNAME_PREFIX = config("DEFAULT_USERNAME_PREFIX", default="Guardino")
 
 if not re.match(r"^(?!_)[A-Za-z0-9_]+$", DEFAULT_USERNAME_PREFIX):
     raise ValueError(

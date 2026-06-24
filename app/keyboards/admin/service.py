@@ -580,6 +580,69 @@ class SelectGroups(InlineKeyboardBuilder):
         self.adjust(1)
 
 
+class SelectNodes(InlineKeyboardBuilder):
+    """Guardino node selection — parallel to SelectGroups; toggles integer node
+    ids stored in Service.panel_config.node_ids. Selecting none lets the hub use
+    the reseller's default node mode."""
+
+    class Callback(CallbackData, prefix="slctnode"):
+        server_id: int
+        node_id: int | None = None
+        for_edit: bool = False
+        service_id: int | None = None
+
+    def __init__(
+        self,
+        nodes: list[dict],
+        selected_node_ids: list[int],
+        server_id: int,
+        for_edit: bool = False,
+        service_id: int = None,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        for node in nodes:
+            nid = node.get("id")
+            name = node.get("name") or str(nid)
+            self.button(
+                text=f"{'✅' if nid in selected_node_ids else '❌'} {name}",
+                callback_data=self.Callback(
+                    server_id=server_id,
+                    node_id=nid,
+                    for_edit=for_edit,
+                    service_id=service_id,
+                ),
+            )
+        if for_edit:
+            self.button(
+                text="زخیره",
+                callback_data=ServiceAct.Callback(
+                    service_id=service_id, action=ServiceActAction.save_inbounds
+                ),
+            )
+            self.button(
+                text="لغو",
+                callback_data=Services.Callback(
+                    service_id=service_id, action=ServicesAction.show
+                ),
+            )
+        else:
+            self.button(
+                text="زخیره",
+                callback_data=Services.Callback(
+                    server_id=server_id, action=ServicesAction.save_new
+                ),
+            )
+            self.button(
+                text="لغو",
+                callback_data=admin.AdminPanel.Callback(
+                    action=admin.AdminPanelAction.services
+                ),
+            )
+        self.adjust(1)
+
+
 class EditServiceAction(str, Enum):
     data_limit = "edit_data_lmit"
     expire_duration = "edit_expire_duration"
