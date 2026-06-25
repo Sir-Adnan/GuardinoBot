@@ -9,6 +9,7 @@ from app.api.schemas import OkOut, ProxiesPage, ProxyActionIn, ProxyListItem
 from app.models.proxy import Proxy, ProxyStatus
 from app.models.user import User
 from app.panels.base import PanelError, PanelUserStatus
+from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/proxies", tags=["proxies"])
 
@@ -112,18 +113,30 @@ async def proxy_action(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Panel error: {exc}")
     finally:
         await panel.aclose()
+    await record_audit(
+        action=f"proxy.{body.action}",
+        actor=viewer,
+        target_type="proxy",
+        target_id=p.id,
+        target_label=p.username,
+        detail={"status": str(getattr(p.status, "value", p.status))},
+    )
     return OkOut(ok=True, status=str(getattr(p.status, "value", p.status)))
 
 
 @router.delete("/{proxy_id}", response_model=OkOut)
 async def delete_proxy(
     proxy_id: int,
-    _: User = Depends(require_role(User.Role.admin)),
+    actor: User = Depends(require_role(User.Role.admin)),
 ) -> OkOut:
     """Remove from the panel (best-effort) + the bot DB. Admin+ only."""
     p = await Proxy.filter(id=proxy_id).prefetch_related("server").first()
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proxy not found")
+
+    # Snapshot before deletion so the audit row survives the row removal.
+    pid, label = p.id, p.username
+    srv = (p.server.name or p.server.host) if p.server_id else None
 
     from app.panels.registry import build_panel
 
@@ -136,4 +149,12 @@ async def delete_proxy(
     finally:
         await panel.aclose()
     await p.delete()
+    await record_audit(
+        action="proxy.delete",
+        actor=actor,
+        target_type="proxy",
+        target_id=pid,
+        target_label=label,
+        detail={"server": srv},
+    )
     return OkOut(ok=True)

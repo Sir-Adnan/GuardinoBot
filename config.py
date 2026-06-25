@@ -93,6 +93,7 @@ TORTOISE_ORM = {
                 "app.models.service",
                 "app.models.setting",
                 "app.models.proxy",
+                "app.models.audit",
                 "aerich.models",
             ],
             "default_connection": "default",

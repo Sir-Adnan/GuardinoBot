@@ -6,15 +6,17 @@ After a write, a Redis flag tells the bot to reload its cache — see
 ``app/jobs/sync_settings.py``.
 """
 
+import json
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.clients import redis
 from app.api.deps import require_role
 from app.api.schemas import SettingsOut, SettingsUpdateIn
 from app.models.setting import BotSetting
 from app.models.user import User
+from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -36,10 +38,27 @@ _INT = (
     "cancel_payback_days",
     "guardino_balance_warn",
     "guardino_balance_critical",
+    "on_hold_timeout_seconds",
 )
-_STR = ("default_username_prefix",)
-_ALL = _BOOL + _INT + _STR
+# Plain strings + the username_generator enum (stored as its value string).
+_STR = (
+    "default_username_prefix",
+    "username_generator",
+    "transaction_logs",
+    "orders_logs",
+)
+# JSON-encoded list[int] in the DB (BotSetting json.dumps them; the bot's
+# pydantic validators read them back with validate_json).
+_LIST = (
+    "charge_amount_list",
+    "charge_amount_orders",
+)
+_ALL = _BOOL + _INT + _STR + _LIST
 _DIRTY = "settings:dirty"
+
+# Fallbacks for str fields when the row is missing/empty.
+_DEFAULTS = {"username_generator": "randomized"}
+_USERNAME_GENERATORS = ("randomized", "incremental")
 
 
 def _decode(key: str, raw: Optional[str]) -> Any:
@@ -51,7 +70,15 @@ def _decode(key: str, raw: Optional[str]) -> Any:
             return int(raw or 0)
         except ValueError:
             return 0
-    return raw
+    if key in _LIST:
+        if not raw:
+            return []
+        try:
+            v = json.loads(raw)
+            return [int(x) for x in v] if isinstance(v, list) else []
+        except (ValueError, TypeError):
+            return []
+    return raw or _DEFAULTS.get(key, "")
 
 
 async def _read() -> dict:
@@ -70,16 +97,28 @@ async def get_settings(
 @router.patch("", response_model=SettingsOut)
 async def update_settings(
     body: SettingsUpdateIn,
-    _: User = Depends(require_role(User.Role.super_user)),
+    actor: User = Depends(require_role(User.Role.super_user)),
 ) -> SettingsOut:
     changes = {
         k: v
         for k, v in body.model_dump(exclude_unset=True).items()
         if v is not None and k in _ALL
     }
+    if "username_generator" in changes and (
+        changes["username_generator"] not in _USERNAME_GENERATORS
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid username_generator"
+        )
     if changes:
         # BotSetting.update encodes per type (bool→"1"/"0", int→str, …) and only
         # touches existing rows (the bot creates them all on startup).
         await BotSetting.update(**changes)
         await redis.set(_DIRTY, "1")  # bot reloads within ~15s
+        await record_audit(
+            action="settings.update",
+            actor=actor,
+            target_type="settings",
+            detail={"changed": changes},  # curated, non-secret keys only
+        )
     return SettingsOut(**await _read())

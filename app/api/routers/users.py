@@ -15,6 +15,7 @@ from app.api.schemas import (
     UsersPage,
 )
 from app.models.user import User
+from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -89,11 +90,18 @@ async def get_user(
 async def set_user_blocked(
     user_id: int,
     body: SetBlockedIn,
-    _: User = Depends(require_role(User.Role.admin)),
+    actor: User = Depends(require_role(User.Role.admin)),
 ) -> OkOut:
     u = await User.filter(id=user_id).first()
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     u.is_blocked = body.blocked
     await u.save(update_fields=["is_blocked"])
+    await record_audit(
+        action="user.block" if body.blocked else "user.unblock",
+        actor=actor,
+        target_type="user",
+        target_id=u.id,
+        target_label=u.username or u.name,
+    )
     return OkOut(ok=True)

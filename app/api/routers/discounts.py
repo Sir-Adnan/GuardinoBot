@@ -8,6 +8,7 @@ from app.api.deps import require_role
 from app.api.schemas import DiscountListItem, DiscountsPage, OkOut, SetEnabledIn
 from app.models.service import Discount
 from app.models.user import User
+from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/discounts", tags=["discounts"])
 
@@ -57,11 +58,18 @@ async def get_discount(
 async def set_discount_active(
     discount_id: int,
     body: SetEnabledIn,
-    _: User = Depends(require_role(User.Role.admin)),
+    actor: User = Depends(require_role(User.Role.admin)),
 ) -> OkOut:
     d = await Discount.filter(id=discount_id).first()
     if d is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Discount not found")
     d.is_active = body.enabled
     await d.save(update_fields=["is_active"])
+    await record_audit(
+        action="discount.activate" if body.enabled else "discount.deactivate",
+        actor=actor,
+        target_type="discount",
+        target_id=d.id,
+        target_label=d.code,
+    )
     return OkOut(ok=True)

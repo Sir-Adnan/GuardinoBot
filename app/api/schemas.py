@@ -286,7 +286,13 @@ class SettingsOut(BaseModel):
     cancel_payback_days: int
     guardino_balance_warn: int
     guardino_balance_critical: int
+    on_hold_timeout_seconds: int
     default_username_prefix: str
+    username_generator: str
+    transaction_logs: str
+    orders_logs: str
+    charge_amount_list: list[int]
+    charge_amount_orders: list[int]
 
 
 class SettingsUpdateIn(BaseModel):
@@ -305,4 +311,107 @@ class SettingsUpdateIn(BaseModel):
     cancel_payback_days: Optional[int] = None
     guardino_balance_warn: Optional[int] = None
     guardino_balance_critical: Optional[int] = None
+    on_hold_timeout_seconds: Optional[int] = None
     default_username_prefix: Optional[str] = None
+    username_generator: Optional[str] = None
+    transaction_logs: Optional[str] = None
+    orders_logs: Optional[str] = None
+    charge_amount_list: Optional[list[int]] = None
+    charge_amount_orders: Optional[list[int]] = None
+
+
+# -- audit log ----------------------------------------------------------------
+class AuditListItem(BaseModel):
+    id: int
+    action: str
+    source: str
+    actor_id: Optional[int] = None
+    actor_name: Optional[str] = None
+    actor_role: int = 0
+    actor_role_name: str = ""
+    target_type: Optional[str] = None
+    target_id: Optional[str] = None
+    target_label: Optional[str] = None
+    amount: Optional[float] = None
+    detail: Optional[dict] = None
+    created_at: Optional[datetime] = None
+
+
+class AuditPage(BaseModel):
+    items: list[AuditListItem]
+    total: int
+
+
+# -- bot texts ----------------------------------------------------------------
+class TextItem(BaseModel):
+    key: str
+    value: str
+    variables: list[str] = []
+
+
+class TextsOut(BaseModel):
+    items: list[TextItem]
+
+
+class TextUpdateIn(BaseModel):
+    key: str
+    value: str
+
+
+# -- service menus (nested categories) ----------------------------------------
+class MenuListItem(BaseModel):
+    id: int
+    title: str
+    parent_id: Optional[int] = None
+    purchase: bool = True
+    renew: bool = True
+    resellers_only: bool = False
+    users_only: bool = False
+    services_count: int = 0
+    children_count: int = 0
+
+
+class MenuDetail(MenuListItem):
+    description: Optional[str] = None
+    service_ids: list[int] = []
+
+
+class MenusOut(BaseModel):
+    items: list[MenuListItem]
+
+
+class MenuCreateIn(BaseModel):
+    title: str
+    description: Optional[str] = None
+    parent_id: Optional[int] = None
+    purchase: bool = True
+    renew: bool = True
+    resellers_only: bool = False
+    users_only: bool = False
+    service_ids: list[int] = []
+
+
+class MenuUpdateIn(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    parent_id: Optional[int] = None
+    purchase: Optional[bool] = None
+    renew: Optional[bool] = None
+    resellers_only: Optional[bool] = None
+    users_only: Optional[bool] = None
+    service_ids: Optional[list[int]] = None
+
+
+# -- bot buttons (main-menu labels) -------------------------------------------
+class ButtonItem(BaseModel):
+    key: str
+    default: str
+    value: str  # current custom label, or "" when using the default
+
+
+class ButtonsOut(BaseModel):
+    items: list[ButtonItem]
+
+
+class ButtonsUpdateIn(BaseModel):
+    labels: dict[str, str]  # key -> custom label ("" / missing = reset to default)

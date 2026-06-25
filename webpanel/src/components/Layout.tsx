@@ -12,7 +12,9 @@ import {
   theme,
 } from "antd";
 import {
+  ApartmentOutlined,
   AppstoreOutlined,
+  AuditOutlined,
   BarChartOutlined,
   BellOutlined,
   BulbOutlined,
@@ -20,6 +22,8 @@ import {
   ClusterOutlined,
   CreditCardOutlined,
   DashboardOutlined,
+  FileTextOutlined,
+  LayoutOutlined,
   LogoutOutlined,
   MenuOutlined,
   SafetyCertificateOutlined,
@@ -55,12 +59,16 @@ const TITLE_KEYS: Record<string, string> = {
   "/users": "users.title",
   "/proxies": "proxies.title",
   "/services": "services.title",
+  "/menus": "menus.title",
   "/transactions": "tx.title",
   "/servers": "servers.title",
   "/reports": "reports.title",
   "/resellers": "resellers.title",
   "/discounts": "discounts.title",
   "/automation": "automation.title",
+  "/audit": "audit.title",
+  "/texts": "texts.title",
+  "/buttons": "buttons.title",
   "/settings": "settings.title",
 };
 
@@ -99,6 +107,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               { key: "/discounts", icon: <TagsOutlined />, label: t("nav.discounts") },
             ]
           : []),
+        ...(isSuper
+          ? [{ key: "/menus", icon: <ApartmentOutlined />, label: t("nav.menus") }]
+          : []),
         { key: "/transactions", icon: <CreditCardOutlined />, label: t("nav.transactions") },
         ...(isAdmin
           ? [{ key: "/reports", icon: <BarChartOutlined />, label: t("nav.reports") }]
@@ -115,7 +126,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
               { key: "/servers", icon: <CloudServerOutlined />, label: t("nav.servers") },
               { key: "/automation", icon: <SendOutlined />, label: t("nav.automation") },
               ...(isSuper
-                ? [{ key: "/settings", icon: <SettingOutlined />, label: t("nav.settings") }]
+                ? [
+                    { key: "/audit", icon: <AuditOutlined />, label: t("nav.audit") },
+                    { key: "/texts", icon: <FileTextOutlined />, label: t("nav.texts") },
+                    { key: "/buttons", icon: <LayoutOutlined />, label: t("nav.buttons") },
+                    { key: "/settings", icon: <SettingOutlined />, label: t("nav.settings") },
+                  ]
                 : []),
             ],
           },

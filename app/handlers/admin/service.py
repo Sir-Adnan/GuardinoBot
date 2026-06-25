@@ -41,11 +41,13 @@ from app.main import redis
 from app.marzban import Marzban
 from app.panels import get_panel, PanelError
 from app.logger import get_logger
+from app.models.audit import AuditLog
 from app.models.proxy import Proxy
 from app.models.server import Server
 from app.models.service import Service
 from app.models.user import User
 from app.utils import helpers, proxy_management
+from app.utils.audit import record_audit
 from app.utils.filters import IsSuperUser
 from marzban_client.api.system import get_inbounds
 
@@ -911,6 +913,15 @@ async def save_new_service(
             panel_config={"node_ids": node_ids, "pricing_mode": "per_node"},
             server_id=data.get("server_id"),
         )
+        await record_audit(
+            action="service.create",
+            actor=user,
+            source=AuditLog.Source.bot,
+            target_type="service",
+            target_id=service.id,
+            target_label=service.name,
+            detail={"price": service.price, "server_id": service.server_id},
+        )
         return await show_service(
             query,
             user,
@@ -936,6 +947,15 @@ async def save_new_service(
             inbounds={},  # PasarGuard provisions via panel_config.group_ids
             panel_config={"group_ids": group_ids},
             server_id=data.get("server_id"),
+        )
+        await record_audit(
+            action="service.create",
+            actor=user,
+            source=AuditLog.Source.bot,
+            target_type="service",
+            target_id=service.id,
+            target_label=service.name,
+            detail={"price": service.price, "server_id": service.server_id},
         )
         return await show_service(
             query,
@@ -965,6 +985,15 @@ async def save_new_service(
         price=data.get("price"),
         inbounds=selected_inbounds,
         server_id=data.get("server_id"),
+    )
+    await record_audit(
+        action="service.create",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="service",
+        target_id=service.id,
+        target_label=service.name,
+        detail={"price": service.price, "server_id": service.server_id},
     )
     await show_service(
         query,
@@ -1063,8 +1092,17 @@ async def remove_service(
                 service=service, action=ServiceActAction.rem
             ).as_markup(),
         )
+    sid, sname = service.id, service.name
     await service.delete()
     await query.answer("سرویس با موفقیت حذف شد!", show_alert=True)
+    await record_audit(
+        action="service.delete",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="service",
+        target_id=sid,
+        target_label=sname,
+    )
     return await show_services(query, user)
 
 
@@ -1631,6 +1669,15 @@ async def edit_service_save(
             return await query.answer("اینباندی انتخاب نشده است!", show_alert=True)
 
     await service.update_from_dict(data).save()
+    await record_audit(
+        action="service.update",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="service",
+        target_id=service.id,
+        target_label=service.name,
+        detail={"changed": list(data)},
+    )
     await state.clear()
     await query.answer("فیلدهای ویرایش شده: " + ", ".join(data), show_alert=True)
     await show_service(

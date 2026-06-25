@@ -100,6 +100,10 @@ class Settings(BaseModel):
     marzban_webhook_secret: str | None = None
     force_join_chats: dict[str, str] | None = config.FORCE_JOIN_CHATS
 
+    # Web-panel button customisation: main-menu key -> custom label (empty/missing
+    # key falls back to the hard-coded default in app/utils/buttons.py).
+    button_labels: dict[str, str] = {}
+
     # payment auto_select
     payment_auto_select: auto_select.Settings = auto_select.Settings()
 
@@ -144,6 +148,17 @@ class Settings(BaseModel):
 
     @field_validator("force_join_chats", mode="before")
     def _validate_fjc(cls, v: Any, info: ValidationInfo) -> dict[str, str]:
+        if isinstance(v, str):
+            try:
+                return dict_of_str_str_adapter.validate_json(v)
+            except ValidationError:
+                return {}
+        return v
+
+    @field_validator("button_labels", mode="before")
+    def _validate_button_labels(cls, v: Any, info: ValidationInfo) -> dict[str, str]:
+        if v is None:
+            return {}
         if isinstance(v, str):
             try:
                 return dict_of_str_str_adapter.validate_json(v)

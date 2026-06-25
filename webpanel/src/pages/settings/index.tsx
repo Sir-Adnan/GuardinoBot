@@ -9,6 +9,7 @@ import {
   Input,
   InputNumber,
   Row,
+  Select,
   Spin,
   Switch,
   Typography,
@@ -35,9 +36,16 @@ const NUMBERS = [
   "referral_discount_percent",
   "cancel_payback_fee",
   "cancel_payback_days",
+  "on_hold_timeout_seconds",
   "guardino_balance_warn",
   "guardino_balance_critical",
 ];
+const TAG_LISTS = ["charge_amount_list", "charge_amount_orders"];
+
+const toNumbers = (arr: any): number[] =>
+  Array.isArray(arr)
+    ? arr.map((x) => Number(x)).filter((n) => Number.isFinite(n))
+    : [];
 
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -58,7 +66,13 @@ export function SettingsPage() {
   const save = async (values: any) => {
     setSaving(true);
     try {
-      const r = await api.patch("/settings", values);
+      // mode="tags" Select yields strings; the API expects list[int].
+      const payload = {
+        ...values,
+        charge_amount_list: toNumbers(values.charge_amount_list),
+        charge_amount_orders: toNumbers(values.charge_amount_orders),
+      };
+      const r = await api.patch("/settings", payload);
       form.setFieldsValue(r.data);
       message.success(t("settings.saved"));
     } catch (e: any) {
@@ -109,6 +123,58 @@ export function SettingsPage() {
             <Col xs={24} sm={12} md={8} key={k}>
               <Form.Item name={k} label={t(`settings.${k}`)}>
                 <InputNumber style={{ width: "100%" }} min={0} />
+              </Form.Item>
+            </Col>
+          ))}
+        </Row>
+
+        <Divider orientation="left">{t("settings.advanced")}</Divider>
+        <Row gutter={16}>
+          <Col xs={24} sm={12} md={8}>
+            <Form.Item
+              name="username_generator"
+              label={t("settings.username_generator")}
+            >
+              <Select
+                options={[
+                  { value: "randomized", label: t("settings.ug_randomized") },
+                  { value: "incremental", label: t("settings.ug_incremental") },
+                ]}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <Form.Item
+              name="transaction_logs"
+              label={t("settings.transaction_logs")}
+              tooltip={t("settings.logs_hint")}
+            >
+              <Input allowClear />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <Form.Item
+              name="orders_logs"
+              label={t("settings.orders_logs")}
+              tooltip={t("settings.logs_hint")}
+            >
+              <Input allowClear />
+            </Form.Item>
+          </Col>
+          {TAG_LISTS.map((k) => (
+            <Col xs={24} sm={12} key={k}>
+              <Form.Item
+                name={k}
+                label={t(`settings.${k}`)}
+                tooltip={t("settings.charge_hint")}
+              >
+                <Select
+                  mode="tags"
+                  tokenSeparators={[",", " "]}
+                  open={false}
+                  suffixIcon={null}
+                  placeholder="10000, 50000, 100000"
+                />
               </Form.Item>
             </Col>
           ))}

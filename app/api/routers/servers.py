@@ -12,6 +12,7 @@ from app.api.schemas import (
 )
 from app.models.server import Server
 from app.models.user import User
+from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/servers", tags=["servers"])
 
@@ -85,11 +86,19 @@ async def server_health(
 async def set_server_enabled(
     server_id: int,
     body: SetEnabledIn,
-    _: User = Depends(require_role(User.Role.admin)),
+    actor: User = Depends(require_role(User.Role.admin)),
 ) -> OkOut:
     s = await Server.filter(id=server_id).first()
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Server not found")
     s.is_enabled = body.enabled
     await s.save(update_fields=["is_enabled"])
+    await record_audit(
+        action="server.enable" if body.enabled else "server.disable",
+        actor=actor,
+        target_type="server",
+        target_id=s.id,
+        target_label=s.name or s.host,
+        detail={"panel_type": _enum(s.panel_type)},
+    )
     return OkOut(ok=True)

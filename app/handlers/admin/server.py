@@ -42,11 +42,13 @@ from app.panels.base import PanelAuthError, PanelError
 from app.panels.guardino import login as guardino_login
 from app.panels.guardino import validate as guardino_validate
 from app.panels.pasarguard import validate_token as pg_validate_token
+from app.models.audit import AuditLog
 from app.models.proxy import Proxy
 from app.models.server import LinkPolicy, Server
 from app.models.service import Service
 from app.models.user import User
 from app.utils import helpers, proxy_management
+from app.utils.audit import record_audit
 from app.utils.filters import IsSubscriptionURL, IsSuperUser
 from marzban_client import AuthenticatedClient, Client
 from marzban_client.api.admin import admin_token, get_current_admin
@@ -546,6 +548,19 @@ async def get_server_confirm_yes(message: Message, user: User, state: FSMContext
     data = await state.get_data()
     await state.clear()  # prevent a second "بله" from creating a duplicate
     server = await Server.create(**data)
+    await record_audit(
+        action="server.add",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="server",
+        target_id=server.id,
+        target_label=server.name or server.host,
+        detail={
+            "panel_type": str(
+                getattr(server.panel_type, "value", server.panel_type)
+            )
+        },
+    )
 
     await message.reply(
         f"سرور اضافه شد:\nidentifier: {server.identifier}\nurl: {server.url}",
@@ -636,8 +651,17 @@ async def remove_server(
                 server=server, action=ServerActAction.rem
             ).as_markup(),
         )
+    sid, sname = server.id, (server.name or server.host)
     await server.delete()
     await query.answer("سرور حذف شد!", show_alert=True)
+    await record_audit(
+        action="server.delete",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="server",
+        target_id=sid,
+        target_label=sname,
+    )
     return await show_servers(
         query,
         user,

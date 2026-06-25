@@ -14,8 +14,10 @@ from app.keyboards.admin.admin import AdminPanel, AdminPanelAction
 from app.keyboards.admin.user import ManageUser, ManageUserAction, Users, UsersActions
 from app.keyboards.base import CancelUserForm, MainMenu
 from app.main import bot
+from app.models.audit import AuditLog
 from app.models.proxy import Proxy
 from app.models.user import ByAdminPayment, Invoice, Transaction, User, UserSetting
+from app.utils.audit import record_audit
 from app.utils.filters import IsSuperUser
 from app.utils.settings import get_settings
 
@@ -424,6 +426,16 @@ User info: <code>/info {transaction.user_id}</code>
         user_to_get.id,
         f"✅ مبلغ {transaction.amount:,} تومان از طرف <code>{user.id}</code> به حساب شما اضافه شد!",
     )
+    await record_audit(
+        action="balance.adjust",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="user",
+        target_id=user_to_get.id,
+        target_label=user_to_get.username or user_to_get.name,
+        amount=amount,
+        detail={"kind": "charge", "transaction_id": transaction.id},
+    )
 
 
 @router.message(Command("decharge"), IsSuperUser())
@@ -471,6 +483,16 @@ Undo: <code>/undoiv {invoice.id}</code>
 User info: <code>/info {invoice.user_id}</code>
 """
     await message.answer(text)
+    await record_audit(
+        action="balance.adjust",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="user",
+        target_id=user_to_get.id,
+        target_label=user_to_get.username or user_to_get.name,
+        amount=-amount,
+        detail={"kind": "decharge", "invoice_id": invoice.id},
+    )
 
 
 @router.message(Command("undotr"), IsSuperUser())
@@ -503,6 +525,15 @@ Amount: <code>{transaction.amount:,}</code>
 User id: <code>{transaction.user_id}</code>
 """
     await message.answer(text)
+    await record_audit(
+        action="balance.adjust",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="user",
+        target_id=transaction.user_id,
+        amount=-(transaction.amount or 0),
+        detail={"kind": "undo_transaction", "transaction_id": transaction_id},
+    )
 
 
 @router.message(Command("undoiv"), IsSuperUser())
@@ -535,6 +566,15 @@ Amount: <code>{invoice.amount:,}</code>
 User id: <code>{invoice.user_id}</code>
 """
     await message.answer(text)
+    await record_audit(
+        action="balance.adjust",
+        actor=user,
+        source=AuditLog.Source.bot,
+        target_type="user",
+        target_id=invoice.user_id,
+        amount=(invoice.amount or 0),
+        detail={"kind": "undo_invoice", "invoice_id": invoice_id},
+    )
 
 
 # block and unblock users

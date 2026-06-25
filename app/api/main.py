@@ -18,16 +18,20 @@ from tortoise import Tortoise
 import config
 from app.api.clients import bot, redis
 from app.api.routers import (
+    audit,
     auth,
     automation,
+    buttons,
     dashboard,
     discounts,
+    menus,
     proxies,
     reports,
     resellers,
     servers,
     services,
     settings,
+    texts,
     transactions,
     users,
 )
@@ -82,6 +86,10 @@ for _router in (
     discounts.router,
     automation.router,
     settings.router,
+    texts.router,
+    menus.router,
+    buttons.router,
+    audit.router,
 ):
     app.include_router(_router, prefix="/api")
 
