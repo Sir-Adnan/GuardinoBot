@@ -26,6 +26,7 @@ import { ResellerList } from "./pages/resellers/list";
 import { ResellerShow } from "./pages/resellers/show";
 import { DiscountList } from "./pages/discounts/list";
 import { AutomationPage } from "./pages/automation";
+import { SettingsPage } from "./pages/settings";
 
 export default function App() {
   const [mode, setMode] = useState<ColorMode>(
@@ -80,6 +81,7 @@ export default function App() {
                 },
                 { name: "discounts", list: "/discounts", meta: { label: "Discounts" } },
                 { name: "automation", list: "/automation", meta: { label: "Automation" } },
+                { name: "settings", list: "/settings", meta: { label: "Settings" } },
               ]}
               options={{ syncWithLocation: true, disableTelemetry: true }}
             >
@@ -108,6 +110,7 @@ export default function App() {
                   <Route path="/resellers/show/:id" element={<ResellerShow />} />
                   <Route path="/discounts" element={<DiscountList />} />
                   <Route path="/automation" element={<AutomationPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
                 </Route>
 
                 <Route

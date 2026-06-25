@@ -25,6 +25,7 @@ import {
   SafetyCertificateOutlined,
   SearchOutlined,
   SendOutlined,
+  SettingOutlined,
   ShopOutlined,
   TagsOutlined,
   TeamOutlined,
@@ -60,6 +61,7 @@ const TITLE_KEYS: Record<string, string> = {
   "/resellers": "resellers.title",
   "/discounts": "discounts.title",
   "/automation": "automation.title",
+  "/settings": "settings.title",
 };
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -82,6 +84,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // Services + Panels are admin+ (backend require_role(admin)); hide them from
   // resellers so they don't hit 403s.
   const isAdmin = (identity?.role ?? 0) >= 2;
+  const isSuper = (identity?.role ?? 0) >= 3;
   const menuItems = [
     {
       type: "group" as const,
@@ -111,6 +114,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               { key: "/resellers", icon: <ShopOutlined />, label: t("nav.resellers") },
               { key: "/servers", icon: <CloudServerOutlined />, label: t("nav.servers") },
               { key: "/automation", icon: <SendOutlined />, label: t("nav.automation") },
+              ...(isSuper
+                ? [{ key: "/settings", icon: <SettingOutlined />, label: t("nav.settings") }]
+                : []),
             ],
           },
         ]

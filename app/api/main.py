@@ -27,6 +27,7 @@ from app.api.routers import (
     resellers,
     servers,
     services,
+    settings,
     transactions,
     users,
 )
@@ -80,6 +81,7 @@ for _router in (
     resellers.router,
     discounts.router,
     automation.router,
+    settings.router,
 ):
     app.include_router(_router, prefix="/api")
 

@@ -12,7 +12,8 @@
     "servers": "Panels",
     "reports": "Reports",
     "resellers": "Resellers",
-    "automation": "Automation"
+    "automation": "Automation",
+    "settings": "Settings"
   },
   "header": {
     "search": "Search users, orders, subscriptions…",
@@ -182,6 +183,30 @@
     "s_canceled": "Canceled",
     "s_crashed": "Crashed",
     "s_idle": "Idle"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Core bot settings",
+    "behavior": "Display & behavior",
+    "values": "Values",
+    "save": "Save",
+    "saved": "Settings saved",
+    "access_only": "Access only (bot closed)",
+    "referral_system": "Referral system",
+    "reset_password_button": "\"Change password\" button",
+    "show_connect_links_button": "\"Connection links\" button",
+    "show_test_service_in_menu": "Show test service in menu",
+    "phone_number_verify": "Phone number verification",
+    "delete_expired_users_after_days": "Delete expired users after (days)",
+    "remind_invoices_each_n_days": "Debt reminder every (days)",
+    "remind_invoices_after_amount": "Remind debt above (toman)",
+    "default_daily_test_services": "Daily test services",
+    "referral_discount_percent": "Referral reward (%)",
+    "cancel_payback_fee": "Cancel/payback fee",
+    "cancel_payback_days": "Cancel window (days)",
+    "guardino_balance_warn": "Guardino balance warn",
+    "guardino_balance_critical": "Guardino balance critical",
+    "default_username_prefix": "Default username prefix"
   },
   "actions": {
     "done": "Done",

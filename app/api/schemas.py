@@ -267,3 +267,42 @@ class BroadcastStatusOut(BaseModel):
     sent: int = 0
     progress: int = 0  # percent
     started_by: Optional[int] = None
+
+
+# -- settings (curated, safe subset) ------------------------------------------
+class SettingsOut(BaseModel):
+    access_only: bool
+    referral_system: bool
+    reset_password_button: bool
+    show_connect_links_button: bool
+    show_test_service_in_menu: bool
+    phone_number_verify: bool
+    delete_expired_users_after_days: int
+    remind_invoices_each_n_days: int
+    remind_invoices_after_amount: int
+    default_daily_test_services: int
+    referral_discount_percent: int
+    cancel_payback_fee: int
+    cancel_payback_days: int
+    guardino_balance_warn: int
+    guardino_balance_critical: int
+    default_username_prefix: str
+
+
+class SettingsUpdateIn(BaseModel):
+    access_only: Optional[bool] = None
+    referral_system: Optional[bool] = None
+    reset_password_button: Optional[bool] = None
+    show_connect_links_button: Optional[bool] = None
+    show_test_service_in_menu: Optional[bool] = None
+    phone_number_verify: Optional[bool] = None
+    delete_expired_users_after_days: Optional[int] = None
+    remind_invoices_each_n_days: Optional[int] = None
+    remind_invoices_after_amount: Optional[int] = None
+    default_daily_test_services: Optional[int] = None
+    referral_discount_percent: Optional[int] = None
+    cancel_payback_fee: Optional[int] = None
+    cancel_payback_days: Optional[int] = None
+    guardino_balance_warn: Optional[int] = None
+    guardino_balance_critical: Optional[int] = None
+    default_username_prefix: Optional[str] = None

@@ -11,4 +11,5 @@ from app.jobs import (
     del_unpaid_payments,
     refresh_proxies,
     remind_invoices,
+    sync_settings,
 )
