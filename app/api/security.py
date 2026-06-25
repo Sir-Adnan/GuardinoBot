@@ -7,15 +7,20 @@ field-encryption ``SECRET_KEY_STRING``).
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import secrets
 import time
 from typing import Optional
+from urllib.parse import parse_qsl
 
 import jwt
 
 import config
 from app.api.clients import redis
 
+INITDATA_MAX_AGE = 24 * 3600  # reject Telegram Web App initData older than this
 _ALGO = "HS256"
 ACCESS_TTL = 15 * 60            # 15 minutes
 REFRESH_TTL = 30 * 24 * 3600   # 30 days
@@ -82,3 +87,39 @@ async def verify_otp(user_id: int, code: str) -> bool:
         await redis.delete(_TRIES_KEY.format(uid=user_id))
         return True
     return False
+
+
+def validate_init_data(init_data: str) -> Optional[int]:
+    """Validate a Telegram Web App ``initData`` string and return the Telegram
+    user id if its HMAC signature (per the bot token) is valid and fresh — else
+    None. This is the secure auto-login path: opening the panel as a Telegram
+    Web App proves the user's identity without an OTP.
+
+    Spec: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+    """
+    if not init_data:
+        return None
+    try:
+        pairs = dict(parse_qsl(init_data))
+    except Exception:  # noqa: BLE001
+        return None
+    received = pairs.pop("hash", "")
+    if not received:
+        return None
+    try:
+        auth_date = int(pairs.get("auth_date", "0"))
+    except ValueError:
+        return None
+    if auth_date and (time.time() - auth_date) > INITDATA_MAX_AGE:
+        return None
+    data_check = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
+    secret_key = hmac.new(
+        b"WebAppData", config.BOT_TOKEN.encode(), hashlib.sha256
+    ).digest()
+    computed = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(computed, received):
+        return None
+    try:
+        return int(json.loads(pairs.get("user", "{}"))["id"])
+    except Exception:  # noqa: BLE001
+        return None

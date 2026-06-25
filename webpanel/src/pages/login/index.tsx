@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { App as AntdApp, Button, Card, Form, Input, Typography, theme } from "antd";
+import { useEffect, useState } from "react";
+import { App as AntdApp, Button, Card, Form, Input, Spin, Typography, theme } from "antd";
 import { SafetyCertificateOutlined } from "@ant-design/icons";
 import { useLogin } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,30 @@ export function LoginPage() {
   const [step, setStep] = useState<"id" | "code">("id");
   const [identifier, setIdentifier] = useState("");
   const [sending, setSending] = useState(false);
+  const [twaLoading, setTwaLoading] = useState(
+    () => Boolean((window as any).Telegram?.WebApp?.initData),
+  );
+
+  // Auto-login when opened inside Telegram (signed initData → no OTP needed).
+  useEffect(() => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg) {
+      setTwaLoading(false);
+      return;
+    }
+    try {
+      tg.ready?.();
+      tg.expand?.();
+    } catch {
+      /* ignore */
+    }
+    if (!tg.initData) {
+      setTwaLoading(false);
+      return;
+    }
+    login({ init_data: tg.initData }, { onError: () => setTwaLoading(false) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const requestCode = async (id: string) => {
     setSending(true);
@@ -36,6 +60,21 @@ export function LoginPage() {
       { onError: (err: any) => message.error(err?.message || t("login.title")) },
     );
   };
+
+  if (twaLoading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: token.colorBgLayout,
+        }}
+      >
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div

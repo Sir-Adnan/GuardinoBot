@@ -150,3 +150,7 @@ if len(SECRET_KEY_STRING) > 32:
 WEB_JWT_SECRET = config("WEB_JWT_SECRET", default="") or SECRET_KEY_STRING
 # Allowed CORS origins for the web-panel frontend: "*" (any) or a comma list.
 WEB_CORS_ORIGINS = config("WEB_CORS_ORIGINS", default="*")
+# Domain the panel/bot are served on (set by the installer). Used to build the
+# Telegram Web App button URL. Empty => no web-app button (HTTPS is required).
+DOMAIN = config("DOMAIN", default="")
+WEB_PANEL_URL = f"https://{DOMAIN}" if DOMAIN else ""

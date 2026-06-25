@@ -2,8 +2,10 @@ from enum import Enum
 from typing import Literal
 
 from aiogram.filters.callback_data import CallbackData
+from aiogram.types import WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+import config
 from app.keyboards import base
 from app.keyboards.admin import server, service
 
@@ -27,6 +29,11 @@ class AdminPanel(InlineKeyboardBuilder):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        if config.WEB_PANEL_URL:
+            self.button(
+                text="🖥 پنل وب مدیریت",
+                web_app=WebAppInfo(url=config.WEB_PANEL_URL),
+            )
         self.button(
             text="مدیریت سرورها",
             callback_data=self.Callback(action=AdminPanelAction.servers),
@@ -55,7 +62,10 @@ class AdminPanel(InlineKeyboardBuilder):
             text="وضعیت",
             callback_data=self.Callback(action=AdminPanelAction.stats),
         )
-        self.adjust(2, 1, 2, 1)
+        if config.WEB_PANEL_URL:
+            self.adjust(1, 2, 1, 2, 1)
+        else:
+            self.adjust(2, 1, 2, 1)
 
 
 class BulkUpdateProxiesProc(str, Enum):

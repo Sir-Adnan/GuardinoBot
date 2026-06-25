@@ -5,9 +5,12 @@ import { api, TOKEN_KEY, REFRESH_KEY, USER_KEY } from "./axios";
 // login page; `login()` here performs step 2 (verify → store JWTs).
 export const authProvider: AuthProvider = {
   login: async (params: any) => {
-    const { identifier, code } = params ?? {};
+    const { identifier, code, init_data } = params ?? {};
     try {
-      const res = await api.post("/auth/verify", { identifier, code });
+      // Telegram Web App auto-login (signed initData) or OTP verify.
+      const res = init_data
+        ? await api.post("/auth/telegram", { init_data })
+        : await api.post("/auth/verify", { identifier, code });
       localStorage.setItem(TOKEN_KEY, res.data.access_token);
       localStorage.setItem(REFRESH_KEY, res.data.refresh_token);
       localStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
@@ -17,7 +20,7 @@ export const authProvider: AuthProvider = {
         success: false,
         error: {
           name: "LoginError",
-          message: e?.response?.data?.detail || "کد نامعتبر یا منقضی شده است",
+          message: e?.response?.data?.detail || "ورود ناموفق بود",
         },
       };
     }

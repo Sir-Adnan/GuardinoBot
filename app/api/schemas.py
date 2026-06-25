@@ -20,6 +20,10 @@ class VerifyIn(BaseModel):
     code: str
 
 
+class TelegramAuthIn(BaseModel):
+    init_data: str  # raw Telegram Web App initData query string
+
+
 class RefreshIn(BaseModel):
     refresh_token: str
 

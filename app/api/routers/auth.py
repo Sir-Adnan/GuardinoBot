@@ -12,17 +12,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api import security
 from app.api.clients import bot
 from app.api.deps import get_current_user
+from app.logger import get_logger
 from app.api.schemas import (
     ROLE_NAMES,
     MeOut,
     RefreshIn,
     RequestCodeIn,
+    TelegramAuthIn,
     TokenOut,
     VerifyIn,
 )
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = get_logger("api/auth")
 
 
 def _me(user: User) -> MeOut:
@@ -73,7 +76,9 @@ async def request_code(body: RequestCodeIn) -> dict:
                     parse_mode="HTML",
                 )
             except Exception:
-                pass
+                logger.warning(
+                    "failed to send web-panel login code to %s", user.id, exc_info=True
+                )
     return {"ok": True}
 
 
@@ -84,6 +89,19 @@ async def verify(body: VerifyIn) -> TokenOut:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, "کد نامعتبر یا منقضی شده است"
         )
+    return _tokens(user)
+
+
+@router.post("/telegram", response_model=TokenOut)
+async def telegram_login(body: TelegramAuthIn) -> TokenOut:
+    """Auto-login from inside a Telegram Web App: validate the signed initData
+    (HMAC per bot token) → no OTP needed. Reseller+ only."""
+    tg_id = security.validate_init_data(body.init_data)
+    if not tg_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "اطلاعات تلگرام نامعتبر است")
+    user = await User.filter(id=tg_id).first()
+    if not _eligible(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "دسترسی مجاز نیست")
     return _tokens(user)
 
 
