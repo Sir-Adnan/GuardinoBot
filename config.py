@@ -142,3 +142,11 @@ SECRET_KEY_STRING = config(
 
 if len(SECRET_KEY_STRING) > 32:
     raise ValueError("'SECRET_KEY_STRING' must be less than 64 charachters")
+
+
+# --- Web admin/reseller panel (§9) — FastAPI service -------------------------
+# JWT signing secret for the web panel (distinct from SECRET_KEY_STRING, the DB
+# field-encryption key). Falls back to SECRET_KEY_STRING when unset.
+WEB_JWT_SECRET = config("WEB_JWT_SECRET", default="") or SECRET_KEY_STRING
+# Allowed CORS origins for the web-panel frontend: "*" (any) or a comma list.
+WEB_CORS_ORIGINS = config("WEB_CORS_ORIGINS", default="*")

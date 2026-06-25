@@ -13,7 +13,7 @@ Goal: max quality, min tokens. The repo is large; blind/whole-file reads are ban
 
 **Read/Search**
 - Never read a whole dir or big file "to be safe". Grep/Glob to the exact spot, then Read with `offset`/`limit`.
-- Do NOT read these unless strictly required (100KB+, repetitive): `openapi.json`, `openapi-pasarguard.json`, `openapi-guardino.json`, `marzban_client/`. To understand panel behavior, read the neutral interface in `app/panels/base.py`, not the raw spec.
+- Do NOT read these unless strictly required (100KB+, repetitive): `openapi.json`, `openapi-pasarguard.json`, `openapi-guardino.json`, `marzban_client/`, `Dashboard-Example-Theme-UI/` (87KB html + 57KB `support.js` — a visual-only mockup; its theme is already captured in §9, so don't re-read it). To understand panel behavior, read the neutral interface in `app/panels/base.py`, not the raw spec.
 - Don't read all of `migrations/models/`; only the latest or the one you need.
 - For codebase-wide search where you only need a conclusion (not raw content), use the `Explore` subagent so raw output stays out of the main context.
 
@@ -235,9 +235,12 @@ Before a big panel refactor, present a migration plan and get approval.
 
 Current state: `app/views` is webhook-only; no authenticated panel yet. Before starting, review current code: `app/views`, templates, auth, models, config, Docker/runtime.
 
+**Status (Phase 1 — backend scaffolded):** `app/api/` (FastAPI) runs as the `api` compose service (uvicorn :8000), sharing DB/Redis via `config.TORTOISE_ORM` and the §6 adapter. Done: **Telegram-OTP → JWT** auth (`app/api/security.py` + `routers/auth.py`, reseller+ only; OTP in Redis, sent via a send-only Bot in `app/api/clients.py`), `dashboard` + `users` routers (reseller subtree scoping in `deps.require_role`/`_scope`), CORS. New deps: `fastapi`/`uvicorn`/`pyjwt`. **Next:** frontend `webpanel/` (Vite+Refine+AntD, RTL, theme above) + remaining §9 resources, each a router + Refine resource through the adapter.
+
 **Stack (agreed — plan + confirm before the first scaffold):**
 - **Backend: FastAPI** (a separate service beside the bot, sharing the same DB/Redis and **the same adapter layer in §6**). Fully async and same family as the current code; Pydantic + auto OpenAPI; JWT; PasarGuard/Guardino are also FastAPI. Tortoise via `tortoise.contrib.fastapi`.
 - **Frontend: React + TypeScript + Vite + Refine + Ant Design.** CRUD-heavy panel (users, orders, panels, services, resellers) is fast with Refine (data/auth providers + RBAC); Ant Design has ready tables/forms/dashboards and **built-in RTL** for Persian. State via TanStack Query.
+- **Theme target** (captured from the `Dashboard-Example-Theme-UI/` mockup so it never needs re-reading): RTL Persian, **Vazirmatn** UI font + **IBM Plex Mono** for numerals, **Material Symbols Rounded** icons, **emerald/green accent**, **dark + light** themes (CSS-var/oklch palette with green/red/amber/blue/violet status colors), layout = fixed **sidebar (~266px, grouped nav) + sticky topbar (title, search, lang + theme toggles, notifications) + card grid**. Must be **fully responsive** (sidebar → drawer on mobile). Map these onto the AntD `ConfigProvider` theme tokens.
 - **Auth:** JWT (access + refresh); role from `User.Role`. In Guardino multi-tenant mode, reseller web login can also validate against Guardino Hub.
 - **Deploy:** new services (`api` + built frontend behind nginx or served by the api) added to `docker-compose`, same DB/Redis. Bot and web panel share one source of truth (models + adapters).
 - **Lighter alternative:** if the user prefers, the existing aiohttp + jinja2 path is possible; final call is the user's.
