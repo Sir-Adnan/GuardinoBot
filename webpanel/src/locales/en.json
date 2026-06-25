@@ -115,5 +115,19 @@
     "user": "User",
     "createdAt": "Date"
   },
+  "actions": {
+    "done": "Done",
+    "failed": "Action failed",
+    "deleted": "Deleted",
+    "enable": "Enable",
+    "disable": "Disable",
+    "resetUsage": "Reset usage",
+    "revoke": "Revoke link",
+    "delete": "Delete subscription",
+    "deleteConfirm": "Delete this subscription from panel and bot?",
+    "block": "Block user",
+    "unblock": "Unblock",
+    "blockConfirm": "Block this user?"
+  },
   "roles": { "0": "user", "1": "reseller", "2": "admin", "3": "super_user" }
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { App as AntdApp, Button, Card, Table, Tag } from "antd";
+import { App as AntdApp, Button, Card, Switch, Table, Tag } from "antd";
 import { ApiOutlined } from "@ant-design/icons";
-import { useList } from "@refinedev/core";
+import { useGetIdentity, useInvalidate, useList } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtNum } from "../../utils/format";
@@ -15,6 +15,10 @@ const PANEL_COLORS: Record<string, string> = {
 export function ServerList() {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
+  const invalidate = useInvalidate();
+  const { data: me } = useGetIdentity<any>();
+  const isAdmin = (me?.role ?? 0) >= 2;
+
   const { data, isLoading } = useList<any>({
     resource: "servers",
     pagination: { current: 1, pageSize: 100 },
@@ -39,6 +43,16 @@ export function ServerList() {
     }
   };
 
+  const toggleEnabled = async (id: number, enabled: boolean) => {
+    try {
+      await api.post(`/servers/${id}/enabled`, { enabled });
+      message.success(t("actions.done"));
+      invalidate({ resource: "servers", invalidates: ["list"] });
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+    }
+  };
+
   const columns = [
     { title: t("servers.id"), dataIndex: "id", width: 80, className: "mono" },
     { title: t("servers.name"), key: "name", render: (_: any, r: any) => r.name || r.host },
@@ -57,8 +71,14 @@ export function ServerList() {
     {
       title: t("servers.status"),
       dataIndex: "is_enabled",
-      render: (v: boolean) =>
-        v ? <Tag color="green">{t("servers.enabled")}</Tag> : <Tag>{t("servers.disabled")}</Tag>,
+      render: (v: boolean, r: any) =>
+        isAdmin ? (
+          <Switch checked={v} onChange={(c) => toggleEnabled(r.id, c)} />
+        ) : v ? (
+          <Tag color="green">{t("servers.enabled")}</Tag>
+        ) : (
+          <Tag>{t("servers.disabled")}</Tag>
+        ),
     },
     {
       title: "",
@@ -84,7 +104,7 @@ export function ServerList() {
         loading={isLoading}
         dataSource={data?.data ?? []}
         columns={columns}
-        scroll={{ x: 780 }}
+        scroll={{ x: 800 }}
         pagination={false}
       />
     </Card>

@@ -157,3 +157,21 @@ class TransactionListItem(BaseModel):
 class TransactionsPage(BaseModel):
     items: list[TransactionListItem]
     total: int
+
+
+# -- write actions ------------------------------------------------------------
+class OkOut(BaseModel):
+    ok: bool
+    status: Optional[str] = None
+
+
+class SetBlockedIn(BaseModel):
+    blocked: bool
+
+
+class SetEnabledIn(BaseModel):
+    enabled: bool
+
+
+class ProxyActionIn(BaseModel):
+    action: str  # enable | disable | reset_usage | revoke

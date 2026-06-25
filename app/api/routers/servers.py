@@ -3,7 +3,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import require_role
-from app.api.schemas import ServerHealth, ServerListItem, ServersPage
+from app.api.schemas import (
+    OkOut,
+    ServerHealth,
+    ServerListItem,
+    ServersPage,
+    SetEnabledIn,
+)
 from app.models.server import Server
 from app.models.user import User
 
@@ -73,3 +79,17 @@ async def server_health(
             error=str(exc)[:200],
             status_code=getattr(exc, "status_code", None),
         )
+
+
+@router.post("/{server_id}/enabled", response_model=OkOut)
+async def set_server_enabled(
+    server_id: int,
+    body: SetEnabledIn,
+    _: User = Depends(require_role(User.Role.admin)),
+) -> OkOut:
+    s = await Server.filter(id=server_id).first()
+    if s is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Server not found")
+    s.is_enabled = body.enabled
+    await s.save(update_fields=["is_enabled"])
+    return OkOut(ok=True)

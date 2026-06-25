@@ -1,14 +1,19 @@
-import { Button, Card, Descriptions, Space, Spin, Tag } from "antd";
+import { App as AntdApp, Button, Card, Descriptions, Popconfirm, Space, Spin, Tag } from "antd";
 import { ArrowLeftOutlined, ArrowRightOutlined } from "@ant-design/icons";
-import { useOne } from "@refinedev/core";
+import { useGetIdentity, useInvalidate, useOne } from "@refinedev/core";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { api } from "../../providers/axios";
 import { ROLE_COLORS, fmtDate, fmtToman } from "../../utils/format";
 
 export function UserShow() {
   const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
+  const { message } = AntdApp.useApp();
+  const invalidate = useInvalidate();
+  const { data: me } = useGetIdentity<any>();
+  const isAdmin = (me?.role ?? 0) >= 2;
   const { data, isLoading } = useOne<any>({ resource: "users", id: id! });
   const u = data?.data;
 
@@ -22,6 +27,16 @@ export function UserShow() {
 
   const BackIcon = i18n.language === "en" ? ArrowLeftOutlined : ArrowRightOutlined;
 
+  const setBlocked = async (blocked: boolean) => {
+    try {
+      await api.post(`/users/${id}/block`, { blocked });
+      message.success(t("actions.done"));
+      invalidate({ resource: "users", invalidates: ["detail"], id: id! });
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+    }
+  };
+
   return (
     <Card
       title={
@@ -29,6 +44,21 @@ export function UserShow() {
           <Button type="text" icon={<BackIcon />} onClick={() => navigate("/users")} />
           {u.name || (u.username ? "@" + u.username : u.id)}
         </Space>
+      }
+      extra={
+        isAdmin ? (
+          u.is_blocked ? (
+            <Button onClick={() => setBlocked(false)}>{t("actions.unblock")}</Button>
+          ) : (
+            <Popconfirm
+              title={t("actions.blockConfirm")}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => setBlocked(true)}
+            >
+              <Button danger>{t("actions.block")}</Button>
+            </Popconfirm>
+          )
+        ) : null
       }
     >
       <Descriptions bordered size="middle" column={{ xs: 1, sm: 1, md: 2 }}>
