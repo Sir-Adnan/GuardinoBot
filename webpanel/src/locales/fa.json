@@ -268,7 +268,11 @@
       "proxy_help": "نمایش اشتراک",
       "referral_banner_text": "بنر دعوت",
       "charge": "شارژ حساب",
-      "verify_phone_number": "تأیید شماره موبایل"
+      "verify_phone_number": "تأیید شماره موبایل",
+      "alert_expiry": "آلارم · نزدیک انقضا",
+      "alert_low_data": "آلارم · حجم کم",
+      "alert_unused": "آلارم · عدم استفاده",
+      "alert_ended": "آلارم · پایان اشتراک"
     }
   },
   "buttons": {
@@ -322,7 +326,17 @@
     "logs_hint": "آیدی عددی چت/کانال تلگرام برای ثبت لاگ (خالی = غیرفعال)",
     "charge_amount_list": "دکمه‌های مبلغ شارژ",
     "charge_amount_orders": "ترتیب مبالغ شارژ",
-    "charge_hint": "برای افزودن مبلغ (تومان) Enter یا کاما بزنید"
+    "charge_hint": "برای افزودن مبلغ (تومان) Enter یا کاما بزنید",
+    "alerts": "اعلان‌های کاربر (نوتیف)",
+    "alerts_enabled": "فعال‌سازی اعلان‌ها (اصلی)",
+    "notify_expiry_enabled": "آلارم نزدیک انقضا",
+    "notify_expiry_days": "چند روز قبل از انقضا",
+    "notify_low_data_enabled": "آلارم حجم کم",
+    "notify_traffic_percent": "آلارم در مصرفِ ٪",
+    "notify_data_remaining_gb": "…یا باقیماندهٔ ≤ (گیگ)",
+    "notify_unused_enabled": "آلارم عدم استفاده",
+    "notify_unused_days": "عدم استفاده بعد از (روز)",
+    "notify_ended_enabled": "آلارم پایان (انقضا/اتمام حجم)"
   },
   "actions": {
     "done": "انجام شد",

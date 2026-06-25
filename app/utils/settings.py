@@ -104,6 +104,17 @@ class Settings(BaseModel):
     # key falls back to the hard-coded default in app/utils/buttons.py).
     button_labels: dict[str, str] = {}
 
+    # --- User notification / proxy-alert system (jobs/proxy_alerts.py) ---
+    alerts_enabled: bool = True  # master switch
+    notify_expiry_enabled: bool = True
+    notify_expiry_days: int = 3  # alert when 0 < days_left <= this
+    notify_low_data_enabled: bool = True
+    notify_traffic_percent: int = 85  # alert when used >= this % of data_limit
+    notify_data_remaining_gb: int = 1  # ...or remaining data <= this many GB
+    notify_unused_enabled: bool = True
+    notify_unused_days: int = 3  # bought & never connected after this many days
+    notify_ended_enabled: bool = True  # expired / data-finished
+
     # payment auto_select
     payment_auto_select: auto_select.Settings = auto_select.Settings()
 

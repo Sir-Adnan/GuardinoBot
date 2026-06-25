@@ -41,6 +41,19 @@ const NUMBERS = [
   "guardino_balance_critical",
 ];
 const TAG_LISTS = ["charge_amount_list", "charge_amount_orders"];
+const ALERT_SWITCHES = [
+  "alerts_enabled",
+  "notify_expiry_enabled",
+  "notify_low_data_enabled",
+  "notify_unused_enabled",
+  "notify_ended_enabled",
+];
+const ALERT_NUMBERS = [
+  "notify_expiry_days",
+  "notify_traffic_percent",
+  "notify_data_remaining_gb",
+  "notify_unused_days",
+];
 
 const toNumbers = (arr: any): number[] =>
   Array.isArray(arr)
@@ -175,6 +188,24 @@ export function SettingsPage() {
                   suffixIcon={null}
                   placeholder="10000, 50000, 100000"
                 />
+              </Form.Item>
+            </Col>
+          ))}
+        </Row>
+
+        <Divider orientation="left">{t("settings.alerts")}</Divider>
+        <Row gutter={16}>
+          {ALERT_SWITCHES.map((k) => (
+            <Col xs={24} sm={12} md={8} key={k}>
+              <Form.Item name={k} label={t(`settings.${k}`)} valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+          ))}
+          {ALERT_NUMBERS.map((k) => (
+            <Col xs={24} sm={12} md={8} key={k}>
+              <Form.Item name={k} label={t(`settings.${k}`)}>
+                <InputNumber style={{ width: "100%" }} min={0} />
               </Form.Item>
             </Col>
           ))}

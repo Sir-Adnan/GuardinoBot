@@ -37,6 +37,10 @@ _TEXTS: dict[str, list[str]] = {
     "referral_banner_text": ["INVITE_LINK"],
     "charge": [],
     "verify_phone_number": [],
+    "alert_expiry": ["NAME", "DAYS_LEFT"],
+    "alert_low_data": ["NAME", "DATA_LEFT"],
+    "alert_unused": ["NAME"],
+    "alert_ended": ["NAME"],
 }
 _DIRTY = "texts:dirty"
 

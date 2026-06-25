@@ -156,6 +156,60 @@ class VerifyPhoneNumber(TextValue):
     _allowed_variables: dict[str, Callable[[Any], str]] = {}
 
 
+class AlertExpiryText(TextValue):
+    value: str = """
+⏳ <b>یادآوری تمدید</b>
+
+سرویس <b>{NAME}</b> رو‌ به اتمامه — فقط <b>{DAYS_LEFT} روز</b> دیگه باقی مونده! ⌛️
+
+برای اینکه اتصالت بدون وقفه ادامه پیدا کنه، همین حالا تمدیدش کن 👇
+"""
+    _allowed_variables: dict[str, Callable[[Any], str]] = {
+        "NAME": lambda v: v,
+        "DAYS_LEFT": lambda v: v,
+    }
+
+
+class AlertLowDataText(TextValue):
+    value: str = """
+📉 <b>حجمت رو به اتمامه</b>
+
+از سرویس <b>{NAME}</b> فقط حدود <b>{DATA_LEFT}</b> حجم باقی مونده!
+
+برای جلوگیری از قطع شدن اتصال، همین حالا تمدید کن یا حجم بگیر 👇
+"""
+    _allowed_variables: dict[str, Callable[[Any], str]] = {
+        "NAME": lambda v: v,
+        "DATA_LEFT": lambda v: v,
+    }
+
+
+class AlertUnusedText(TextValue):
+    value: str = """
+👋 سلام!
+
+دیدیم که هنوز از سرویس <b>{NAME}</b> استفاده نکردی 🤔
+
+اگه در اتصال مشکلی داری، راهنمای اتصال رو ببین یا به پشتیبانی پیام بده — ما همیشه کنارتیم تا راحت وصل شی 💚
+"""
+    _allowed_variables: dict[str, Callable[[Any], str]] = {
+        "NAME": lambda v: v,
+    }
+
+
+class AlertEndedText(TextValue):
+    value: str = """
+🔴 <b>اشتراکت به پایان رسید</b>
+
+سرویس <b>{NAME}</b> به پایان رسید (حجم یا زمانش تموم شد) و اتصالت قطع شده.
+
+برای ادامهٔ اتصالِ بی‌دردسر، همین حالا دوباره تمدیدش کن 👇
+"""
+    _allowed_variables: dict[str, Callable[[Any], str]] = {
+        "NAME": lambda v: v,
+    }
+
+
 class Texts(BaseModel):
     class Config:
         from_attributes = True
@@ -206,6 +260,12 @@ class Texts(BaseModel):
     charge: ChargeText = ChargeText()
 
     verify_phone_number: VerifyPhoneNumber = VerifyPhoneNumber()
+
+    # user notification / proxy alerts (jobs/proxy_alerts.py)
+    alert_expiry: AlertExpiryText = AlertExpiryText()
+    alert_low_data: AlertLowDataText = AlertLowDataText()
+    alert_unused: AlertUnusedText = AlertUnusedText()
+    alert_ended: AlertEndedText = AlertEndedText()
 
     # payment crypto
     payment_nowpayments: nowpayments.Texts = nowpayments.Texts()

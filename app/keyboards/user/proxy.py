@@ -783,3 +783,30 @@ class ProxySettings(InlineKeyboardBuilder):
                 action=ProxiesActions.show_proxy,
             ),
         )
+
+
+def alert_renew_keyboard(proxy_id: int):
+    """Single inline 'renew' button for proxy-alert messages → opens the standard
+    renew flow for that proxy (the existing ProxyPanel renew callback). Inline
+    button labels are callback-routed, so the text is safe to restyle."""
+    kb = InlineKeyboardBuilder()
+    kb.button(
+        text="🔄 تمدید سرویس",
+        callback_data=ProxyPanel.Callback(
+            proxy_id=proxy_id, action=ProxyPanelActions.renew
+        ),
+    )
+    return kb.as_markup()
+
+
+def alert_links_keyboard(proxy_id: int):
+    """Inline 'connection links' button for the 'unused subscription' alert →
+    opens the proxy's links so the user can finally connect."""
+    kb = InlineKeyboardBuilder()
+    kb.button(
+        text="🔗 دریافت لینک اتصال",
+        callback_data=ProxyPanel.Callback(
+            proxy_id=proxy_id, action=ProxyPanelActions.links
+        ),
+    )
+    return kb.as_markup()

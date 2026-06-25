@@ -9,6 +9,7 @@ from app.jobs import (
     check_hub_balance,
     check_reserves,
     del_unpaid_payments,
+    proxy_alerts,
     refresh_proxies,
     remind_invoices,
     sync_settings,

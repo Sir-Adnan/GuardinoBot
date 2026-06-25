@@ -27,6 +27,11 @@ _BOOL = (
     "show_connect_links_button",
     "show_test_service_in_menu",
     "phone_number_verify",
+    "alerts_enabled",
+    "notify_expiry_enabled",
+    "notify_low_data_enabled",
+    "notify_unused_enabled",
+    "notify_ended_enabled",
 )
 _INT = (
     "delete_expired_users_after_days",
@@ -39,6 +44,10 @@ _INT = (
     "guardino_balance_warn",
     "guardino_balance_critical",
     "on_hold_timeout_seconds",
+    "notify_expiry_days",
+    "notify_traffic_percent",
+    "notify_data_remaining_gb",
+    "notify_unused_days",
 )
 # Plain strings + the username_generator enum (stored as its value string).
 _STR = (

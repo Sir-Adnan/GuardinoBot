@@ -293,6 +293,15 @@ class SettingsOut(BaseModel):
     orders_logs: str
     charge_amount_list: list[int]
     charge_amount_orders: list[int]
+    alerts_enabled: bool
+    notify_expiry_enabled: bool
+    notify_expiry_days: int
+    notify_low_data_enabled: bool
+    notify_traffic_percent: int
+    notify_data_remaining_gb: int
+    notify_unused_enabled: bool
+    notify_unused_days: int
+    notify_ended_enabled: bool
 
 
 class SettingsUpdateIn(BaseModel):
@@ -318,6 +327,15 @@ class SettingsUpdateIn(BaseModel):
     orders_logs: Optional[str] = None
     charge_amount_list: Optional[list[int]] = None
     charge_amount_orders: Optional[list[int]] = None
+    alerts_enabled: Optional[bool] = None
+    notify_expiry_enabled: Optional[bool] = None
+    notify_expiry_days: Optional[int] = None
+    notify_low_data_enabled: Optional[bool] = None
+    notify_traffic_percent: Optional[int] = None
+    notify_data_remaining_gb: Optional[int] = None
+    notify_unused_enabled: Optional[bool] = None
+    notify_unused_days: Optional[int] = None
+    notify_ended_enabled: Optional[bool] = None
 
 
 # -- audit log ----------------------------------------------------------------

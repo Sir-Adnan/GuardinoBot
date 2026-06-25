@@ -268,7 +268,11 @@
       "proxy_help": "Subscription view",
       "referral_banner_text": "Referral banner",
       "charge": "Charge / top-up",
-      "verify_phone_number": "Phone verification"
+      "verify_phone_number": "Phone verification",
+      "alert_expiry": "Alert · expiry soon",
+      "alert_low_data": "Alert · low data",
+      "alert_unused": "Alert · unused subscription",
+      "alert_ended": "Alert · ended"
     }
   },
   "buttons": {
@@ -322,7 +326,17 @@
     "logs_hint": "Telegram chat/channel id where the bot posts logs (empty = off)",
     "charge_amount_list": "Charge amount buttons",
     "charge_amount_orders": "Charge amount order",
-    "charge_hint": "Press Enter or comma to add an amount (toman)"
+    "charge_hint": "Press Enter or comma to add an amount (toman)",
+    "alerts": "User alerts (notifications)",
+    "alerts_enabled": "Enable alerts (master)",
+    "notify_expiry_enabled": "Expiry alert",
+    "notify_expiry_days": "Days before expiry",
+    "notify_low_data_enabled": "Low-data alert",
+    "notify_traffic_percent": "Alert at usage %",
+    "notify_data_remaining_gb": "…or remaining ≤ (GB)",
+    "notify_unused_enabled": "Unused-subscription alert",
+    "notify_unused_days": "Unused after (days)",
+    "notify_ended_enabled": "Ended alert (expired/finished)"
   },
   "actions": {
     "done": "Done",

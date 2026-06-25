@@ -34,6 +34,12 @@ class Proxy(TimedBase):
     )
     renewed_at = fields.DatetimeField(null=True)
 
+    # Per-alert dedup flags for the proxy_alerts job, e.g.
+    # {"expiry": true, "low_data": true, "unused": true, "ended": true}.
+    # Self-healing: the job drops a flag once its condition no longer holds
+    # (after renew / add-traffic), so a recovered subscription can alert again.
+    notified = fields.JSONField(null=True)
+
     # id-based panels (Guardino hub): remote integer user id + master sub token.
     # Null for username-based panels (Marzban / PasarGuard).
     panel_user_id = fields.BigIntField(null=True)
