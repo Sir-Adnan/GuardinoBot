@@ -104,6 +104,9 @@ def validate_init_data(init_data: str) -> Optional[int]:
     except Exception:  # noqa: BLE001
         return None
     received = pairs.pop("hash", "")
+    # Newer Telegram clients also send an Ed25519 `signature` (for third-party
+    # validation); it is NOT part of the bot-token HMAC data-check-string.
+    pairs.pop("signature", None)
     if not received:
         return None
     try:

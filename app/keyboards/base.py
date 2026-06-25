@@ -1,8 +1,6 @@
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-import config
 from app.models.service import Service
 
 
@@ -19,7 +17,6 @@ class MainMenu(ReplyKeyboardBuilder):
     cancel = "🚫 لغو"
     main_menu = "📱 منوی اصلی"
     admin_menu = "⚙️ پنل مدیریت"
-    web_panel = "🖥 پنل وب"
 
     def __init__(
         self,
@@ -50,11 +47,6 @@ class MainMenu(ReplyKeyboardBuilder):
         orders.append(2)
         if is_super_user:
             self.button(text=self.admin_menu)
-            orders.append(1)
-        if is_super_user and config.WEB_PANEL_URL:
-            self.button(
-                text=self.web_panel, web_app=WebAppInfo(url=config.WEB_PANEL_URL)
-            )
             orders.append(1)
         self.adjust(*orders)
 

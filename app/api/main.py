@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from tortoise.contrib.fastapi import register_tortoise
+from tortoise import Tortoise
 
 import config
 from app.api.clients import bot, redis
@@ -34,15 +34,23 @@ from app.api.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
+    # Init Tortoise HERE, not via register_tortoise: a custom lifespan replaces
+    # the on_event("startup") handlers register_tortoise relies on, so its init
+    # would never run and every DB query would fail. Migrations stay with the
+    # bot (prestart.sh); we only open connections (no schema generation).
+    await Tortoise.init(config=config.TORTOISE_ORM)
     try:
-        await bot.session.close()
-    except Exception:
-        pass
-    try:
-        await redis.aclose()
-    except Exception:
-        pass
+        yield
+    finally:
+        await Tortoise.close_connections()
+        try:
+            await bot.session.close()
+        except Exception:
+            pass
+        try:
+            await redis.aclose()
+        except Exception:
+            pass
 
 
 app = FastAPI(title="GuardinoBot Web Panel API", version="0.1.0", lifespan=lifespan)
@@ -79,6 +87,3 @@ for _router in (
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
-
-
-register_tortoise(app, config=config.TORTOISE_ORM, generate_schemas=False)
