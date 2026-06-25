@@ -7,7 +7,11 @@
 # Usage:
 #   bash <(curl -Ls --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardinobot.sh)
 #
-# Menu: install | update | logs | backup | restart | status | edit env | uninstall
+# Menu: install | update | domain | logs | backup | restart | status | edit env | uninstall
+#
+# What it deploys (docker compose):
+#   bot · api (web-panel API) · webpanel (React SPA) · redis · mariadb · phpmyadmin
+#   (+ caddy with automatic HTTPS when a domain is configured)
 #
 set -euo pipefail
 
@@ -22,6 +26,7 @@ SRC_DIR="${APP_DIR}/src"          # git clone of the repo (build context)
 DATA_DIR="/var/lib/guardinobot"   # persistent docker volumes + backups
 COMPOSE_FILE="${APP_DIR}/docker-compose.yml"
 ENV_FILE="${APP_DIR}/.env"
+CADDY_DIR="${DATA_DIR}/caddy"
 BACKUP_DIR="${DATA_DIR}/backups"
 BIN_PATH="/usr/local/bin/guardinobot"
 
@@ -72,7 +77,6 @@ install_docker() {
         curl -fsSL --ipv4 https://get.docker.com | sh || die "Docker installation failed."
         systemctl enable --now docker >/dev/null 2>&1 || true
     fi
-    # docker compose v2 plugin / fallback to v1
     if docker compose version >/dev/null 2>&1; then
         DC="docker compose"
     elif command -v docker-compose >/dev/null 2>&1; then
@@ -96,13 +100,41 @@ rand() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-24}"; echo; }
 
 public_ip() { curl -fsSL --ipv4 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'; }
 
-env_val() {  # read a decouple-style key (KEY = "value") from .env
-    grep -E "^\s*${1}\s*=" "$ENV_FILE" 2>/dev/null | head -1 | sed -E 's/^[^=]*=\s*"?([^"]*)"?\s*$/\1/'
+# read a decouple-style key (KEY = "value") from .env; never fails (set -e safe)
+env_val() {
+    grep -E "^\s*${1}\s*=" "$ENV_FILE" 2>/dev/null | head -1 | sed -E 's/^[^=]*=\s*"?([^"]*)"?\s*$/\1/' || true
 }
 
-# DB / secret credentials shared between docker-compose.yml and .env.
-# On update we reuse the values already stored in .env so passwords never change.
-DB_NAME="guardino"; DB_USER="guardino"; DB_PASS=""; ROOT_PASS=""; SECRET=""
+# add KEY only if absent (append-only; used on update so existing values stay)
+ensure_kv() {
+    local key="$1" def="$2"
+    grep -qE "^\s*${key}\s*=" "$ENV_FILE" 2>/dev/null || printf '%s = "%s"\n' "$key" "$def" >> "$ENV_FILE"
+}
+
+# set/replace KEY = "value" in .env (escapes sed-special chars in value)
+set_env_kv() {
+    local key="$1" val="$2" esc
+    esc="${val//\\/\\\\}"; esc="${esc//|/\\|}"; esc="${esc//&/\\&}"
+    if grep -qE "^\s*${key}\s*=" "$ENV_FILE" 2>/dev/null; then
+        sed -i -E "s|^\s*${key}\s*=.*|${key} = \"${esc}\"|" "$ENV_FILE"
+    else
+        printf '%s = "%s"\n' "$key" "$val" >> "$ENV_FILE"
+    fi
+}
+
+# ensure every key the current app version needs exists (append missing only).
+# THIS is what makes 'update' pick up new env vars from new releases.
+ensure_env_keys() {
+    [[ -f "$ENV_FILE" ]] || return 0
+    ensure_kv WEB_JWT_SECRET "$(rand 32)"
+    ensure_kv WEB_CORS_ORIGINS "*"
+    ensure_kv DOMAIN ""
+    ensure_kv DEFAULT_USERNAME_PREFIX "Guardino"
+}
+
+# DB / secret credentials + domain, shared between compose and .env.
+# On update we reuse what's already in .env so nothing rotates.
+DB_NAME="guardino"; DB_USER="guardino"; DB_PASS=""; ROOT_PASS=""; SECRET=""; WEB_JWT=""; DOMAIN=""
 load_or_make_creds() {
     if [[ -f "$ENV_FILE" ]]; then
         DB_PASS="$(env_val MYSQL_PASSWORD)"
@@ -110,10 +142,37 @@ load_or_make_creds() {
         DB_NAME="$(env_val MYSQL_DATABASE)"; DB_NAME="${DB_NAME:-guardino}"
         DB_USER="$(env_val MYSQL_USER)";     DB_USER="${DB_USER:-guardino}"
         SECRET="$(env_val SECRET_KEY_STRING)"
+        WEB_JWT="$(env_val WEB_JWT_SECRET)"
+        DOMAIN="$(env_val DOMAIN)"
     fi
-    [[ -n "$DB_PASS"  ]] || DB_PASS="$(rand 24)"
+    [[ -n "$DB_PASS"   ]] || DB_PASS="$(rand 24)"
     [[ -n "$ROOT_PASS" ]] || ROOT_PASS="$(rand 24)"
-    [[ -n "$SECRET"   ]] || SECRET="$(rand 32)"
+    [[ -n "$SECRET"    ]] || SECRET="$(rand 32)"
+    [[ -n "$WEB_JWT"   ]] || WEB_JWT="$(rand 32)"
+}
+
+# ----------------------------------------------------------------------------- domain
+prompt_domain() {
+    echo
+    echo "${CYAN}Domain for the bot + web panel${NC} (e.g. panel.example.com or example.com)."
+    echo "  - Point the domain's A record to THIS server's IP first."
+    echo "  - Ports 80 and 443 must be free & open (Caddy fetches HTTPS automatically)."
+    echo "  - Leave empty to keep current, or type '-' to run on IP without HTTPS."
+    local cur="$DOMAIN" ans
+    read -rp "Domain [${cur:-none}]: " ans || true
+    if   [[ "$ans" == "-" ]]; then DOMAIN=""
+    elif [[ -n "$ans" ]];    then DOMAIN="$(echo "$ans" | tr -d ' ' | sed -E 's#^https?://##; s#/.*$##')"
+    else DOMAIN="$cur"; fi
+    if [[ -n "$DOMAIN" ]]; then info "Domain: ${DOMAIN} (HTTPS via Caddy)"; else info "No domain: serving on IP (no HTTPS)."; fi
+}
+
+sync_domain_env() {
+    set_env_kv DOMAIN "$DOMAIN"
+    if [[ -n "$DOMAIN" ]]; then
+        set_env_kv WEBHOOK_BASE_URL "https://${DOMAIN}"
+    else
+        set_env_kv WEBHOOK_BASE_URL "http://$(public_ip):3333"
+    fi
 }
 
 # ----------------------------------------------------------------------------- repo
@@ -132,8 +191,15 @@ clone_or_update_src() {
 
 # ----------------------------------------------------------------------------- compose
 write_compose() {
+    local pub_bot="" pub_panel=""
+    if [[ -z "$DOMAIN" ]]; then
+        # no reverse proxy: expose the bot webhook port + the panel to the host
+        pub_bot=$'    ports:\n      - "0.0.0.0:3333:3333"'
+        pub_panel=$'    ports:\n      - "0.0.0.0:8080:80"'
+    fi
+
     cat > "$COMPOSE_FILE" <<YAML
-# Generated by the GuardinoBot installer. Edit with care.
+# Generated by the GuardinoBot installer. Regenerated on every install/update.
 name: guardinobot
 
 services:
@@ -144,13 +210,41 @@ services:
     restart: on-failure
     env_file:
       - .env
-    ports:
-      - "127.0.0.1:3333:3333"
+    expose:
+      - "3333"
+${pub_bot}
     depends_on:
       mariadb:
         condition: service_healthy
       redis:
         condition: service_started
+
+  api:
+    build:
+      context: ./src
+    image: guardinobot:local
+    restart: on-failure
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  webpanel:
+    build:
+      context: ./src/webpanel
+    image: guardinobot-webpanel:local
+    restart: on-failure
+    expose:
+      - "80"
+${pub_panel}
+    depends_on:
+      - api
 
   redis:
     image: redis:alpine
@@ -174,14 +268,71 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: on-failure
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 256M
+    ports:
+      # localhost only — reach it over an SSH tunnel (secure by default)
+      - "127.0.0.1:8081:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
 YAML
-    info "Wrote docker-compose.yml: ${COMPOSE_FILE}"
+
+    if [[ -n "$DOMAIN" ]]; then
+        cat >> "$COMPOSE_FILE" <<YAML
+
+  caddy:
+    image: caddy:2-alpine
+    restart: on-failure
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "${CADDY_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "${CADDY_DIR}/data:/data"
+      - "${CADDY_DIR}/config:/config"
+    depends_on:
+      - bot
+      - api
+      - webpanel
+YAML
+    fi
+    info "Wrote ${COMPOSE_FILE}"
+}
+
+write_caddyfile() {
+    [[ -n "$DOMAIN" ]] || return 0
+    mkdir -p "${CADDY_DIR}/data" "${CADDY_DIR}/config"
+    # bot owns: /webhook, /qr and the payment-gateway callback paths.
+    # everything else (/, /api) goes to the web panel (nginx serves the SPA
+    # and proxies /api -> api internally).
+    cat > "${CADDY_DIR}/Caddyfile" <<CADDY
+${DOMAIN} {
+    encode zstd gzip
+
+    @bot path /webhook/* /npipn /npipn/* /pay-json /pay-json/* /payping /payping/* /aqaye_pardakht /aqaye_pardakht/* /zibal /zibal/* /zarinpal /zarinpal/* /tronseller /tronseller/* /qr/*
+    handle @bot {
+        reverse_proxy bot:3333
+    }
+
+    handle {
+        reverse_proxy webpanel:80
+    }
+}
+CADDY
+    info "Wrote Caddyfile for ${DOMAIN}"
 }
 
 # ----------------------------------------------------------------------------- .env
 write_env() {
     if [[ -f "$ENV_FILE" ]]; then
-        warn ".env already exists; kept as-is (use the 'Edit .env' menu option to change it)."
+        info ".env already exists; keeping your values."
         return
     fi
 
@@ -198,9 +349,8 @@ write_env() {
     done
     [[ -n "$SUPER_USERS" ]] || warn "No super-admin entered; add one later in .env."
 
-    local ip; ip="$(public_ip)"
-    read -rp "${CYAN}Webhook/callback base URL (WEBHOOK_BASE_URL) [http://${ip}:3333]: ${NC}" WEBHOOK_BASE_URL
-    WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-http://${ip}:3333}"
+    local base
+    if [[ -n "$DOMAIN" ]]; then base="https://${DOMAIN}"; else base="http://$(public_ip):3333"; fi
 
     umask 077
     cat > "$ENV_FILE" <<ENV
@@ -212,7 +362,11 @@ BOT_TOKEN = "${BOT_TOKEN}"
 SUPER_USERS = "
 ${SUPER_USERS}"
 
-WEBHOOK_BASE_URL = "${WEBHOOK_BASE_URL}"
+# public base url for payment callbacks / panel webhooks
+WEBHOOK_BASE_URL = "${base}"
+
+# domain the panel/bot are served on ("" = IP mode, no HTTPS)
+DOMAIN = "${DOMAIN}"
 
 # database (matches the mariadb service in docker-compose.yml)
 DATABASE_URL = "mysql://${DB_USER}:${DB_PASS}@mariadb:3306/${DB_NAME}"
@@ -229,6 +383,10 @@ WEBAPP_PORT = 3333
 # key used to encrypt secrets stored in DB (max 32 chars) - DO NOT change after install
 SECRET_KEY_STRING = "${SECRET}"
 
+# web admin/reseller panel (§9)
+WEB_JWT_SECRET = "${WEB_JWT}"
+WEB_CORS_ORIGINS = "*"
+
 # default username prefix for created proxies
 DEFAULT_USERNAME_PREFIX = "Guardino"
 
@@ -244,11 +402,32 @@ ENV
 }
 
 install_cli() {
-    # save a local copy + a convenience command
     install -m 0755 -D "$SRC_DIR/installer/guardinobot.sh" "$BIN_PATH" 2>/dev/null || {
         curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$BIN_PATH" 2>/dev/null && chmod 0755 "$BIN_PATH" || true
     }
     [[ -f "$BIN_PATH" ]] && info "Management command installed: ${CYAN}guardinobot${NC}"
+}
+
+print_access_info() {
+    hr
+    info "${APP_NAME} is up."
+    if [[ -n "$DOMAIN" ]]; then
+        echo "  Web panel:     ${CYAN}https://${DOMAIN}/${NC}"
+        echo "  Payment/webhook base: ${CYAN}https://${DOMAIN}${NC}"
+        echo "  ${YELLOW}DNS A record must point to this server and 80/443 must be open${NC}"
+        echo "  (Caddy may take ~30s on first run to issue the certificate.)"
+    else
+        local ip; ip="$(public_ip)"
+        echo "  Web panel:     ${CYAN}http://${ip}:8080/${NC}"
+        echo "  Payment/webhook base: ${CYAN}http://${ip}:3333${NC}"
+        echo "  ${YELLOW}Tip: set a domain (menu option) to get HTTPS automatically.${NC}"
+    fi
+    echo "  phpMyAdmin:    open an SSH tunnel, then browse ${CYAN}http://localhost:8081${NC}"
+    echo "                 ${CYAN}ssh -L 8081:localhost:8081 root@<server-ip>${NC}"
+    echo "                 (login: db user '${DB_USER}' — credentials are in ${ENV_FILE})"
+    echo "  Panel login:   enter a super-admin's Telegram ID; the code is sent by the bot."
+    echo "  DB migrations apply automatically on start (aerich upgrade)."
+    hr
 }
 
 # ----------------------------------------------------------------------------- actions
@@ -258,23 +437,20 @@ do_install() {
     install_docker
     clone_or_update_src
     load_or_make_creds
-    write_compose
+    prompt_domain
     write_env
+    sync_domain_env       # apply domain-derived keys (covers reinstall w/ changed domain)
+    ensure_env_keys       # make sure any newer keys exist too
+    write_compose
+    write_caddyfile
     install_cli
-    info "Building image and starting (this may take a few minutes) ..."
+    info "Building images and starting (this may take a few minutes) ..."
     dc up -d --build
-    hr
-    info "${APP_NAME} is installed and running."
-    echo "  - Manage later:     ${CYAN}guardinobot${NC}"
-    echo "  - Live logs:        ${CYAN}guardinobot${NC} -> Logs option"
-    echo "  - Config file:      ${ENV_FILE}"
-    echo "  - DB migrations are applied automatically on start (aerich upgrade)."
-    hr
+    print_access_info
 }
 
 require_installed() {
     [[ -f "$COMPOSE_FILE" ]] || die "${APP_NAME} is not installed. Run the install option first."
-    # pick the available compose command for management actions
     if docker compose version >/dev/null 2>&1; then DC="docker compose"
     elif command -v docker-compose >/dev/null 2>&1; then DC="docker-compose"; fi
 }
@@ -282,17 +458,32 @@ require_installed() {
 do_update() {
     need_root; require_installed; install_docker
     clone_or_update_src
-    load_or_make_creds
-    write_compose   # refresh compose in case the template changed
-    info "Rebuilding image and starting ..."
+    load_or_make_creds      # also loads existing DOMAIN, so the proxy stays as-is
+    ensure_env_keys         # append any NEW env keys this release added
+    write_compose           # regenerate compose (picks up new services like api/webpanel)
+    write_caddyfile
+    info "Rebuilding images and starting ..."
     dc up -d --build
     dc image prune -f >/dev/null 2>&1 || true
     info "Update complete. (Migrations applied on start.)"
+    print_access_info
+}
+
+do_set_domain() {
+    need_root; require_installed
+    load_or_make_creds
+    prompt_domain
+    sync_domain_env
+    write_compose
+    write_caddyfile
+    info "Applying domain configuration ..."
+    dc up -d --build
+    print_access_info
 }
 
 do_logs() {
     require_installed
-    echo "Service? [bot] / mariadb / redis  (Enter = bot, exit with Ctrl+C)"
+    echo "Service? [bot] / api / webpanel / caddy / mariadb / redis / phpmyadmin  (Enter = bot, Ctrl+C to exit)"
     read -rp "service: " svc || true
     svc="${svc:-bot}"
     dc logs -f --tail=200 "$svc"
@@ -305,7 +496,6 @@ do_backup() {
     local tmp; tmp="$(mktemp -d)"
     info "Creating backup ..."
 
-    # parse DB creds from .env DATABASE_URL: mysql://user:pass@host:port/db
     local url user pass db
     url="$(grep -E '^\s*DATABASE_URL' "$ENV_FILE" | head -1 | sed -E 's/.*=\s*"?([^"]*)"?\s*$/\1/')"
     user="$(echo "$url" | sed -E 's#^mysql://([^:]+):.*#\1#')"
@@ -319,7 +509,6 @@ do_backup() {
     fi
     cp -f "$ENV_FILE" "${tmp}/.env" 2>/dev/null || true
     cp -f "$COMPOSE_FILE" "${tmp}/docker-compose.yml" 2>/dev/null || true
-    # redis snapshot (best effort)
     dc exec -T redis sh -c "redis-cli save >/dev/null 2>&1" || true
     cp -f "${DATA_DIR}/redis/dump.rdb" "${tmp}/redis-dump.rdb" 2>/dev/null || true
 
@@ -334,7 +523,7 @@ do_restart() { require_installed; dc restart; info "Restarted."; }
 do_stop()    { require_installed; dc down; info "Stopped."; }
 do_start()   { require_installed; dc up -d; info "Started."; }
 do_status()  { require_installed; dc ps; }
-do_edit_env(){ require_installed; "${EDITOR:-nano}" "$ENV_FILE"; warn "Restart the bot to apply changes."; }
+do_edit_env(){ require_installed; "${EDITOR:-nano}" "$ENV_FILE"; warn "Restart the bot to apply changes (menu -> Restart)."; }
 
 do_uninstall() {
     need_root; require_installed
@@ -359,39 +548,42 @@ menu() {
         echo "  ${CYAN}${APP_NAME}${NC} - management"
         hr
         echo "  1) Install / Reinstall"
-        echo "  2) Update (git pull + rebuild)"
-        echo "  3) View logs"
-        echo "  4) Backup"
-        echo "  5) Restart"
-        echo "  6) Stop"
-        echo "  7) Start"
-        echo "  8) Status"
-        echo "  9) Edit config (.env)"
-        echo " 10) Uninstall"
+        echo "  2) Update (git pull + rebuild, keeps data & .env)"
+        echo "  3) Set / change domain (HTTPS via Caddy)"
+        echo "  4) View logs"
+        echo "  5) Backup"
+        echo "  6) Restart"
+        echo "  7) Stop"
+        echo "  8) Start"
+        echo "  9) Status"
+        echo " 10) Edit config (.env)"
+        echo " 11) Uninstall"
         echo "  0) Exit"
         hr
         read -rp "Choice: " choice || exit 0
         case "$choice" in
             1) do_install ;;
             2) do_update ;;
-            3) do_logs ;;
-            4) do_backup ;;
-            5) do_restart ;;
-            6) do_stop ;;
-            7) do_start ;;
-            8) do_status ;;
-            9) do_edit_env ;;
-            10) do_uninstall ;;
+            3) do_set_domain ;;
+            4) do_logs ;;
+            5) do_backup ;;
+            6) do_restart ;;
+            7) do_stop ;;
+            8) do_start ;;
+            9) do_status ;;
+            10) do_edit_env ;;
+            11) do_uninstall ;;
             0) exit 0 ;;
             *) warn "Invalid option." ;;
         esac
     done
 }
 
-# allow non-interactive subcommands: guardinobot install|update|logs|backup|...
+# allow non-interactive subcommands
 case "${1:-}" in
     install)   do_install ;;
     update)    do_update ;;
+    domain)    do_set_domain ;;
     logs)      do_logs ;;
     backup)    do_backup ;;
     restart)   do_restart ;;
@@ -400,5 +592,5 @@ case "${1:-}" in
     status)    do_status ;;
     uninstall) do_uninstall ;;
     "")        menu ;;
-    *)         die "Unknown subcommand: ${1}. Allowed: install|update|logs|backup|restart|stop|start|status|uninstall" ;;
+    *)         die "Unknown subcommand: ${1}. Allowed: install|update|domain|logs|backup|restart|stop|start|status|uninstall" ;;
 esac
