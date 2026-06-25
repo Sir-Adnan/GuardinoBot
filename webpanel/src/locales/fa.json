@@ -1,0 +1,119 @@
+{
+  "app": { "title": "GuardinoBot", "subtitle": "پنل مدیریت فروش" },
+  "nav": {
+    "sales": "عملیات فروش",
+    "system": "مدیریت سیستم",
+    "dashboard": "داشبورد",
+    "users": "کاربران",
+    "proxies": "اشتراک‌ها",
+    "services": "سرویس‌ها / پلن‌ها",
+    "transactions": "پرداخت‌ها",
+    "servers": "پنل‌ها"
+  },
+  "header": {
+    "search": "جستجوی کاربر، سفارش، اشتراک…",
+    "notifications": "اعلان‌ها"
+  },
+  "common": {
+    "logout": "خروج",
+    "theme": "تغییر تم",
+    "language": "زبان",
+    "loading": "در حال بارگذاری…",
+    "retry": "تلاش مجدد",
+    "yes": "بله",
+    "no": "خیر"
+  },
+  "login": {
+    "title": "ورود به پنل مدیریت",
+    "subtitle": "کد ورود به تلگرام شما ارسال می‌شود",
+    "identifier": "شناسه تلگرام",
+    "identifierPlaceholder": "آیدی عددی یا @یوزرنیم",
+    "sendCode": "ارسال کد",
+    "code": "کد ورود",
+    "codePlaceholder": "کد ۶ رقمی",
+    "verify": "ورود",
+    "back": "تغییر شناسه",
+    "resend": "ارسال مجدد کد",
+    "sent": "اگر حساب معتبر باشد، کد ورود به تلگرام شما ارسال شد.",
+    "hint": "فقط ادمین‌ها و نمایندگان امکان ورود دارند."
+  },
+  "dashboard": {
+    "title": "داشبورد",
+    "subtitle": "نمای کلی فروش و سیستم",
+    "usersTotal": "کل کاربران",
+    "usersToday": "کاربران امروز",
+    "usersMonth": "کاربران ۳۰ روز",
+    "proxiesTotal": "کل اشتراک‌ها",
+    "proxiesActive": "اشتراک‌های فعال",
+    "blockedUsers": "کاربران مسدود"
+  },
+  "users": {
+    "title": "کاربران",
+    "subtitle": "مدیریت کاربران و اشتراک‌ها",
+    "id": "شناسه",
+    "username": "یوزرنیم",
+    "name": "نام",
+    "role": "نقش",
+    "status": "وضعیت",
+    "createdAt": "تاریخ عضویت",
+    "search": "جستجو…",
+    "active": "فعال",
+    "blocked": "مسدود",
+    "blockedBot": "ربات را بلاک کرده",
+    "balance": "موجودی",
+    "verified": "تأییدشده",
+    "postpaid": "پس‌پرداخت",
+    "proxies": "تعداد اشتراک",
+    "details": "جزئیات",
+    "overview": "نمای کلی"
+  },
+  "servers": {
+    "title": "پنل‌های متصل",
+    "id": "شناسه",
+    "name": "نام",
+    "host": "آدرس",
+    "panelType": "نوع پنل",
+    "proxies": "تعداد اشتراک",
+    "status": "وضعیت",
+    "enabled": "فعال",
+    "disabled": "غیرفعال",
+    "health": "بررسی اتصال",
+    "healthy": "اتصال موفق",
+    "unhealthy": "اتصال ناموفق"
+  },
+  "services": {
+    "title": "سرویس‌ها / پلن‌ها",
+    "id": "شناسه",
+    "name": "نام",
+    "server": "سرور",
+    "dataLimit": "حجم",
+    "duration": "مدت",
+    "days": "روز",
+    "price": "قیمت",
+    "status": "وضعیت",
+    "purchaseable": "قابل خرید",
+    "disabled": "غیرفعال",
+    "test": "تست",
+    "resellersOnly": "فقط نماینده"
+  },
+  "proxies": {
+    "title": "اشتراک‌ها",
+    "username": "یوزرنیم",
+    "status": "وضعیت",
+    "server": "سرور",
+    "service": "سرویس",
+    "user": "کاربر",
+    "createdAt": "تاریخ ساخت",
+    "search": "جستجوی یوزرنیم…"
+  },
+  "tx": {
+    "title": "پرداخت‌ها / تراکنش‌ها",
+    "id": "شناسه",
+    "type": "نوع",
+    "status": "وضعیت",
+    "amount": "مبلغ",
+    "user": "کاربر",
+    "createdAt": "تاریخ"
+  },
+  "roles": { "0": "کاربر", "1": "نماینده", "2": "ادمین", "3": "سوپر ادمین" }
+}

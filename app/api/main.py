@@ -17,7 +17,15 @@ from tortoise.contrib.fastapi import register_tortoise
 
 import config
 from app.api.clients import bot, redis
-from app.api.routers import auth, dashboard, users
+from app.api.routers import (
+    auth,
+    dashboard,
+    proxies,
+    servers,
+    services,
+    transactions,
+    users,
+)
 
 
 @asynccontextmanager
@@ -48,7 +56,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for _router in (auth.router, dashboard.router, users.router):
+for _router in (
+    auth.router,
+    dashboard.router,
+    users.router,
+    servers.router,
+    services.router,
+    proxies.router,
+    transactions.router,
+):
     app.include_router(_router, prefix="/api")
 
 

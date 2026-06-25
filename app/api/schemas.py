@@ -71,3 +71,89 @@ class DashboardOut(BaseModel):
     proxies_total: int
     proxies_active: int
     blocked_users: int
+
+
+# -- servers (panels) ---------------------------------------------------------
+class ServerListItem(BaseModel):
+    id: int
+    name: Optional[str] = None
+    host: str
+    panel_type: str
+    link_policy: Optional[str] = None
+    is_enabled: bool
+    total_proxies: int
+    url: str
+
+
+class ServerHealth(BaseModel):
+    ok: bool
+    username: Optional[str] = None
+    is_sudo: Optional[bool] = None
+    error: Optional[str] = None
+    status_code: Optional[int] = None
+
+
+class ServersPage(BaseModel):
+    items: list[ServerListItem]
+    total: int
+
+
+# -- services (plans) ---------------------------------------------------------
+class ServiceListItem(BaseModel):
+    id: int
+    name: str
+    data_limit: int
+    expire_duration: int
+    price: int
+    purchaseable: bool
+    renewable: bool
+    is_test_service: bool
+    resellers_only: bool
+    server_id: int
+    server_name: Optional[str] = None
+    panel_type: Optional[str] = None
+
+
+class ServicesPage(BaseModel):
+    items: list[ServiceListItem]
+    total: int
+
+
+# -- proxies (subscriptions) --------------------------------------------------
+class ProxyListItem(BaseModel):
+    id: int
+    username: str
+    custom_name: Optional[str] = None
+    status: str
+    cost: Optional[int] = None
+    user_id: int
+    server_id: int
+    server_name: Optional[str] = None
+    service_id: Optional[int] = None
+    service_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class ProxiesPage(BaseModel):
+    items: list[ProxyListItem]
+    total: int
+
+
+# -- transactions (payments) --------------------------------------------------
+class TransactionListItem(BaseModel):
+    id: int
+    type: int
+    type_name: str
+    status: int
+    status_name: str
+    amount: int
+    amount_free_given: int
+    amount_paid: Optional[int] = None
+    user_id: int
+    created_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
+class TransactionsPage(BaseModel):
+    items: list[TransactionListItem]
+    total: int

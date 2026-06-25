@@ -1,0 +1,119 @@
+{
+  "app": { "title": "GuardinoBot", "subtitle": "Sales Admin Panel" },
+  "nav": {
+    "sales": "Sales",
+    "system": "System",
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "proxies": "Subscriptions",
+    "services": "Services / Plans",
+    "transactions": "Payments",
+    "servers": "Panels"
+  },
+  "header": {
+    "search": "Search users, orders, subscriptions…",
+    "notifications": "Notifications"
+  },
+  "common": {
+    "logout": "Logout",
+    "theme": "Toggle theme",
+    "language": "Language",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "login": {
+    "title": "Sign in to the panel",
+    "subtitle": "A login code will be sent to your Telegram",
+    "identifier": "Telegram identifier",
+    "identifierPlaceholder": "Numeric id or @username",
+    "sendCode": "Send code",
+    "code": "Login code",
+    "codePlaceholder": "6-digit code",
+    "verify": "Sign in",
+    "back": "Change identifier",
+    "resend": "Resend code",
+    "sent": "If the account is eligible, a login code was sent to your Telegram.",
+    "hint": "Only admins and resellers can sign in."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Sales & system overview",
+    "usersTotal": "Total users",
+    "usersToday": "Users today",
+    "usersMonth": "Users (30d)",
+    "proxiesTotal": "Total subscriptions",
+    "proxiesActive": "Active subscriptions",
+    "blockedUsers": "Blocked users"
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Manage users & subscriptions",
+    "id": "ID",
+    "username": "Username",
+    "name": "Name",
+    "role": "Role",
+    "status": "Status",
+    "createdAt": "Joined",
+    "search": "Search…",
+    "active": "Active",
+    "blocked": "Blocked",
+    "blockedBot": "Blocked the bot",
+    "balance": "Balance",
+    "verified": "Verified",
+    "postpaid": "Postpaid",
+    "proxies": "Subscriptions",
+    "details": "Details",
+    "overview": "Overview"
+  },
+  "servers": {
+    "title": "Connected panels",
+    "id": "ID",
+    "name": "Name",
+    "host": "Host",
+    "panelType": "Panel",
+    "proxies": "Subscriptions",
+    "status": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "health": "Health",
+    "healthy": "Connection OK",
+    "unhealthy": "Connection failed"
+  },
+  "services": {
+    "title": "Services / Plans",
+    "id": "ID",
+    "name": "Name",
+    "server": "Server",
+    "dataLimit": "Data",
+    "duration": "Duration",
+    "days": "days",
+    "price": "Price",
+    "status": "Status",
+    "purchaseable": "Purchasable",
+    "disabled": "Disabled",
+    "test": "Test",
+    "resellersOnly": "Resellers only"
+  },
+  "proxies": {
+    "title": "Subscriptions",
+    "username": "Username",
+    "status": "Status",
+    "server": "Server",
+    "service": "Service",
+    "user": "User",
+    "createdAt": "Created",
+    "search": "Search username…"
+  },
+  "tx": {
+    "title": "Payments / Transactions",
+    "id": "ID",
+    "type": "Type",
+    "status": "Status",
+    "amount": "Amount",
+    "user": "User",
+    "createdAt": "Date"
+  },
+  "roles": { "0": "user", "1": "reseller", "2": "admin", "3": "super_user" }
+}

@@ -32,6 +32,16 @@ services:
       redis:
         condition: service_started
 
+  webpanel:
+    # Web-panel frontend (§9): static SPA served by nginx, which also proxies
+    # /api → the api service (same-origin, no CORS).
+    build: ./webpanel
+    restart: on-failure
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api
+
   redis:
     image: redis:alpine
     restart: always
