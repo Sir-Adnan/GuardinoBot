@@ -21,6 +21,11 @@ import { ServerList } from "./pages/servers/list";
 import { ServiceList } from "./pages/services/list";
 import { ProxyList } from "./pages/proxies/list";
 import { TransactionList } from "./pages/transactions/list";
+import { ReportsPage } from "./pages/reports";
+import { ResellerList } from "./pages/resellers/list";
+import { ResellerShow } from "./pages/resellers/show";
+import { DiscountList } from "./pages/discounts/list";
+import { AutomationPage } from "./pages/automation";
 
 export default function App() {
   const [mode, setMode] = useState<ColorMode>(
@@ -66,6 +71,15 @@ export default function App() {
                 { name: "services", list: "/services", meta: { label: "Services" } },
                 { name: "transactions", list: "/transactions", meta: { label: "Payments" } },
                 { name: "servers", list: "/servers", meta: { label: "Panels" } },
+                { name: "reports", list: "/reports", meta: { label: "Reports" } },
+                {
+                  name: "resellers",
+                  list: "/resellers",
+                  show: "/resellers/show/:id",
+                  meta: { label: "Resellers" },
+                },
+                { name: "discounts", list: "/discounts", meta: { label: "Discounts" } },
+                { name: "automation", list: "/automation", meta: { label: "Automation" } },
               ]}
               options={{ syncWithLocation: true, disableTelemetry: true }}
             >
@@ -89,6 +103,11 @@ export default function App() {
                   <Route path="/services" element={<ServiceList />} />
                   <Route path="/transactions" element={<TransactionList />} />
                   <Route path="/servers" element={<ServerList />} />
+                  <Route path="/reports" element={<ReportsPage />} />
+                  <Route path="/resellers" element={<ResellerList />} />
+                  <Route path="/resellers/show/:id" element={<ResellerShow />} />
+                  <Route path="/discounts" element={<DiscountList />} />
+                  <Route path="/automation" element={<AutomationPage />} />
                 </Route>
 
                 <Route

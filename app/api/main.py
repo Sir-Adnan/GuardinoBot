@@ -19,8 +19,12 @@ import config
 from app.api.clients import bot, redis
 from app.api.routers import (
     auth,
+    automation,
     dashboard,
+    discounts,
     proxies,
+    reports,
+    resellers,
     servers,
     services,
     transactions,
@@ -64,6 +68,10 @@ for _router in (
     services.router,
     proxies.router,
     transactions.router,
+    reports.router,
+    resellers.router,
+    discounts.router,
+    automation.router,
 ):
     app.include_router(_router, prefix="/api")
 

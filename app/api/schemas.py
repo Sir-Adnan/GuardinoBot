@@ -175,3 +175,91 @@ class SetEnabledIn(BaseModel):
 
 class ProxyActionIn(BaseModel):
     action: str  # enable | disable | reset_usage | revoke
+
+
+# -- reports ------------------------------------------------------------------
+class ReportPoint(BaseModel):
+    date: str
+    amount: int
+
+
+class PaymentBreakdownItem(BaseModel):
+    type: int
+    type_name: str
+    count: int
+    amount: int
+
+
+class TopServiceItem(BaseModel):
+    id: int
+    name: str
+    count: int
+
+
+class ReportsOut(BaseModel):
+    days: int
+    sales_total: int  # Σ non-draft invoices in range (value of what was sold)
+    income_total: int  # Σ finished transactions' amount_paid (actual money in)
+    orders: int  # subscriptions created in range
+    new_users: int
+    revenue_series: list[ReportPoint]
+    payment_breakdown: list[PaymentBreakdownItem]
+    top_services: list[TopServiceItem]
+
+
+# -- resellers ----------------------------------------------------------------
+class ResellerListItem(BaseModel):
+    id: int
+    username: Optional[str] = None
+    name: Optional[str] = None
+    role: int
+    role_name: str
+    balance: int
+    children_count: int
+    is_postpaid: bool
+    is_blocked: bool
+    created_at: Optional[datetime] = None
+
+
+class ResellersPage(BaseModel):
+    items: list[ResellerListItem]
+    total: int
+
+
+class ResellerDetail(ResellerListItem):
+    available_credit: int
+    max_post_paid_credit: int
+    proxies_count: int
+    parent_id: Optional[int] = None
+
+
+# -- discounts ----------------------------------------------------------------
+class DiscountListItem(BaseModel):
+    id: int
+    code: Optional[str] = None
+    percentage: int
+    is_active: bool
+    on_purchase: bool
+    on_renew: bool
+    once_per_user: bool
+    used_times: int
+    use_counts: Optional[int] = None  # max uses (None = unlimited)
+    expires_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class DiscountsPage(BaseModel):
+    items: list[DiscountListItem]
+    total: int
+
+
+# -- automation / broadcast ---------------------------------------------------
+class BroadcastStatusOut(BaseModel):
+    status: str  # idle | running | done | canceled | crashed
+    kind: Optional[str] = None
+    total: int = 0
+    success: int = 0
+    fails: int = 0
+    sent: int = 0
+    progress: int = 0  # percent
+    started_by: Optional[int] = None

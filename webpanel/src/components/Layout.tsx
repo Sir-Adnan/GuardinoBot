@@ -13,6 +13,7 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   BellOutlined,
   BulbOutlined,
   CloudServerOutlined,
@@ -23,6 +24,9 @@ import {
   MenuOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
+  SendOutlined,
+  ShopOutlined,
+  TagsOutlined,
   TeamOutlined,
   TranslationOutlined,
 } from "@ant-design/icons";
@@ -52,6 +56,10 @@ const TITLE_KEYS: Record<string, string> = {
   "/services": "services.title",
   "/transactions": "tx.title",
   "/servers": "servers.title",
+  "/reports": "reports.title",
+  "/resellers": "resellers.title",
+  "/discounts": "discounts.title",
+  "/automation": "automation.title",
 };
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -83,9 +91,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
         { key: "/users", icon: <TeamOutlined />, label: t("nav.users") },
         { key: "/proxies", icon: <ClusterOutlined />, label: t("nav.proxies") },
         ...(isAdmin
-          ? [{ key: "/services", icon: <AppstoreOutlined />, label: t("nav.services") }]
+          ? [
+              { key: "/services", icon: <AppstoreOutlined />, label: t("nav.services") },
+              { key: "/discounts", icon: <TagsOutlined />, label: t("nav.discounts") },
+            ]
           : []),
         { key: "/transactions", icon: <CreditCardOutlined />, label: t("nav.transactions") },
+        ...(isAdmin
+          ? [{ key: "/reports", icon: <BarChartOutlined />, label: t("nav.reports") }]
+          : []),
       ],
     },
     ...(isAdmin
@@ -94,7 +108,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             type: "group" as const,
             label: t("nav.system"),
             children: [
+              { key: "/resellers", icon: <ShopOutlined />, label: t("nav.resellers") },
               { key: "/servers", icon: <CloudServerOutlined />, label: t("nav.servers") },
+              { key: "/automation", icon: <SendOutlined />, label: t("nav.automation") },
             ],
           },
         ]
