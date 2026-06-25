@@ -63,6 +63,11 @@ async def on_startup():
     await texts.reload_texts()
     scheduler.start()
 
+    # Resume an interrupted broadcast (§17.1) from its Redis cursor, if any.
+    from app.utils.broadcast import resume_pending
+
+    await resume_pending()
+
 
 async def on_shutdown():
     scheduler.shutdown()

@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, date
 from datetime import datetime as dt
 from datetime import timedelta as td
@@ -23,7 +22,7 @@ from app.main import bot
 from app.models.proxy import Proxy, PurchaseLog
 from app.models.service import Service
 from app.models.user import Invoice, Transaction, User
-from app.utils import helpers
+from app.utils import broadcast, helpers
 from app.utils.filters import IsSuperUser
 
 from . import logger, router
@@ -93,95 +92,50 @@ async def msg_command(message: Message, user: User):
         raise exc
 
 
-user_blocked_bot_errs = [
-    "chat not found",
-    "bot can't initiate conversation",
-    "bot was blocked by",
-]
-
-
-# Broadcast messages
-async def fwd_msg(message: Message, user: User):
-    try:
-        await message.forward(user.id)
-    except exceptions.TelegramRetryAfter as err:
-        await asyncio.sleep(err.retry_after)
-        return await fwd_msg(message, user)
-    except (exceptions.TelegramBadRequest, exceptions.TelegramForbiddenError) as err:
-        if any(ext in str(err) for ext in user_blocked_bot_errs):
-            user.blocked_bot = True
-            await user.save(update_fields=["blocked_bot"])
-        logger.error(err)
-        return False
-    except Exception as err:
-        logger.error(f"Unknown error in fwd_msg: {err}")
-        return False
-    return True
-
-
-async def send_msg(message: Message, user: User):
-    try:
-        await bot(message.send_copy(user.id))
-    except exceptions.TelegramRetryAfter as err:
-        await asyncio.sleep(err.retry_after)
-        return await send_msg(message, user)
-    except (exceptions.TelegramBadRequest, exceptions.TelegramForbiddenError) as err:
-        if any(ext in str(err) for ext in user_blocked_bot_errs):
-            user.blocked_bot = True
-            await user.save(update_fields=["blocked_bot"])
-        logger.error(err)
-        return False
-    except Exception as err:
-        logger.error(f"Unknown error in send_msg: {err}")
-        return False
-    return True
-
-
-async def broadcast(
-    message: Message, sender: callable, type: str, command: CommandObject
+# Broadcast — non-blocking, restart-resilient worker (§17.1).
+# State lives in Redis (app.utils.broadcast); a restart resumes from the cursor.
+async def _start_broadcast(
+    message: Message, kind: str, type_label: str, command: CommandObject
 ):
     if not message.reply_to_message:
-        return await message.reply(f"برای {type} باید روی یک پیام ریپلای کنید!")
-
-    success = 0
-    fails = 0
-    waiter = 0.1
-    users_q = User.filter(is_blocked=False, blocked_bot=False)
+        return await message.reply(f"برای {type_label} باید روی یک پیام ریپلای کنید!")
+    if await broadcast.is_running():
+        return await message.reply(
+            "⛔️ یک ارسال همگانی در حال اجراست. ابتدا آن را لغو کنید یا منتظر اتمامش بمانید (/broadcast_cancel)."
+        )
 
     args = (
         {c.split("=")[0]: c.split("=")[1] for c in command.args.split()}
         if command.args
         else {}
     )
-    text = ""
-    if (server_id := args.get("svid", None)) is not None:
-        users_q = users_q.filter(proxies__server_id=server_id)
-        text += f"درحال {type} به کاربران سرور با شناسه {server_id}\n"
-    if (service_id := args.get("srid", None)) is not None:
-        users_q = users_q.filter(proxies__service_id=service_id)
-        text += f"درحال {type} به کاربران سرویس با شناسه {service_id}\n"
+    svid = args.get("svid")
+    srid = args.get("srid")
+    try:
+        total = await broadcast.count_recipients(svid, srid)
+    except Exception as err:  # noqa: BLE001 - bad filter value, etc.
+        return await message.reply(f"❌ خطا در محاسبه مخاطبان: {err}")
 
-    users_q = users_q.distinct()
-    users = await users_q.all()
-    total = len(users)
+    header = f"📢 {type_label} پیام به {total:,} کاربر..."
+    if svid:
+        header += f"\n(فقط سرور {svid})"
+    if srid:
+        header += f"\n(فقط سرویس {srid})"
+    progress = await message.reply(f"{header}\nپیشرفت: 0%")
 
-    text += f"\n{type} پیام به {total} کاربر..."
-    progres = await message.reply(
-        text=f"{text}\nپیشرفت: {0}%\nزمان تقریبی: {int((waiter*total)/60)} دقیقه"
+    started = await broadcast.start(
+        kind=kind,
+        from_chat_id=message.reply_to_message.chat.id,
+        message_id=message.reply_to_message.message_id,
+        svid=svid,
+        srid=srid,
+        total=total,
+        progress_chat=progress.chat.id,
+        progress_msg=progress.message_id,
+        started_by=message.from_user.id,
     )
-
-    for idx, user in enumerate(users):
-        if await sender(message.reply_to_message, user):
-            success += 1
-        else:
-            fails += 1
-        if idx and (idx % 250) == 0:
-            await progres.edit_text(
-                f"{text}\nپیشرفت: {int(idx/total*100)}%\nزمان تقریبی: {int((waiter*(total-idx))/60)} دقیقه"
-            )
-        await asyncio.sleep(0.1)
-    await progres.edit_text(f"{text} \nپیشرفت: 100%")
-    return await message.reply(f"پیام {type} شد!\nموفق: {success}\n ناموفق: {fails}")
+    if not started:
+        await progress.edit_text("⛔️ یک ارسال همگانی در حال اجراست.")
 
 
 @router.message(Command("forward"), IsSuperUser())
@@ -190,18 +144,44 @@ async def forward_command(message: Message, user: User, command: CommandObject):
 
     Example:
         /forward (reply)
+        /forward svid=2 (only users on server 2)
     """
-    asyncio.create_task(broadcast(message, fwd_msg, "فوروارد", command=command))
+    await _start_broadcast(message, "forward", "فوروارد", command)
 
 
 @router.message(Command("broadcast"), IsSuperUser())
 async def broadcast_command(message: Message, user: User, command: CommandObject):
-    """sends a message to all users
+    """sends a copy of a message to all users
 
     Example:
         /broadcast (reply)
+        /broadcast srid=5 (only users on service 5)
     """
-    asyncio.create_task(broadcast(message, send_msg, "ارسال", command=command))
+    await _start_broadcast(message, "copy", "ارسال", command)
+
+
+@router.message(Command("broadcast_cancel"), IsSuperUser())
+async def broadcast_cancel_command(message: Message, user: User):
+    """cancels the running broadcast
+
+    Example:
+        /broadcast_cancel
+    """
+    if await broadcast.cancel():
+        await message.reply("🛑 ارسال همگانی در حال لغو شدن است...")
+    else:
+        await message.reply("هیچ ارسال همگانی در حال اجرا نیست.")
+
+
+@router.callback_query(F.data.startswith("bcast_cancel:"), IsSuperUser())
+async def broadcast_cancel_cb(query: CallbackQuery, user: User):
+    job_id = query.data.split(":", 1)[1]
+    if await broadcast.cancel(job_id):
+        await query.answer("🛑 در حال لغو ارسال...", show_alert=True)
+    else:
+        await query.answer(
+            "ارسالی در حال اجرا نیست یا قبلاً پایان یافته است.", show_alert=True
+        )
 
 
 @router.callback_query(
