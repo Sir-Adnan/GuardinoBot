@@ -108,7 +108,7 @@ from app.keyboards.admin.admin import AdminPanel, AdminPanelAction, CancelFormAd
 from app.keyboards.user import payment
 from app.models.setting import Card
 from app.models.user import CardToCardPayment, Invoice, Transaction, User
-from app.plugins.payment.jobs import activate_service
+from app.plugins.payment.jobs import activate_service, revoke_activated_transaction
 from app.utils import settings, texts
 from app.utils.filters import AdminAccess, IsSuperUser
 from app.utils.values import admin_edit_texts_format, check_texts
@@ -1209,7 +1209,8 @@ class CardToCardReceiptForm(StatesGroup):
 class CardToCardAdminAccept(InlineKeyboardBuilder):
     class Callback(CallbackData, prefix="crdtcrdverf"):
         transaction_id: int
-        action: Literal["accept", "reject"]
+        action: Literal["accept", "reject", "reject_cancel"]
+        confirmed: bool = False
 
     def __init__(self, transaction: Transaction, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -1227,6 +1228,27 @@ class CardToCardAdminAccept(InlineKeyboardBuilder):
                     transaction_id=transaction.id, action="reject"
                 ),
             )
+        self.adjust(1, 1)
+
+
+class CardToCardRejectConfirm(InlineKeyboardBuilder):
+    """Confirm step shown before rejecting an *already-accepted* receipt, since
+    that now also removes the customer's subscription."""
+
+    def __init__(self, transaction_id: int, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.button(
+            text="✅ بله، حذف و رد کن",
+            callback_data=CardToCardAdminAccept.Callback(
+                transaction_id=transaction_id, action="reject", confirmed=True
+            ),
+        )
+        self.button(
+            text="↩️ انصراف",
+            callback_data=CardToCardAdminAccept.Callback(
+                transaction_id=transaction_id, action="reject_cancel"
+            ),
+        )
         self.adjust(1, 1)
 
 
@@ -1431,6 +1453,25 @@ https://t.me/{main.get_bot_username()}?start=info_{user.id}
 
 
 @router.callback_query(
+    CardToCardAdminAccept.Callback.filter(F.action == "reject_cancel"), AdminAccess()
+)
+async def admin_reject_cancel_card_to_card_receipt(
+    query: CallbackQuery, user: User, callback_data: CardToCardAdminAccept.Callback
+):
+    """Cancel the reject confirmation: restore the original accept/reject menu."""
+    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    if not transaction:
+        return await query.answer("تراکنش یافت نشد!", show_alert=True)
+    try:
+        await query.message.edit_reply_markup(
+            reply_markup=CardToCardAdminAccept(transaction=transaction).as_markup()
+        )
+    except TelegramBadRequest:
+        pass
+    return await query.answer("لغو شد")
+
+
+@router.callback_query(
     CardToCardAdminAccept.Callback.filter(F.action == "reject"), AdminAccess()
 )
 async def admin_reject_card_to_card_receipt(
@@ -1443,20 +1484,59 @@ async def admin_reject_card_to_card_receipt(
     )
     if not transaction:
         return await query.answer("Transaction not found!", show_alert=True)
+    if transaction.status == Transaction.Status.rejected:
+        return await query.answer("این تراکنش قبلاً رد شده است!", show_alert=True)
 
-    transaction.status = Transaction.Status.rejected
-    await transaction.save()
-    await query.message.edit_text(
-        text=query.message.html_text,
-        reply_markup=CardToCardAdminAccept(transaction=transaction).as_markup(),
-    )
+    # Already accepted → rejecting now also removes the subscription, so confirm
+    # first (per owner's choice). A not-yet-accepted (waiting) receipt has
+    # nothing to undo, so it rejects in one tap as before.
+    was_activated = transaction.status == Transaction.Status.finished
+    if was_activated and not callback_data.confirmed:
+        await query.answer(
+            "⚠️ این تراکنش قبلاً تأیید شده و اشتراک ساخته شده! با رد کردن، اشتراک کاربر حذف و فاکتور باطل می‌شود.",
+            show_alert=True,
+        )
+        try:
+            await query.message.edit_reply_markup(
+                reply_markup=CardToCardRejectConfirm(
+                    transaction_id=transaction.id
+                ).as_markup()
+            )
+        except TelegramBadRequest:
+            pass
+        return
+
+    summary = await revoke_activated_transaction(transaction)
+    await transaction.refresh_from_db()
+    try:
+        await query.message.edit_text(
+            text=query.message.html_text,
+            reply_markup=CardToCardAdminAccept(transaction=transaction).as_markup(),
+        )
+    except TelegramBadRequest:
+        pass
     await query.answer("تراکنش رد شد!", show_alert=True)
+
     amount = transaction.amount - transaction.amount_free_given
-    text = f"""
+    if was_activated:
+        user_text = f"""
+❌ پرداخت کارت به کارت شما به شماره فاکتور {transaction.id} و مبلغ {amount:,} تومان توسط پشتیبانی تأیید نشد و اشتراک مربوطه لغو شد!
+برای اطلاعات بیشتر با پشتیبانی تماس بگیرید.
+"""
+    else:
+        user_text = f"""
 تراکنش کارت به کارت شما به شماره فاکتور {transaction.id} و مبلغ {amount:,} تومان توسط پشتیبانی تأیید نشد!
 برای اطلاعات بیشتر با پشتیبانی تماس بگیرید.
 """
-    await query.bot.send_message(transaction.user_id, text=text)
+    try:
+        await query.bot.send_message(transaction.user_id, text=user_text)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass
+    if was_activated and summary:
+        try:
+            await query.message.reply(f"🧾 نتیجه لغو فعال‌سازی:\n{summary}")
+        except TelegramBadRequest:
+            pass
 
 
 @router.callback_query(

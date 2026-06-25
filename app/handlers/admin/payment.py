@@ -230,9 +230,12 @@ async def admin_reject_trx(
     if not transaction:
         return await query.answer("Transaction not found!", show_alert=True)
 
+    if transaction.status == Transaction.Status.rejected:
+        return await query.answer("این تراکنش قبلاً رد شده است!", show_alert=True)
+
     if not callback_data.confirmed:
         return await query.message.edit_text(
-            text="مطمئن هستید که میخواهید این تراکنش عدم تأیید شود؟ مبلغ آن از حساب کاربر کم خواهد شد!",
+            text="مطمئن هستید که میخواهید این تراکنش عدم تأیید شود؟ مبلغ آن از حساب کاربر کم می‌شود و در صورت وجود اشتراکِ فعال‌شده با این پرداخت، آن اشتراک حذف و فاکتورش باطل می‌گردد!",
             reply_markup=ConfirmTrxAct(
                 transaction,
                 callback_data.user_id,
@@ -240,8 +243,13 @@ async def admin_reject_trx(
                 callback_data.action,
             ).as_markup(),
         )
-    transaction.status = Transaction.Status.rejected
-    await transaction.save()
+    # Undo any activation tied to this transaction (remove the subscription +
+    # void its invoice) and set it to rejected — so the balance can't go
+    # negative and the customer can't keep a free subscription. Local import
+    # avoids a module-load import cycle (jobs imports app.handlers.user.*).
+    from app.plugins.payment.jobs import revoke_activated_transaction
+
+    await revoke_activated_transaction(transaction)
     await query.answer("Transaction status changed to rejected!", show_alert=True)
     return await admin_get_payment_command(
         query,
