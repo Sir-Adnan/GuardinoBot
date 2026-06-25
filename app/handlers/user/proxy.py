@@ -2,6 +2,7 @@ import io
 from datetime import UTC
 from datetime import datetime as dt
 from datetime import timedelta as td
+from html import escape
 
 import anyio
 from aiogram import F, exceptions
@@ -1101,6 +1102,46 @@ async def delete_with_payback(
         )
 
 
+async def _send_config_links(
+    query: CallbackQuery,
+    header: str,
+    blocks: list[str],
+    footer: str,
+    markup,
+) -> None:
+    """Render config-link blocks across one or more messages, never splitting a
+    single config across the Telegram 4096-char boundary. Header goes on the
+    first message, footer + keyboard on the last. The first message edits the
+    one the user tapped; the rest are sent as follow-ups."""
+    sep = "\n\n"
+    safe = 3500  # headroom under 4096 for header/footer + HTML entity expansion
+    chunks: list[str] = []
+    cur = ""
+    for block in blocks:
+        addition = (sep if cur else "") + block
+        if cur and len(cur) + len(addition) > safe:
+            chunks.append(cur)
+            cur = block
+        else:
+            cur += addition
+    if cur:
+        chunks.append(cur)
+    if not chunks:
+        chunks = [""]
+
+    last = len(chunks) - 1
+    for i, chunk in enumerate(chunks):
+        body = (header if i == 0 else "") + chunk + (footer if i == last else "")
+        reply_markup = markup if i == last else None
+        if i == 0:
+            try:
+                await query.message.edit_text(body, reply_markup=reply_markup)
+                continue
+            except exceptions.TelegramBadRequest:
+                pass
+        await query.message.answer(body, reply_markup=reply_markup)
+
+
 @router.callback_query(ProxyPanel.Callback.filter(F.action == ProxyPanelActions.links))
 async def proxy_links(
     query: CallbackQuery, user: User, callback_data: ProxyPanel.Callback
@@ -1128,47 +1169,59 @@ async def proxy_links(
             "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید.",
             show_alert=True,
         )
-    links = "\n\n".join([f"<code>{link}</code>" for link in sv_proxy.links])
-    text = f"""
-🔑 پروکسی های فعال: {', '.join(f'<b>{protocol.upper()}</b>' for protocol in sv_proxy.inbounds)}:
-    🔗 لینک‌های اتصال:
-    
-{links}
+    try:
+        config_links = await panel.get_config_links(sv_proxy)
+    except Exception:  # noqa: BLE001 - degrade to whatever inline links exist
+        config_links = list(sv_proxy.links or [])
+    if not config_links:
+        return await query.answer(
+            "ℹ️ برای این سرویس لینک کانفیگ جداگانه‌ای موجود نیست؛ از «لینک اشتراک» (Sub) و Qr Code آن استفاده کنید.",
+            show_alert=True,
+        )
 
-💡 برای کپی کردن هرکدام از لینک‌ها روی آن کلیک کنید👆
-
-💡 برای دریافت راهنمای اتصال و استفاده دستور /help را ارسال کنید!
-
-📷 برای دریافت <b>Qr code</b> از دکمه‌های زیر استفاده کنید👇
-    """
-    await query.message.edit_text(
-        text,
-        reply_markup=ProxyLinks(
-            proxy=proxy, current_page=callback_data.current_page, user_id=user_id
-        ).as_markup(),
+    protocols = sorted(
+        {link.split("://", 1)[0].lower() for link in config_links if "://" in link}
     )
+    header = (
+        f"🔑 پروکسی‌های فعال: {', '.join(f'<b>{p.upper()}</b>' for p in protocols)}\n"
+        "🔗 لینک‌های اتصال:\n\n"
+    )
+    footer = (
+        "\n\n💡 برای کپی کردن هرکدام از لینک‌ها روی آن کلیک کنید👆\n\n"
+        "💡 برای دریافت راهنمای اتصال و استفاده دستور /help را ارسال کنید!\n\n"
+        "📷 برای دریافت <b>Qr code</b> از دکمه‌های زیر استفاده کنید👇"
+    )
+    blocks = [f"<code>{escape(link)}</code>" for link in config_links]
+    markup = ProxyLinks(
+        proxy=proxy, current_page=callback_data.current_page, user_id=user_id
+    ).as_markup()
+    await _send_config_links(query, header, blocks, footer, markup)
 
 
 async def generate_qr_code(
     message: Message, links: list[str], username: str
-) -> BufferedInputFile:
-    photos = list()
-    for link in links:
-        f = io.BytesIO()
-        _qr = qr.gen_qr(link)
-        _qr.make_image().save(f)
-        f.seek(0)
-        photos.append(
-            InputMediaPhoto(
-                media=BufferedInputFile(
-                    f.getvalue(), filename=f"generated_qr_code_{username}"
-                ),
-                caption=f"{link.split('://')[0].upper()} ({username})",
+) -> list[Message]:
+    sent: list[Message] = []
+    # Telegram media groups are capped at 10 items — batch so many configs
+    # don't get rejected.
+    for start in range(0, len(links), 10):
+        photos = list()
+        for link in links[start : start + 10]:
+            f = io.BytesIO()
+            _qr = qr.gen_qr(link)
+            _qr.make_image().save(f)
+            f.seek(0)
+            photos.append(
+                InputMediaPhoto(
+                    media=BufferedInputFile(
+                        f.getvalue(), filename=f"generated_qr_code_{username}"
+                    ),
+                    caption=f"{link.split('://')[0].upper()} ({username})",
+                )
             )
-        )
-    return await message.answer_media_group(
-        photos,
-    )
+        if photos:
+            sent.extend(await message.answer_media_group(photos))
+    return sent
 
 
 async def generate_sub_qr_code(message: Message, link: str, username: str):
@@ -1212,9 +1265,17 @@ async def generate_qrcode_all(
             show_alert=True,
         )
 
+    try:
+        config_links = await panel.get_config_links(sv_proxy)
+    except Exception:  # noqa: BLE001 - degrade to whatever inline links exist
+        config_links = list(sv_proxy.links or [])
+    if not config_links:
+        return await query.answer(
+            "ℹ️ لینک کانفیگ جداگانه‌ای برای این سرویس موجود نیست؛ از Qr Code «لینک اشتراک» استفاده کنید.",
+            show_alert=True,
+        )
     await query.answer("♻️ درحال ساخت و ارسال Qr code. چند لحظه منتظر بمانید...")
-
-    await generate_qr_code(query.message, sv_proxy.links, username=proxy.username)
+    await generate_qr_code(query.message, config_links, username=proxy.username)
 
 
 @router.callback_query(

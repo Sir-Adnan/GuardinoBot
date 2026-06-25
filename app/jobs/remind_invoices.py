@@ -24,7 +24,7 @@ async def remind_invoices():
         if await InvoiceReminder.filter(
             user_id=user.id,
         ).exists():
-            return
+            continue
         balance = await user.get_balance()
         has_to_pay = balance * -1 if balance < 0 else 0
         if has_to_pay >= _settings.remind_invoices_after_amount:

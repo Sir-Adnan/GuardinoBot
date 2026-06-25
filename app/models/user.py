@@ -3,7 +3,6 @@ from enum import Enum, IntEnum
 from typing import TYPE_CHECKING
 
 from tortoise import fields
-from tortoise.expressions import Subquery
 from tortoise.functions import Sum
 
 from . import TimedBase
@@ -78,22 +77,22 @@ class User(TimedBase):
     )  # << here put your M2M fields names
 
     async def get_balance(self) -> int:
-        q = (  # query to fetch sum of transactions and invoices amount of user
+        # Two independent aggregates (not one combined row): a user with no
+        # finished transactions must not raise IndexError, and any invoices
+        # still have to be subtracted even when there are zero transactions.
+        trx = (
             await self.transactions.filter(status=Transaction.Status.finished)
-            .annotate(trx_sum=Sum("amount"))
-            .annotate(
-                inv_sum=Subquery(
-                    self.invoices.filter(is_draft=False)
-                    .annotate(inv=Sum("amount"))
-                    .all()
-                    .values_list("inv", flat=True)
-                )
-            )
-            .all()
-            .values("trx_sum", "inv_sum")
-        )[0]
-
-        return int(q.get("trx_sum") or 0) - int(q.get("inv_sum") or 0)
+            .annotate(s=Sum("amount"))
+            .values("s")
+        )
+        inv = (
+            await self.invoices.filter(is_draft=False)
+            .annotate(s=Sum("amount"))
+            .values("s")
+        )
+        trx_sum = (trx[0].get("s") if trx else 0) or 0
+        inv_sum = (inv[0].get("s") if inv else 0) or 0
+        return int(trx_sum) - int(inv_sum)
 
     async def get_available_credit(self, balance: int = None) -> int:
         if balance is None:

@@ -112,9 +112,9 @@ MARZBAN_WEBHOOK_SECRET = config("MARZBAN_WEBHOOK_SECRET", default=None)
 
 
 FORCE_JOIN_CHATS = {
-    chat.split("@")[0]: chat.split("@")[1]
+    chat.split("@", 1)[0].strip(): chat.split("@", 1)[1].strip()
     for chat in config("FORCE_JOIN_CHATS", default="").split("\n")
-    if chat
+    if chat.strip() and "@" in chat
 }
 
 

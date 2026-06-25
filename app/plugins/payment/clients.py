@@ -38,7 +38,7 @@ class NobitexMarketAPI:
         """
         if use_cache and cls.cached_price:
             if not cls.last_cached or (
-                cls.last_cached - dt.now().timestamp() > 5
+                dt.now().timestamp() - cls.last_cached > 300
             ):  # five minute cache
                 return await cls.get_price(use_cache=False)
             return cls.cached_price
@@ -62,9 +62,9 @@ class NobitexMarketAPI:
         """
         if use_cache and cls.cached_trx_price:
             if not cls.last_cached_trx or (
-                cls.last_cached_trx - dt.now().timestamp() > 5
+                dt.now().timestamp() - cls.last_cached_trx > 300
             ):  # five minute cache
-                return await cls.get_price(use_cache=False)
+                return await cls.get_trx_price(use_cache=False)
             return cls.cached_trx_price
 
         r = await cls._call_api(

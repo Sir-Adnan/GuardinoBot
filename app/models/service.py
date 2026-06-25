@@ -200,7 +200,7 @@ class Service(TimedBase):
         if self.price == 0:
             return self.price
         if discount_percent:
-            return self.price - (self.price * (discount_percent / 100))
+            return self.price - int(self.price * (discount_percent / 100))
 
         if discount:
             return self.price - int(self.price * (discount.percentage / 100))

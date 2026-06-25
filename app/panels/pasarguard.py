@@ -17,6 +17,7 @@ re-authenticate from the stored username/password (if present) and retry once.
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -388,6 +389,50 @@ class PasarGuardPanel(BasePanel):
         resp = await self._request("POST", f"/api/user/{username}/revoke_sub")
         self._ok(resp, allow=(200,))
         return self._to_user(resp.json())
+
+    async def get_config_links(self, user: PanelUser) -> list[str]:
+        """PasarGuard's user record has no inline config links — they live in
+        the subscription. Fetch the ``links`` ConfigFormat (plain config URIs);
+        fall back to the base subscription (base64) if that path is absent.
+        Returns [] on any failure so the caller can degrade to the sub link."""
+        if user.links:
+            return list(user.links)
+        sub_url = (user.subscription_url or "").strip()
+        if not sub_url:
+            return []
+        base = sub_url.rstrip("/")
+        for path, headers in (
+            (base + "/links", {}),
+            (base, {"user-agent": "v2rayNG/1.8.0"}),
+        ):
+            try:
+                resp = await self._http().get(path, headers=headers)
+            except httpx.HTTPError:
+                continue
+            if resp.status_code == 200:
+                parsed = _parse_config_links(resp.text)
+                if parsed:
+                    return parsed
+        return []
+
+
+def _parse_config_links(text: str) -> list[str]:
+    """Extract config URIs from a subscription body. The ``links`` format is
+    newline-separated plain URIs; tolerate a single base64 blob (the default /
+    ``links_base64`` v2ray format) too."""
+    text = (text or "").strip()
+    if not text:
+        return []
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    uris = [ln for ln in lines if "://" in ln]
+    if uris:
+        return uris
+    try:
+        blob = "".join(text.split())
+        decoded = base64.b64decode(blob + "=" * (-len(blob) % 4)).decode("utf-8", "ignore")
+    except Exception:  # noqa: BLE001 - not base64; nothing to extract
+        return []
+    return [ln.strip() for ln in decoded.splitlines() if "://" in ln]
 
 
 async def fetch_token(url: str, username: str, password: str) -> str:

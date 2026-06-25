@@ -10,7 +10,12 @@ from app.models.user import Invoice, Transaction
 
 async def delete_unpaid_payments():
     unpaid_transactions = Transaction.filter(
-        ~Q(status=Transaction.Status.finished | Transaction.Status.partially_paid),
+        ~Q(
+            status__in=[
+                Transaction.Status.finished,
+                Transaction.Status.partially_paid,
+            ]
+        ),
         created_at__lt=dt.now() - td(days=14),
     )
     draft_invoices = Invoice.filter(

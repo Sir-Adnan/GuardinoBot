@@ -252,6 +252,17 @@ class BasePanel(ABC):
         raise NotImplementedError
 
     # -- convenience -----------------------------------------------------------
+    async def get_config_links(self, user: PanelUser) -> list[str]:
+        """Individual config URIs (vmess/vless/trojan/…) for display & QR.
+
+        Default: the inline links already on the user — Marzban populates them,
+        and Guardino fills them from its links endpoint in ``get_user``.
+        PasarGuard overrides this to fetch them from the subscription, because
+        its user record carries none. Called only for the explicit
+        "connection links" / "QR of all configs" actions, never on every
+        ``get_user`` (so it adds no cost to the hot paths)."""
+        return list(user.links or [])
+
     async def set_status(self, username: str, status: PanelUserStatus) -> PanelUser:
         """Enable/disable shortcut over modify_user."""
         return await self.modify_user(username, ModifyUserParams(status=status))

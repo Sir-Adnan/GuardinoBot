@@ -51,12 +51,12 @@ class ACLMiddleware(BaseMiddleware):
                 db_user = await User.create(
                     id=user.id,
                     username=user.username,
-                    full_name=user.full_name,
+                    name=user.full_name,
                     role=User.Role.super_user,
                 )
             else:
                 db_user = await User.create(
-                    id=user.id, username=user.username, full_name=user.full_name
+                    id=user.id, username=user.username, name=user.full_name
                 )
             data["user"] = db_user
             return db_user

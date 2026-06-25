@@ -1443,7 +1443,11 @@ https://t.me/{main.get_bot_username()}?start=info_{user.id}
 💴 مبلغ پرداختی: <b>{transaction.amount - transaction.amount_free_given:,}</b> تومان
 ‌‌
 """
-            await message.answer(text=text)
+            msg = await message.answer(text=text)
+            # Auto-accept must also activate a direct purchase/renew, exactly
+            # like the manual-accept path — otherwise the wallet is credited but
+            # the subscription is never created/renewed.
+            activate_service(transaction, msg)
     else:
         await message.reply(
             "❌ خطایی در ثبت رسید پرداخت رخ داد! لطفا با پشتیبانی تماس بگیرید!"
