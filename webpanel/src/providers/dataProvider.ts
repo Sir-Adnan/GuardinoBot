@@ -39,6 +39,19 @@ export const dataProvider: DataProvider = {
     return { data: rows };
   },
 
+  // Required by useCustom (dashboard / reports / automation). Without it those
+  // pages crash → blank screen after login.
+  custom: async ({ url, method, payload, query, headers }: any) => {
+    const res = await api.request({
+      url,
+      method: (method ?? "get").toLowerCase(),
+      params: query,
+      data: payload,
+      headers,
+    });
+    return { data: res.data };
+  },
+
   create: async () => {
     throw new Error("create is not implemented yet");
   },

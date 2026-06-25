@@ -19,6 +19,9 @@ import jwt
 
 import config
 from app.api.clients import redis
+from app.logger import get_logger
+
+logger = get_logger("api/security")
 
 INITDATA_MAX_AGE = 24 * 3600  # reject Telegram Web App initData older than this
 _ALGO = "HS256"
@@ -104,25 +107,34 @@ def validate_init_data(init_data: str) -> Optional[int]:
     except Exception:  # noqa: BLE001
         return None
     received = pairs.pop("hash", "")
-    # Newer Telegram clients also send an Ed25519 `signature` (for third-party
-    # validation); it is NOT part of the bot-token HMAC data-check-string.
-    pairs.pop("signature", None)
     if not received:
+        logger.warning("init_data: missing hash field")
         return None
     try:
         auth_date = int(pairs.get("auth_date", "0"))
     except ValueError:
-        return None
+        auth_date = 0
     if auth_date and (time.time() - auth_date) > INITDATA_MAX_AGE:
+        logger.warning("init_data: expired (auth_date too old)")
         return None
+    # Newer Telegram clients add an Ed25519 `signature` field. Whether the HMAC
+    # `hash` covers it varies, so accept either: with `signature` excluded or
+    # included.
+    no_sig = {k: v for k, v in pairs.items() if k != "signature"}
+    if not (_check_init_hmac(no_sig, received) or _check_init_hmac(pairs, received)):
+        logger.warning("init_data: HMAC mismatch (fields=%s)", sorted(pairs))
+        return None
+    try:
+        return int(json.loads(pairs.get("user", "{}"))["id"])
+    except Exception:  # noqa: BLE001
+        logger.warning("init_data: could not parse user id")
+        return None
+
+
+def _check_init_hmac(pairs: dict, received_hash: str) -> bool:
     data_check = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
     secret_key = hmac.new(
         b"WebAppData", config.BOT_TOKEN.encode(), hashlib.sha256
     ).digest()
     computed = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(computed, received):
-        return None
-    try:
-        return int(json.loads(pairs.get("user", "{}"))["id"])
-    except Exception:  # noqa: BLE001
-        return None
+    return hmac.compare_digest(computed, received_hash)
