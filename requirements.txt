@@ -16,5 +16,8 @@ aiohttp-jinja2==1.5.1
 pycryptodomex==3.20.0
 zeep==4.2.1
 fastapi==0.110.3
-uvicorn[standard]==0.29.0
+# plain uvicorn (NOT [standard]): the [standard] extra pulls uvloop into the
+# shared bot/api image, which breaks `aerich upgrade` in prestart (aerich 0.7.2
+# uses the deprecated asyncio.get_event_loop()). asyncio loop is fine for the API.
+uvicorn==0.29.0
 pyjwt==2.8.0
