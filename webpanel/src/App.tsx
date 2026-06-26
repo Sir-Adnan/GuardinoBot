@@ -10,8 +10,13 @@ import { useTranslation } from "react-i18next";
 
 import { authProvider } from "./providers/authProvider";
 import { dataProvider } from "./providers/dataProvider";
-import { makeTheme } from "./theme";
-import { ColorModeContext, type ColorMode } from "./contexts/color-mode";
+import { makeTheme, fontFamily } from "./theme";
+import {
+  ColorModeContext,
+  type ColorMode,
+  type Calendar,
+} from "./contexts/color-mode";
+import { setCalendarPref } from "./utils/datetime";
 import { AppLayout } from "./components/Layout";
 import { LoginPage } from "./pages/login";
 import { DashboardPage } from "./pages/dashboard";
@@ -39,6 +44,12 @@ export default function App() {
   const [accent, setAccentState] = useState<string>(
     localStorage.getItem("accent") || "emerald",
   );
+  const [calendar, setCalendarState] = useState<Calendar>(
+    (localStorage.getItem("calendar") as Calendar) || "jalali",
+  );
+  const [font, setFontState] = useState<string>(
+    localStorage.getItem("font") || "vazirmatn",
+  );
   const { i18n } = useTranslation();
   const direction: "rtl" | "ltr" = i18n.language === "en" ? "ltr" : "rtl";
 
@@ -53,18 +64,44 @@ export default function App() {
     localStorage.setItem("accent", a);
   };
 
+  const setCalendar = (c: Calendar) => {
+    setCalendarState(c);
+    setCalendarPref(c); // keep the datetime module + localStorage in sync
+  };
+
+  const setFont = (f: string) => {
+    setFontState(f);
+    localStorage.setItem("font", f);
+  };
+
   useEffect(() => {
     document.documentElement.dir = direction;
     document.documentElement.lang = i18n.language;
   }, [direction, i18n.language]);
 
+  useEffect(() => {
+    // Apply the font to non-AntD text (body) too; AntD reads it from the theme.
+    document.body.style.fontFamily = fontFamily(font);
+  }, [font]);
+
   return (
     <BrowserRouter>
-      <ColorModeContext.Provider value={{ mode, toggle, accent, setAccent }}>
+      <ColorModeContext.Provider
+        value={{
+          mode,
+          toggle,
+          accent,
+          setAccent,
+          calendar,
+          setCalendar,
+          font,
+          setFont,
+        }}
+      >
         <ConfigProvider
           direction={direction}
           locale={direction === "rtl" ? faIR : enUS}
-          theme={makeTheme(accent, mode)}
+          theme={makeTheme(accent, mode, font)}
         >
           <AntdApp>
             <Refine

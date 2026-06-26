@@ -20,11 +20,13 @@ import {
   BellOutlined,
   BgColorsOutlined,
   BulbOutlined,
+  CalendarOutlined,
   CloudServerOutlined,
   ClusterOutlined,
   CreditCardOutlined,
   DashboardOutlined,
   FileTextOutlined,
+  FontSizeOutlined,
   LayoutOutlined,
   LogoutOutlined,
   MenuOutlined,
@@ -42,7 +44,15 @@ import { useTranslation } from "react-i18next";
 import { useGetIdentity, useLogout } from "@refinedev/core";
 
 import { ColorModeContext } from "../contexts/color-mode";
-import { ACCENT_KEYS, accentColor } from "../theme";
+import { ACCENT_KEYS, accentColor, FONT_KEYS, FONTS } from "../theme";
+
+const FONT_LABELS: Record<string, string> = {
+  vazirmatn: "Vazirmatn",
+  vazir: "Vazir",
+  sahel: "Sahel",
+  samim: "Samim",
+  system: "System",
+};
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -77,7 +87,8 @@ const TITLE_KEYS: Record<string, string> = {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
-  const { mode, toggle, accent, setAccent } = useContext(ColorModeContext);
+  const { mode, toggle, accent, setAccent, calendar, setCalendar, font, setFont } =
+    useContext(ColorModeContext);
   const { token } = theme.useToken();
   const screens = useBreakpoint();
   const navigate = useNavigate();
@@ -285,6 +296,37 @@ export function AppLayout({ children }: { children: ReactNode }) {
               {i18n.language === "fa" ? "EN" : "FA"}
             </Button>
           </Tooltip>
+          <Tooltip title={t("common.calendar")}>
+            <Button
+              type="text"
+              icon={<CalendarOutlined />}
+              onClick={() =>
+                setCalendar(calendar === "jalali" ? "gregorian" : "jalali")
+              }
+            >
+              {calendar === "jalali"
+                ? t("common.calendar_jalali")
+                : t("common.calendar_gregorian")}
+            </Button>
+          </Tooltip>
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              selectable: true,
+              selectedKeys: [font],
+              onClick: ({ key }) => setFont(key),
+              items: FONT_KEYS.map((k) => ({
+                key: k,
+                label: (
+                  <span style={{ fontFamily: FONTS[k] }}>{FONT_LABELS[k] ?? k}</span>
+                ),
+              })),
+            }}
+          >
+            <Tooltip title={t("common.font")}>
+              <Button type="text" icon={<FontSizeOutlined />} />
+            </Tooltip>
+          </Dropdown>
           <Dropdown
             trigger={["click"]}
             menu={{

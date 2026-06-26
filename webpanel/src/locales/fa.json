@@ -36,7 +36,11 @@
     "accent_blue": "آبی",
     "accent_violet": "بنفش",
     "accent_rose": "گلی",
-    "accent_amber": "کهربایی"
+    "accent_amber": "کهربایی",
+    "calendar": "تقویم (شمسی/میلادی)",
+    "calendar_jalali": "شمسی",
+    "calendar_gregorian": "میلادی",
+    "font": "فونت"
   },
   "login": {
     "title": "ورود به پنل مدیریت",

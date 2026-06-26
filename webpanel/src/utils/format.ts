@@ -12,16 +12,12 @@ export const ROLE_COLORS: Record<number, string> = {
   3: "green",
 };
 
+import { formatDate } from "./datetime";
+
 export const fmtNum = (n?: number | null): string =>
   new Intl.NumberFormat("en-US").format(n ?? 0);
 
 export const fmtToman = (n?: number | null): string => `${fmtNum(n)} تومان`;
 
-export const fmtDate = (s?: string | null): string => {
-  if (!s) return "—";
-  try {
-    return new Date(s).toLocaleString("fa-IR");
-  } catch {
-    return s;
-  }
-};
+// Calendar-aware (Jalali / Gregorian) per the global preference; see utils/datetime.
+export const fmtDate = (s?: string | null): string => formatDate(s);

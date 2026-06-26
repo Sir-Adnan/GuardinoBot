@@ -15,41 +15,123 @@
 
 ---
 
-## Now (in progress / next up)
-- [ ] Verify Phase 3 (premium emoji on inline buttons) renders on a real deploy with a
-      Premium owner account; if aiogram 3.4.1 drops the extra fields, add a raw-payload
-      sender (httpx → Bot API) or bump aiogram. See **Phase 3** below.
-- [x] **Phase 4a (cont.)** ✅ — links/QR, reset-password variants, reserve activate/cancel,
-      show-reserve, generic confirm, and shared `common_back`/`common_cancel` across
-      proxy/purchase/payment/account. Remaining (low value, deferred): reseller sub-user
-      management backs (ManageUser/ChargeByParent) + proxy-list pagination/sort/filter.
-      Admin keyboards **out of scope** (owner: customer UI only).
-- [ ] Phase 2 polish: user/proxy **detail pages with tabs** (Overview·Links·Orders·
-      Payments·Panel Status·Logs), skeletons + empty states.
-- [ ] Plan file `delightful-crafting-micali.md`: add-panel / edit-service bug fixes +
-      panel-aware admin menus (PasarGuard add-server `is_sudo`, edit-service "no protocol",
-      Guardino sub-day expiry, FSM not cleared, month=31d). **Apply when owner asks.**
+## Now — the big push: web-panel maturity + bot UX
 
-## Next (agreed, not started)
-- [ ] **Broadcast → non-blocking worker [critical, §17.1]:** throttle ~25–30 msg/s,
-      handle `TelegramRetryAfter`, persist progress/resumability in Redis, mark blockers via
-      `blocked_bot`, never block polling. (Web monitor/cancel already exists via `broadcast:job`.)
-- [ ] Mirror alert thresholds in the bot's settings-FSM menu (web Settings already covers them).
-- [ ] Web-initiated text broadcast (cross-process worker trigger from the API).
+Recommended order (full blocks under **Planned phases** below):
+**P11a UI foundation → P5 Plans CRUD → P6 Panels CRUD → P7 Users 360° →
+P9 Reports + Jalali → P10 finish half-done pages → P8 Resellers →
+P12 Bot UX → P13 Alerts v2 → P11b polish.**
 
-## Backlog (needs approval before starting)
-- [ ] Force-join dict editor in web Settings.
-- [ ] Payment-gateway config in web (sensitive — secrets handling first).
-- [ ] Broader bot-side admin proxy-op auditing.
-- [ ] Guardino **reserves** (`check_reserves`/`renew_proxy_reserve`) + efficient paginated
-      reseller-sync + `on_hold` create mapping. (§6 deferred.)
-- [ ] Brand migration `marzbot`/`Marzdemo` → GuardinoBot/Guardino (gradual; needs migration
-      for any DB-facing string).
+Reasoning: land the shared UI foundation (tab shell, font setting, Jalali date util,
+dashboard widgets) first so every later page adopts it; then close the biggest management
+gaps (plans, panels, users); then reporting; then polish.
+
+Immediate / carry-over (do anytime):
+- [ ] Verify Phase 3/4 premium rendering on a real deploy (Premium owner); if the fields are
+      dropped → raw-payload sender (httpx → Bot API) or aiogram bump.
+- [ ] Bug-fix plan `delightful-crafting-micali.md` (PasarGuard add-server `is_sudo`,
+      edit-service "no protocol", Guardino sub-day expiry, FSM clear, month=31d) — when owner asks.
+
+## Carry-over backlog (folded into the phases below)
+- [ ] **Broadcast → non-blocking worker [critical, §17.1]** → in **P10** (Automation) + bot worker.
+- [ ] Guardino **reserves** + efficient paginated sync + `on_hold` create (§6 deferred).
+- [ ] Brand migration `marzbot`/`Marzdemo` → Guardino (gradual; migration for DB-facing strings).
 - [ ] PasarGuard native `reset_proxy_credentials` (currently raises; "smart reconnect" works).
-- [ ] aiogram 3.4.1 upgrade (`parse_mode=` ctor deprecated → `DefaultBotProperties`).
-      Testing + approval required.
-- [ ] General background worker/queue for heavy tasks (broadcast, panel sync, reporting).
+- [ ] aiogram 3.4.1 upgrade (`parse_mode=` ctor → `DefaultBotProperties`) — testing + approval.
 - [ ] Observability: structured metrics/logs for panel + gateway errors.
+
+---
+
+## Planned phases — web-panel maturity + bot UX (P5–P13)
+
+> Scope rule (unchanged): web panel = manage/support/report/customize + audit, through the
+> §6 adapter. **No manual sell** (provisioning a sub stays bot-only); defining plans/prices is
+> management and IS allowed. Never expose panel/payment/DB credentials. Reseller scoping holds.
+
+### P5 — Plans & Sales: full CRUD + ordering (web)
+Today: Services page is read-only (+ per-service button emoji). Build real management.
+- Create / edit / delete services; **drag-reorder** (writes `priority`, re-index).
+- All fields: name, data_limit, expire, price, discount attach, menu attach, flags
+  (purchaseable·renewable·test·one_time·resellers_only·users_only·on_hold·reset_strategy·flow).
+- **Panel-aware provisioning** via `panel_config`: Marzban inbounds picker · PasarGuard group
+  picker · Guardino node picker (mirror the bot's admin service builder).
+- Folds in the per-service button emoji/style form (done).
+- New: `services` router POST/PATCH/DELETE + `/reorder`; web Services → tabbed editor + DnD.
+
+### P6 — Panels & Nodes: full CRUD (web)
+Today: Servers page is view + health/toggle only.
+- Add panel (Marzban/PasarGuard token · Guardino reseller login, 2FA-aware) via the §6 adapter
+  validate flow; edit; enable/disable; delete (block if services/proxies attached); `link_policy`.
+- Browse PasarGuard **groups** / Guardino **nodes** (feeds the P5 service builder).
+- Credentials stored encrypted (`PasswordField`), **never returned**. Audited.
+- New: `servers` router POST/PATCH/DELETE + validate/groups/nodes endpoints.
+
+### P7 — Users 360°: detail + actions (web)
+Today: list + block only. Make it a real support console.
+- **Detail page, tabbed**: Overview · Subscriptions · Orders · Payments · Logs.
+- Actions: block/unblock, charge/decharge (audited), role change, postpaid toggle + credit,
+  daily-test count, discount %, username prefix; **view & act on their proxies**
+  (enable/disable/reset/revoke/delete via the §6 adapter, audited).
+- List: show **username + numeric id together** (search by either), status chips, quick actions.
+- Decision: numeric id ALWAYS shown (owner) **plus** username for readability.
+
+### P8 — Resellers: full management (web)
+Today: list/detail read-only.
+- Add/edit reseller; set wallet/credit + postpaid limit; margin/pricing; permissions;
+  subtree view; **"view as reseller"** (read-only support); reseller-scoped reports.
+- New: `resellers` POST/PATCH + wallet ops (audited, idempotent).
+
+### P9 — Reports & Analytics: complete + Jalali (web)
+Today: a single summary endpoint + CSS bar-chart.
+- **Date-range picker** (from→to) + presets (today/7d/30d/this month/custom).
+- Reports: Sales · Revenue · Reseller · Usage · Payment-breakdown · Top plans · New users ·
+  Failed payments · Refunds. Lightweight charts + CSV/Excel export.
+- **Jalali (Shamsi) dates** everywhere (toggle Gregorian/Jalali), incl. range pickers + axes.
+  Shared date util (dayjs + jalaali plugin); default from Settings; numbers locale-aware.
+
+### P10 — Finish the half-done pages (web)
+- **Discounts**: full CRUD + usage stats (today: list + toggle).
+- **Automation**: broadcast compose (text/media + target filters) + schedule + reminders config
+  + low-balance config + job monitor + logs. (Actual broadcast send = the §17.1 bot worker;
+  add the cross-process trigger.)
+- **Audit**: complete filters (date range·actor·action·source) + detail drawer + export.
+- **Texts**: tabbed by area (start/purchase/account/alerts/errors/…), search, live preview,
+  premium-emoji helper.
+- Force-join editor; payment-gateway config (sensitive, guarded, secrets masked).
+
+### P11 — UI/UX overhaul (web) — split foundation vs polish
+**P11a (foundation) — ⏳ in progress:**
+- ✅ Calendar-aware dates: `utils/datetime.ts` (Intl, no dep — Jalali/Gregorian) + header toggle;
+  `fmtDate` is now calendar-aware so existing pages follow the choice; live via layout re-render.
+- ✅ Font setting: `theme.FONTS` (Vazirmatn default · Vazir · Sahel · Samim · System, loaded in
+  index.html) + header font picker; persisted (localStorage); applied via AntD token + body.
+- ✅ `components/PageHeader.tsx` (consistent title/subtitle/actions) — adopt across pages in P5+.
+- [ ] Remaining: tab/section shell + breadcrumbs adoption, dashboard widget scaffold, responsive
+  table→card helper, move font/calendar defaults into a Settings "Appearance" tab (server-side).
+**P11b (polish, do LAST):** dashboard pro (KPI cards: today sales · orders ok/fail · active
+users · revenue · Guardino balance · panel health · job status; mini-charts; recent activity;
+low-balance alerts); **minimal/cleaner icon set** (one family, consistent weight); more theme
+presets + density (compact/comfortable); full responsive audit (mobile drawer nav); empty/skeleton
+states; micro-interactions.
+
+### P12 — Bot (Telegram) UX overhaul
+Goal: the customer-facing bot looks premium and converts better (customers browse/buy here).
+- Plan/tariff list: distinct buttons (premium emoji per service/category — done), clear
+  price·data·duration, category grouping, a formatted **"tariffs" overview** message.
+- Account page: dashboard-style (balance · active subs · nearest expiry · quick actions).
+- Subscription view: status badge + **text usage bar** (▰▰▰▱▱ %) · days left · data left · renew CTA.
+- Purchase/renew: clearer steps, summary confirmation, success screen; onboarding for new users;
+  better empty states + hints; consistent iconography; HTML/premium-emoji copy polish.
+- All copy editable via the Texts editor (P10).
+
+### P13 — Smart alerts v2: timing + pro control
+Today: cron `hour="6,16"` only → an "ended" alert can lag ~10h (the owner's complaint).
+- Run the alert job **hourly** (or a configurable cadence) so "ended/limited" fires within ~1h.
+- **Quiet hours** (defer night sends to morning) + per-type cadence + "best time" default.
+- Pro per-indicator controls: multiple expiry steps (e.g. 3d/1d/12h), data % AND absolute GB,
+  unused, ended — extend the existing 9 alert settings.
+- Manual **send-now / preview** from the web Automation page.
+- Editable in web Settings (+ deferred bot settings-FSM mirror).
 
 ---
 
@@ -179,3 +261,10 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
   `BotSetting`/`BotText` directly + dirty-flags.
 - Guardino: hub owns base price; bot keeps retail margin. Pre-check with `quote`; never assume
   per-day cost. Link policy admin-configurable (master vs node). Low-balance thresholds in settings.
+- **Plan/price CRUD in the web is allowed** (defining plans ≠ selling). The "no manual sell" rule
+  only forbids provisioning a subscription from the web; purchases/renew stay bot-only.
+- **User/reseller display = numeric id ALWAYS + username next to it** (owner: id is required for
+  audits; username is for readability). Search by either.
+- **Dates: Jalali (Shamsi) alongside Gregorian** in the web panel — a global toggle + per-Settings
+  default; one shared date util (dayjs + jalaali); applies to tables, detail pages, and report ranges.
+- **Web fonts are user-selectable** (Vazirmatn default + Vazir + others) from Settings; persisted.

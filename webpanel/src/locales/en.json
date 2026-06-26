@@ -36,7 +36,11 @@
     "accent_blue": "Blue",
     "accent_violet": "Violet",
     "accent_rose": "Rose",
-    "accent_amber": "Amber"
+    "accent_amber": "Amber",
+    "calendar": "Calendar (Jalali/Gregorian)",
+    "calendar_jalali": "Jalali",
+    "calendar_gregorian": "Gregorian",
+    "font": "Font"
   },
   "login": {
     "title": "Sign in to the panel",
