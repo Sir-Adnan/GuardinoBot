@@ -137,11 +137,14 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
   colour across account/purchase/payment/renew/proxy-panel; double-emoji auto-fix; main reply-menu
   builder (`main_menu_layout`: enable/disable + reorder + row layout). Web Buttons page (2 tabs).
   Admin buttons out of scope. No migration (key-value settings).
-- ✅ **Per-service button premium** — `Service.button_icon`/`button_style` (migration **50**) let a
-  named (e.g. test) service carry a premium emoji + colour on its button, both on the main reply
-  menu (`base.MainMenu`, no emoji-strip → text routing intact) and the inline purchase/renew lists
-  (defensive 4-tuples). Edited from the web Services page (modal → `PATCH /services/{id}/button`,
-  audited `service.button`). Bot reads the row live (no reload flag).
+- ✅ **Per-service + per-category button premium** — `Service.button_icon`/`button_style`
+  (migration **50**) and `ServiceMenu.button_icon`/`button_style` (migration **51**) let a named
+  service OR a menu/category carry a premium emoji + colour on its button. Service: main reply
+  menu (`base.MainMenu`, no emoji-strip → text routing intact) + inline purchase/renew lists.
+  Menu/category: inline purchase/renew lists (callback-routed → emoji-strip safe). Both via
+  defensive 4-tuples `(id, name, icon, style)`. Edited from the web Services page (modal →
+  `PATCH /services/{id}/button`, audit `service.button`) and the web Menus form (existing
+  `POST`/`PATCH /menus`, normalized + audited). Bot reads the rows live (no reload flag).
 - ✅ **Phase 4 — Colour model + experimental reply premium** — inline colours now raw-by-default
   (only important buttons coloured); web 5-state style picker (default/raw/blue/green/red, `none`
   sentinel = forced no-colour). Main (reply) menu premium emoji/colour behind a separate

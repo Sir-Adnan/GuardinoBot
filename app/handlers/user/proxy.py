@@ -1384,7 +1384,10 @@ async def renew_proxy(
 
 {default}
     """
-    mns = [(sm.id, sm.title) for sm in await sub_menues.all()]
+    mns = [
+        (sm.id, sm.title, sm.button_icon, sm.button_style)
+        for sm in await sub_menues.all()
+    ]
     svs = [
         (
             service.id,

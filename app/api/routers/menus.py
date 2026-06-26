@@ -24,6 +24,17 @@ from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/menus", tags=["menus"])
 
+_VALID_STYLES = ("primary", "success", "danger")
+
+
+def _normalize_button(d: dict) -> None:
+    """In place: blank icon → None; style → a valid Bot API style or None."""
+    if "button_icon" in d:
+        d["button_icon"] = (d["button_icon"] or "").strip() or None
+    if "button_style" in d:
+        v = (d["button_style"] or "").strip()
+        d["button_style"] = v if v in _VALID_STYLES else None
+
 
 def _item(m: ServiceMenu, services_count: int, children_count: int) -> MenuListItem:
     return MenuListItem(
@@ -36,6 +47,8 @@ def _item(m: ServiceMenu, services_count: int, children_count: int) -> MenuListI
         users_only=m.users_only,
         services_count=services_count,
         children_count=children_count,
+        button_icon=m.button_icon,
+        button_style=m.button_style,
     )
 
 
@@ -101,6 +114,7 @@ async def create_menu(
 ) -> MenuDetail:
     data = body.model_dump()
     service_ids = data.pop("service_ids", []) or []
+    _normalize_button(data)
     if data.get("parent_id") and not await ServiceMenu.filter(
         id=data["parent_id"]
     ).exists():
@@ -132,6 +146,7 @@ async def update_menu(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Menu not found")
     dump = body.model_dump(exclude_unset=True)
     service_ids = dump.pop("service_ids", None)
+    _normalize_button(dump)
     if "parent_id" in dump and await _would_cycle(menu_id, dump["parent_id"]):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "A menu cannot be nested under itself"

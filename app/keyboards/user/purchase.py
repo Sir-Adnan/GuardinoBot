@@ -34,12 +34,16 @@ class Services(InlineKeyboardBuilder):
     ) -> None:
         super().__init__(*args, **kwargs)
         for sm in sub_menues:
-            self.button(
-                text=sm[1],
-                callback_data=self.Callback(
-                    menu_id=sm[0],
-                    action=ServicesActions.show,
-                ),
+            self.add(
+                premium_button(
+                    text=sm[1],
+                    icon_custom_emoji_id=sm[2] if len(sm) > 2 else None,
+                    style=sanitize_style(sm[3]) if len(sm) > 3 else None,
+                    callback_data=self.Callback(
+                        menu_id=sm[0],
+                        action=ServicesActions.show,
+                    ),
+                )
             )
         for service in services:
             self.add(

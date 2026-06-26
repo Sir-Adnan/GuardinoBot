@@ -94,6 +94,8 @@ export function MenusPage() {
         resellers_only: r.data.resellers_only,
         users_only: r.data.users_only,
         service_ids: r.data.service_ids ?? [],
+        button_icon: r.data.button_icon ?? "",
+        button_style: r.data.button_style ?? "",
       });
       setOpen(true);
     } catch {
@@ -112,6 +114,8 @@ export function MenusPage() {
       resellers_only: !!v.resellers_only,
       users_only: !!v.users_only,
       service_ids: v.service_ids ?? [],
+      button_icon: v.button_icon || "",
+      button_style: v.button_style || "",
     };
     try {
       if (editing) await api.patch(`/menus/${editing.id}`, payload);
@@ -256,6 +260,30 @@ export function MenusPage() {
           <Form.Item name="description" label={t("menus.description")}>
             <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} dir="auto" />
           </Form.Item>
+          <Space.Compact block>
+            <Form.Item
+              name="button_icon"
+              label={t("menus.btn_icon")}
+              style={{ flex: 1, marginInlineEnd: 8 }}
+              tooltip={t("menus.btn_hint")}
+            >
+              <Input allowClear placeholder={t("buttons.emoji_id_ph")} />
+            </Form.Item>
+            <Form.Item
+              name="button_style"
+              label={t("menus.btn_style")}
+              style={{ width: 160 }}
+            >
+              <Select
+                options={[
+                  { value: "", label: t("services.btn_no_color") },
+                  { value: "primary", label: t("buttons.style_primary") },
+                  { value: "success", label: t("buttons.style_success") },
+                  { value: "danger", label: t("buttons.style_danger") },
+                ]}
+              />
+            </Form.Item>
+          </Space.Compact>
           <Space size="large" wrap>
             <Form.Item name="purchase" label={t("menus.purchase")} valuePropName="checked">
               <Switch />

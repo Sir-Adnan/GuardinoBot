@@ -26,6 +26,10 @@ class ServiceMenu(TimedBase):
 
     title = fields.CharField(max_length=64, null=False, unique=True)
     description = fields.TextField(null=True)  # raw html description
+    # Premium button decoration for this menu/category's button (inline, callback-
+    # routed so the leading emoji can be safely stripped). Nullable → no decoration.
+    button_icon = fields.CharField(max_length=64, null=True)
+    button_style = fields.CharField(max_length=16, null=True)
 
     # display options: services and sub-menues will obey this settings
     purchase = fields.BooleanField(default=True)

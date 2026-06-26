@@ -394,6 +394,8 @@ class MenuListItem(BaseModel):
     users_only: bool = False
     services_count: int = 0
     children_count: int = 0
+    button_icon: Optional[str] = None  # premium custom_emoji_id for this category's button
+    button_style: Optional[str] = None  # button colour: primary/success/danger
 
 
 class MenuDetail(MenuListItem):
@@ -414,6 +416,8 @@ class MenuCreateIn(BaseModel):
     resellers_only: bool = False
     users_only: bool = False
     service_ids: list[int] = []
+    button_icon: Optional[str] = None
+    button_style: Optional[str] = None
 
 
 class MenuUpdateIn(BaseModel):
@@ -425,6 +429,8 @@ class MenuUpdateIn(BaseModel):
     resellers_only: Optional[bool] = None
     users_only: Optional[bool] = None
     service_ids: Optional[list[int]] = None
+    button_icon: Optional[str] = None
+    button_style: Optional[str] = None
 
 
 # -- bot buttons (main-menu labels) -------------------------------------------

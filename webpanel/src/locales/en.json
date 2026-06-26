@@ -140,7 +140,10 @@
     "save": "Save",
     "saved": "Menu saved",
     "created": "Menu created",
-    "deleteConfirm": "Delete this menu and its sub-menus?"
+    "deleteConfirm": "Delete this menu and its sub-menus?",
+    "btn_icon": "Premium button emoji (custom_emoji_id)",
+    "btn_style": "Button colour",
+    "btn_hint": "Premium emoji + colour for this category's button in the inline lists. Owner must have Premium. If you set an icon, remove the plain emoji from the title."
   },
   "proxies": {
     "title": "Subscriptions",

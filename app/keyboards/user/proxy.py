@@ -566,15 +566,19 @@ class RenewSelectService(InlineKeyboardBuilder):
     ) -> None:
         super().__init__(*args, **kwargs)
         for sm in sub_menues:
-            self.button(
-                text=sm[1],
-                callback_data=self.Callback(
-                    proxy_id=proxy_id,
-                    menu_id=sm[0],
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=RenewActions.show,
-                ),
+            self.add(
+                premium_button(
+                    text=sm[1],
+                    icon_custom_emoji_id=sm[2] if len(sm) > 2 else None,
+                    style=sanitize_style(sm[3]) if len(sm) > 3 else None,
+                    callback_data=self.Callback(
+                        proxy_id=proxy_id,
+                        menu_id=sm[0],
+                        user_id=user_id,
+                        current_page=current_page,
+                        action=RenewActions.show,
+                    ),
+                )
             )
         for service in services:
             self.add(
