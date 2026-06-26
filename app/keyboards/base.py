@@ -1,6 +1,7 @@
 from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+from app.keyboards.premium import premium_reply_button
 from app.models.service import Service
 from app.utils import buttons
 
@@ -50,16 +51,17 @@ class MainMenu(ReplyKeyboardBuilder):
                         count += 1
                 elif key == "referral":
                     if referral:
-                        self.button(text=self._lbl("referral"))
+                        self.add(premium_reply_button(self._lbl("referral"), key="referral"))
                         count += 1
                         rendered.add(key)
                 elif key == "admin_menu":
                     if is_super_user:
+                        # Admin button kept plain (owner: customer UI only).
                         self.button(text=self._lbl("admin_menu"))
                         count += 1
                         rendered.add(key)
                 elif key in buttons.MAIN_MENU_BUTTONS:
-                    self.button(text=self._lbl(key))
+                    self.add(premium_reply_button(self._lbl(key), key=key))
                     count += 1
                     rendered.add(key)
             if count:

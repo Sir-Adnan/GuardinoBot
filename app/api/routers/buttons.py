@@ -31,9 +31,11 @@ from app.models.user import User
 from app.utils.audit import record_audit
 from app.utils.buttons import (
     DEFAULT_STYLES,
+    ICONABLE_KEYS,
     INLINE_BUTTONS,
     MAIN_LAYOUT_KEYS,
     MAIN_MENU_BUTTONS,
+    STYLE_NONE,
     STYLES,
     resolve_main_layout,
 )
@@ -46,6 +48,7 @@ _BTN_STYLES = "button_styles"
 _TEXTS = "button_texts"
 _LAYOUT = "main_menu_layout"
 _ENABLED = "premium_buttons_enabled"
+_REPLY_ENABLED = "premium_reply_enabled"
 _DIRTY = "settings:dirty"
 
 
@@ -83,10 +86,18 @@ async def _out() -> ButtonsOut:
     texts = await _read_json(_TEXTS)
     return ButtonsOut(
         items=[
-            ButtonItem(key=k, default=d, value=str(labels.get(k) or ""))
+            ButtonItem(
+                key=k,
+                default=d,
+                value=str(labels.get(k) or ""),
+                icon=str(icons.get(k) or ""),
+                style=str(styles.get(k) or ""),
+                default_style=DEFAULT_STYLES.get(k, ""),
+            )
             for k, d in MAIN_MENU_BUTTONS.items()
         ],
         premium_enabled=await _read_bool(_ENABLED),
+        reply_premium_enabled=await _read_bool(_REPLY_ENABLED),
         inline=[
             InlineButtonItem(
                 key=k,
@@ -142,18 +153,23 @@ async def update_buttons(
     if body.premium_enabled is not None:
         changes[_ENABLED] = bool(body.premium_enabled)
 
+    if body.reply_premium_enabled is not None:
+        changes[_REPLY_ENABLED] = bool(body.reply_premium_enabled)
+
     if body.icons is not None:
         changes[_ICONS] = {
             k: str(v).strip()
             for k, v in body.icons.items()
-            if k in INLINE_BUTTONS and str(v).strip()
+            if k in ICONABLE_KEYS and str(v).strip()
         }
 
     if body.styles is not None:
+        # "" (or invalid) → use the built-in default (not stored); "none" → forced
+        # no colour (stored); primary/success/danger → stored.
         changes[_BTN_STYLES] = {
             k: v
             for k, v in body.styles.items()
-            if k in INLINE_BUTTONS and v in STYLES
+            if k in ICONABLE_KEYS and (v in STYLES or v == STYLE_NONE)
         }
 
     if body.texts is not None:

@@ -26,7 +26,7 @@ class ButtonLabelMiddleware(BaseMiddleware):
             if text:
                 from app.utils.settings import get_settings
 
-                canonical = buttons.reverse_map(get_settings().button_labels).get(text)
+                canonical = buttons.main_menu_routing_map(get_settings()).get(text)
                 if canonical and canonical != text:
                     new_event = event.model_copy(update={"text": canonical})
                     if event.bot is not None:

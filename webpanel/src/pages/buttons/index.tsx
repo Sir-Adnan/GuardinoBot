@@ -33,6 +33,9 @@ interface BtnItem {
   key: string;
   default: string;
   value: string;
+  icon: string;
+  style: string;
+  default_style: string;
 }
 interface InlineItem {
   key: string;
@@ -94,6 +97,7 @@ export function ButtonsPage() {
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [styles, setStyles] = useState<Record<string, string>>({});
   const [premium, setPremium] = useState(false);
+  const [replyPremium, setReplyPremium] = useState(false);
   const [flat, setFlat] = useState<FlatBtn[]>([]);
 
   const apply = (d: any) => {
@@ -103,9 +107,12 @@ export function ButtonsPage() {
     setInlineItems(ii);
     setLabels(Object.fromEntries(li.map((i) => [i.key, i.value])));
     setTexts(Object.fromEntries(ii.map((i) => [i.key, i.text])));
-    setIcons(Object.fromEntries(ii.map((i) => [i.key, i.icon])));
-    setStyles(Object.fromEntries(ii.map((i) => [i.key, i.style])));
+    // icons/styles are shared by inline buttons AND main-menu (reply) buttons.
+    const all: { key: string; icon?: string; style?: string }[] = [...ii, ...li];
+    setIcons(Object.fromEntries(all.map((i) => [i.key, i.icon ?? ""])));
+    setStyles(Object.fromEntries(all.map((i) => [i.key, i.style ?? ""])));
     setPremium(Boolean(d.premium_enabled));
+    setReplyPremium(Boolean(d.reply_premium_enabled));
     setFlat(flatFromRows(d.main_layout ?? []));
   };
 
@@ -144,6 +151,7 @@ export function ButtonsPage() {
       const r = await api.patch("/buttons", {
         labels,
         premium_enabled: premium,
+        reply_premium_enabled: replyPremium,
         icons,
         styles,
         texts,
@@ -172,7 +180,8 @@ export function ButtonsPage() {
     return tr === k ? key : tr;
   };
   const styleOpts = [
-    { value: "", label: t("buttons.style_none") },
+    { value: "", label: t("buttons.style_default") },
+    { value: "none", label: t("buttons.style_raw") },
     { value: "primary", label: t("buttons.style_primary") },
     { value: "success", label: t("buttons.style_success") },
     { value: "danger", label: t("buttons.style_danger") },
@@ -266,25 +275,68 @@ export function ButtonsPage() {
             )}
           </Card>
           <Card size="small" title={t("buttons.labels_title")}>
-            <Text type="secondary">{t("buttons.hint")}</Text>
-            <Row gutter={16} style={{ marginTop: 12 }}>
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={t("buttons.reply_premium_hint")}
+            />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 16,
+              }}
+            >
+              <Switch checked={replyPremium} onChange={setReplyPremium} />
+              <Text strong>{t("buttons.reply_premium_enabled")}</Text>
+            </div>
+            <Row gutter={[16, 8]}>
               {labelItems.map((it) => (
-                <Col xs={24} sm={12} key={it.key}>
-                  <div style={{ marginBottom: 4 }}>
-                    {label(it.key)}{" "}
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      ({t("buttons.default")}: {it.default})
-                    </Text>
-                  </div>
-                  <Input
-                    allowClear
-                    placeholder={it.default}
-                    value={labels[it.key] ?? ""}
-                    onChange={(e) =>
-                      setLabels((s) => ({ ...s, [it.key]: e.target.value }))
-                    }
-                    style={{ marginBottom: 12 }}
-                  />
+                <Col xs={24} lg={12} key={it.key}>
+                  <Card size="small" title={label(it.key)} style={{ marginBottom: 4 }}>
+                    <div style={{ marginBottom: 4 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {t("buttons.text_label")} ({t("buttons.default")}: {it.default})
+                      </Text>
+                    </div>
+                    <Input
+                      allowClear
+                      placeholder={it.default}
+                      value={labels[it.key] ?? ""}
+                      onChange={(e) =>
+                        setLabels((s) => ({ ...s, [it.key]: e.target.value }))
+                      }
+                      style={{ marginBottom: 10 }}
+                    />
+                    {it.key !== "admin_menu" && (
+                      <Row gutter={8}>
+                        <Col xs={14}>
+                          <Input
+                            allowClear
+                            placeholder={t("buttons.emoji_id_ph")}
+                            value={icons[it.key] ?? ""}
+                            onChange={(e) =>
+                              setIcons((s) => ({ ...s, [it.key]: e.target.value }))
+                            }
+                            disabled={!replyPremium}
+                          />
+                        </Col>
+                        <Col xs={10}>
+                          <Select
+                            style={{ width: "100%" }}
+                            options={styleOpts}
+                            value={styles[it.key] ?? ""}
+                            onChange={(v) =>
+                              setStyles((s) => ({ ...s, [it.key]: v }))
+                            }
+                            disabled={!replyPremium}
+                          />
+                        </Col>
+                      </Row>
+                    )}
+                  </Card>
                 </Col>
               ))}
             </Row>

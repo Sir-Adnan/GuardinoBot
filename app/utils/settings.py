@@ -110,6 +110,11 @@ class Settings(BaseModel):
     # unchanged until the super-admin opts in (and the bot owner has Premium for
     # custom emoji). key -> custom_emoji_id / key -> style.
     premium_buttons_enabled: bool = False
+    # Separate, experimental switch for premium emoji/colour on the MAIN (reply)
+    # menu. Kept apart from the (proven) inline switch because if Telegram rejects
+    # these fields on a KeyboardButton the whole menu send could fail — so enabling
+    # inline premium must never endanger the main menu. Defaults OFF.
+    premium_reply_enabled: bool = False
     button_icons: dict[str, str] = {}
     button_styles: dict[str, str] = {}
     # Inline-button text override (rename). key -> custom label; not premium-gated.

@@ -17,7 +17,7 @@ Safety:
 from typing import Optional
 
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, KeyboardButton
 
 from app.utils import buttons as _b
 
@@ -74,3 +74,36 @@ def premium_button(
         except Exception:  # aiogram rejected the new fields → plain button
             return InlineKeyboardButton(**base)
     return InlineKeyboardButton(**base)
+
+
+def premium_reply_button(text: str, *, key: Optional[str] = None) -> KeyboardButton:
+    """A main-menu (reply) ``KeyboardButton`` that, when premium buttons are on,
+    carries ``icon_custom_emoji_id`` + ``style``.
+
+    NOTE: unlike inline buttons, ``KeyboardButton`` support for these fields is not
+    in the schema this code was written against — so we add them defensively with a
+    build-time fallback: if the installed aiogram rejects them, a plain button is
+    returned (the menu never breaks). When an icon is applied the leading emoji is
+    stripped from the text; routing stays correct via
+    ``buttons.main_menu_routing_map`` (used by the button-label middleware), which
+    maps the stripped/renamed text back to the canonical handler text.
+    """
+    from app.utils.settings import get_settings
+
+    s = get_settings()
+    extras: dict = {}
+    if getattr(s, "premium_reply_enabled", False):
+        icon = _b.resolve_icon(key, getattr(s, "button_icons", {}))
+        st = _b.resolve_style(key, getattr(s, "button_styles", {}))
+        if icon:
+            extras["icon_custom_emoji_id"] = icon
+            text = _b.strip_leading_emoji(text)
+        if st:
+            extras["style"] = st
+
+    if extras:
+        try:
+            return KeyboardButton(text=text, **extras)
+        except Exception:  # aiogram rejected the new fields → plain button
+            return KeyboardButton(text=text)
+    return KeyboardButton(text=text)

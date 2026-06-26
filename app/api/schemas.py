@@ -425,6 +425,9 @@ class ButtonItem(BaseModel):
     key: str
     default: str
     value: str  # current custom label, or "" when using the default
+    icon: str = ""  # configured custom_emoji_id, or "" (reply-button premium)
+    style: str = ""  # configured colour / "none", or "" for default
+    default_style: str = ""
 
 
 class InlineButtonItem(BaseModel):
@@ -439,6 +442,7 @@ class InlineButtonItem(BaseModel):
 class ButtonsOut(BaseModel):
     items: list[ButtonItem]  # main-menu (reply) labels
     premium_enabled: bool = False
+    reply_premium_enabled: bool = False  # experimental: premium on reply buttons
     inline: list[InlineButtonItem] = []  # inline buttons (premium emoji + colour)
     # Effective main-menu layout: ordered rows of keys (default-resolved). Keys
     # are ButtonItem keys + the "test_services" dynamic placeholder.
@@ -448,6 +452,7 @@ class ButtonsOut(BaseModel):
 class ButtonsUpdateIn(BaseModel):
     labels: Optional[dict[str, str]] = None  # key -> custom label ("" = default)
     premium_enabled: Optional[bool] = None
+    reply_premium_enabled: Optional[bool] = None
     icons: Optional[dict[str, str]] = None  # inline key -> custom_emoji_id
     styles: Optional[dict[str, str]] = None  # inline key -> style
     texts: Optional[dict[str, str]] = None  # inline key -> renamed text

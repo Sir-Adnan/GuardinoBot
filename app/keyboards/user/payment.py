@@ -186,9 +186,12 @@ class ChargePanel(InlineKeyboardBuilder):
             )
 
         if back_callback:
-            self.button(
-                text="🔙 برگشت",
-                callback_data=back_callback,
+            self.add(
+                premium_button(
+                    text="🔙 برگشت",
+                    key="common_back",
+                    callback_data=back_callback,
+                )
             )
 
         self.adjust(1, 1, 1)
@@ -248,11 +251,14 @@ class SelectPayAmount(InlineKeyboardBuilder):
                 )
             )
 
-            self.button(
-                text="🔙 برگشت",
-                callback_data=account.UserPanel.Callback(
-                    action=account.UserPanelAction.charge
-                ),
+            self.add(
+                premium_button(
+                    text="🔙 برگشت",
+                    key="common_back",
+                    callback_data=account.UserPanel.Callback(
+                        action=account.UserPanelAction.charge
+                    ),
+                )
             )
             while sum(orders) > len(amount_list):
                 if orders[-1] <= 1:
@@ -262,9 +268,14 @@ class SelectPayAmount(InlineKeyboardBuilder):
 
             self.adjust(*orders, 1, 1)
         else:
-            self.button(
-                text="🔙 برگشت",
-                callback_data=back_callback
-                if back_callback
-                else account.UserPanel.Callback(action=account.UserPanelAction.charge),
+            self.add(
+                premium_button(
+                    text="🔙 برگشت",
+                    key="common_back",
+                    callback_data=back_callback
+                    if back_callback
+                    else account.UserPanel.Callback(
+                        action=account.UserPanelAction.charge
+                    ),
+                )
             )

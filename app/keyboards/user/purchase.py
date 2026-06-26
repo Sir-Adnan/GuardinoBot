@@ -50,11 +50,14 @@ class Services(InlineKeyboardBuilder):
                 ),
             )
         if has_previous:
-            self.button(
-                text="🔙 برگشت",
-                callback_data=self.Callback(
-                    menu_id=parent_menu_id or 0, action=ServicesActions.show
-                ),
+            self.add(
+                premium_button(
+                    text="🔙 برگشت",
+                    key="common_back",
+                    callback_data=self.Callback(
+                        menu_id=parent_menu_id or 0, action=ServicesActions.show
+                    ),
+                )
             )
         self.adjust(1, 1, 1)
 
@@ -113,8 +116,11 @@ class PurchaseService(InlineKeyboardBuilder):
                     ),
                 )
             )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=back_callback,
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=back_callback,
+            )
         )
         self.adjust(1, 1)

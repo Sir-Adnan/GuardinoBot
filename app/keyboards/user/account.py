@@ -88,9 +88,12 @@ class UserPanel(InlineKeyboardBuilder):
 class RefPanel(InlineKeyboardBuilder):
     def __init__(self, user: User, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.button(
-            text="🔙 برگشت",
-            callback_data=UserPanel.Callback(action=UserPanelAction.show),
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=UserPanel.Callback(action=UserPanelAction.show),
+            )
         )
 
 
@@ -139,9 +142,12 @@ class ManageUsers(InlineKeyboardBuilder):
                     current_page=current_page - 1,
                 ),
             )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=UserPanel.Callback(action=UserPanelAction.show),
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=UserPanel.Callback(action=UserPanelAction.show),
+            )
         )
         self.adjust(
             *[1 for _ in range(10)], 2, 1
@@ -290,9 +296,12 @@ class UserSettings(InlineKeyboardBuilder):
                 action=UserSettingsAction.username_prefix,
             ),
         )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=UserPanel.Callback(action=UserPanelAction.show),
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=UserPanel.Callback(action=UserPanelAction.show),
+            )
         )
         self.adjust(1, 1)
 

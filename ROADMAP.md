@@ -19,9 +19,11 @@
 - [ ] Verify Phase 3 (premium emoji on inline buttons) renders on a real deploy with a
       Premium owner account; if aiogram 3.4.1 drops the extra fields, add a raw-payload
       sender (httpx → Bot API) or bump aiogram. See **Phase 3** below.
-- [ ] **Phase 4a (cont.)** — remaining *customer-facing* inline buttons (shared back/confirm,
-      reserve panel, links/QR). Admin keyboards are **out of scope** (owner: focus on the
-      customer UI). User flows (account/purchase/payment/renew) already done.
+- [x] **Phase 4a (cont.)** ✅ — links/QR, reset-password variants, reserve activate/cancel,
+      show-reserve, generic confirm, and shared `common_back`/`common_cancel` across
+      proxy/purchase/payment/account. Remaining (low value, deferred): reseller sub-user
+      management backs (ManageUser/ChargeByParent) + proxy-list pagination/sort/filter.
+      Admin keyboards **out of scope** (owner: customer UI only).
 - [ ] Phase 2 polish: user/proxy **detail pages with tabs** (Overview·Links·Orders·
       Payments·Panel Status·Logs), skeletons + empty states.
 - [ ] Plan file `delightful-crafting-micali.md`: add-panel / edit-service bug fixes +
@@ -135,6 +137,11 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
   colour across account/purchase/payment/renew/proxy-panel; double-emoji auto-fix; main reply-menu
   builder (`main_menu_layout`: enable/disable + reorder + row layout). Web Buttons page (2 tabs).
   Admin buttons out of scope. No migration (key-value settings).
+- ✅ **Phase 4 — Colour model + experimental reply premium** — inline colours now raw-by-default
+  (only important buttons coloured); web 5-state style picker (default/raw/blue/green/red, `none`
+  sentinel = forced no-colour). Main (reply) menu premium emoji/colour behind a separate
+  `premium_reply_enabled` flag with build-time fallback + `main_menu_routing_map` so emoji-stripped
+  labels still route. Decoupled from inline so it can't break the menu.
 - ✅ **Fix §17.2** — reseller test-service counting (`record_purchase_service` uses `user.role`;
   unified Redis key + `count >= limit`).
 
@@ -148,6 +155,17 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
 - **Premium buttons** default OFF; safe fallback always; inline-only; emoji needs owner Premium.
 - **Button customization targets the customer UI only** — admin buttons + the ⚙️ admin-panel
   menu are deliberately NOT made premium/customizable (focus is customer attraction/retention).
+- **Premium emoji/colour on the main (reply) menu is EXPERIMENTAL** — the `KeyboardButton`
+  schema this code was written against doesn't list `icon_custom_emoji_id`/`style`, but (per an
+  owner-supplied doc + the fact inline used undocumented fields that proved real) it's
+  implemented behind a **separate** flag `premium_reply_enabled` (default OFF), with a build-time
+  fallback. ⚠️ The fallback CANNOT catch a Telegram **send-time** rejection, so it's deliberately
+  decoupled from the proven inline `premium_buttons_enabled` flag — enabling inline never risks
+  the menu send. If Telegram rejects the fields, the owner just turns the reply flag off.
+- **Inline colours are raw by default** — only important buttons carry a built-in colour (green
+  for money/confirm CTAs, red for destructive). Web style picker has 5 states: default
+  (recommended = built-in), raw (`none` = force no colour), blue (`primary`), green (`success`),
+  red (`danger`).
 - **Backend FastAPI + Frontend React/Refine/AntD** (RTL, Vazirmatn, emerald, dark+light, responsive).
 - **The API process must never import `app.main`** (it pulls payment plugins). Routers touch
   `BotSetting`/`BotText` directly + dirty-flags.

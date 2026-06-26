@@ -259,14 +259,17 @@ class ProxyPanel(InlineKeyboardBuilder):
                     )
                 )
             else:
-                self.button(
-                    text="📱 Qr Code اتصال هوشمند",
-                    callback_data=ProxyPanel.Callback(
-                        proxy_id=proxy.id,
-                        user_id=user_id,
-                        current_page=current_page,
-                        action=ProxyPanelActions.links_subqr,
-                    ),
+                self.add(
+                    premium_button(
+                        text="📱 Qr Code اتصال هوشمند",
+                        key="links_subqr",
+                        callback_data=ProxyPanel.Callback(
+                            proxy_id=proxy.id,
+                            user_id=user_id,
+                            current_page=current_page,
+                            action=ProxyPanelActions.links_subqr,
+                        ),
+                    )
                 )
             if _settings.reset_password_button:
                 self.add(
@@ -346,14 +349,17 @@ class ProxyPanel(InlineKeyboardBuilder):
             )
         )
         if show_reserve:
-            self.button(
-                text="📁 پلن پشتیبان (تمدید خودکار)",
-                callback_data=self.Callback(
-                    proxy_id=proxy.id,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=ProxyPanelActions.show_reserve,
-                ),
+            self.add(
+                premium_button(
+                    text="📁 پلن پشتیبان (تمدید خودکار)",
+                    key="show_reserve",
+                    callback_data=self.Callback(
+                        proxy_id=proxy.id,
+                        user_id=user_id,
+                        current_page=current_page,
+                        action=ProxyPanelActions.show_reserve,
+                    ),
+                )
             )
         if can_delete and (
             proxy.status
@@ -374,13 +380,16 @@ class ProxyPanel(InlineKeyboardBuilder):
                     ),
                 )
             )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=Proxies.Callback(
-                user_id=user_id,
-                action=ProxiesActions.show,
-                current_page=current_page,
-            ),
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=Proxies.Callback(
+                    user_id=user_id,
+                    action=ProxiesActions.show,
+                    current_page=current_page,
+                ),
+            )
         )
         if proxy.status == ProxyStatus.active:
             if _settings.reset_password_button:
@@ -401,32 +410,41 @@ class ResetPassword(InlineKeyboardBuilder):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.button(
-            text="🔑 تغییر پسوورد",
-            callback_data=ProxyPanel.Callback(
-                proxy_id=proxy_id,
-                user_id=user_id,
-                current_page=current_page,
-                action=ProxyPanelActions.reset_uuid,
-            ),
+        self.add(
+            premium_button(
+                text="🔑 تغییر پسوورد",
+                key="reset_uuid",
+                callback_data=ProxyPanel.Callback(
+                    proxy_id=proxy_id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=ProxyPanelActions.reset_uuid,
+                ),
+            )
         )
-        self.button(
-            text="🔑 تغییر اتصال هوشمند",
-            callback_data=ProxyPanel.Callback(
-                proxy_id=proxy_id,
-                user_id=user_id,
-                current_page=current_page,
-                action=ProxyPanelActions.reset_subscription,
-            ),
+        self.add(
+            premium_button(
+                text="🔑 تغییر اتصال هوشمند",
+                key="reset_subscription",
+                callback_data=ProxyPanel.Callback(
+                    proxy_id=proxy_id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=ProxyPanelActions.reset_subscription,
+                ),
+            )
         )
-        self.button(
-            text="🔙 لغو",
-            callback_data=Proxies.Callback(
-                proxy_id=proxy_id,
-                user_id=user_id,
-                action=ProxiesActions.show_proxy,
-                current_page=current_page,
-            ),
+        self.add(
+            premium_button(
+                text="🔙 لغو",
+                key="common_cancel",
+                callback_data=Proxies.Callback(
+                    proxy_id=proxy_id,
+                    user_id=user_id,
+                    action=ProxiesActions.show_proxy,
+                    current_page=current_page,
+                ),
+            )
         )
         self.adjust(1, 1)
 
@@ -440,25 +458,31 @@ class ConfirmProxyPanel(InlineKeyboardBuilder):
         current_page: int = 0,
     ) -> None:
         super().__init__()
-        self.button(
-            text="⚠️ تأیید",
-            callback_data=ProxyPanel.Callback(
-                proxy_id=proxy_id,
-                user_id=user_id,
-                current_page=current_page,
-                action=action,
-                confirmed=True,
-            ),
+        self.add(
+            premium_button(
+                text="⚠️ تأیید",
+                key="confirm_action",
+                callback_data=ProxyPanel.Callback(
+                    proxy_id=proxy_id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=action,
+                    confirmed=True,
+                ),
+            )
         )
 
-        self.button(
-            text="🔙 لغو",
-            callback_data=Proxies.Callback(
-                proxy_id=proxy_id,
-                user_id=user_id,
-                action=ProxiesActions.show_proxy,
-                current_page=current_page,
-            ),
+        self.add(
+            premium_button(
+                text="🔙 لغو",
+                key="common_cancel",
+                callback_data=Proxies.Callback(
+                    proxy_id=proxy_id,
+                    user_id=user_id,
+                    action=ProxiesActions.show_proxy,
+                    current_page=current_page,
+                ),
+            )
         )
         self.adjust(1, 1)
 
@@ -473,32 +497,41 @@ class ProxyLinks(InlineKeyboardBuilder):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.button(
-            text="📱 Qr Code",
-            callback_data=ProxyPanel.Callback(
-                proxy_id=proxy.id,
-                user_id=user_id,
-                current_page=current_page,
-                action=ProxyPanelActions.links_allqr,
-            ),
+        self.add(
+            premium_button(
+                text="📱 Qr Code",
+                key="links_qr",
+                callback_data=ProxyPanel.Callback(
+                    proxy_id=proxy.id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=ProxyPanelActions.links_allqr,
+                ),
+            )
         )
-        self.button(
-            text="📱 Qr Code اتصال هوشمند",
-            callback_data=ProxyPanel.Callback(
-                proxy_id=proxy.id,
-                user_id=user_id,
-                current_page=current_page,
-                action=ProxyPanelActions.links_subqr,
-            ),
+        self.add(
+            premium_button(
+                text="📱 Qr Code اتصال هوشمند",
+                key="links_subqr",
+                callback_data=ProxyPanel.Callback(
+                    proxy_id=proxy.id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=ProxyPanelActions.links_subqr,
+                ),
+            )
         )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=Proxies.Callback(
-                proxy_id=proxy.id,
-                user_id=user_id,
-                action=ProxiesActions.show_proxy,
-                current_page=current_page,
-            ),
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=Proxies.Callback(
+                    proxy_id=proxy.id,
+                    user_id=user_id,
+                    action=ProxiesActions.show_proxy,
+                    current_page=current_page,
+                ),
+            )
         )
         self.adjust(1, 1, 1)
 
@@ -555,25 +588,31 @@ class RenewSelectService(InlineKeyboardBuilder):
                 ),
             )
         if has_previous:
-            self.button(
-                text="🔙 برگشت",
-                callback_data=self.Callback(
-                    proxy_id=proxy_id,
-                    menu_id=parent_menu_id or 0,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=RenewActions.show,
-                ),
+            self.add(
+                premium_button(
+                    text="🔙 برگشت",
+                    key="common_back",
+                    callback_data=self.Callback(
+                        proxy_id=proxy_id,
+                        menu_id=parent_menu_id or 0,
+                        user_id=user_id,
+                        current_page=current_page,
+                        action=RenewActions.show,
+                    ),
+                )
             )
         else:
-            self.button(
-                text="🔙 برگشت",
-                callback_data=Proxies.Callback(
-                    proxy_id=proxy_id,
-                    user_id=user_id,
-                    action=ProxiesActions.show_proxy,
-                    current_page=current_page,
-                ),
+            self.add(
+                premium_button(
+                    text="🔙 برگشت",
+                    key="common_back",
+                    callback_data=Proxies.Callback(
+                        proxy_id=proxy_id,
+                        user_id=user_id,
+                        action=ProxiesActions.show_proxy,
+                        current_page=current_page,
+                    ),
+                )
             )
         self.adjust(1, 1, 1, 1)
 
@@ -633,15 +672,18 @@ class RenewSelectMethod(InlineKeyboardBuilder):
                 ),
             )
         )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=RenewSelectService.Callback(
-                proxy_id=proxy_id,
-                menu_id=menu_id,
-                user_id=user_id,
-                current_page=current_page,
-                action=RenewActions.show,
-            ),
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=RenewSelectService.Callback(
+                    proxy_id=proxy_id,
+                    menu_id=menu_id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=RenewActions.show,
+                ),
+            )
         )
         self.adjust(1, 1, 1)
 
@@ -680,39 +722,48 @@ class ConfirmRenew(InlineKeyboardBuilder):
                 )
             )
         else:
-            self.button(
-                text=f"💳 پرداخت {pay_amount:,} تومان",
-                callback_data=payment.ChargePanel.DirectCallback(
-                    amount=pay_amount,
-                    service_id=service_id,
-                    menu_id=menu_id,
-                    proxy_id=proxy_id,
-                    mode="renew" if method == RenewMethods.now else "reserve",
-                ),
+            self.add(
+                premium_button(
+                    text=f"💳 پرداخت {pay_amount:,} تومان",
+                    key="purchase_pay",
+                    callback_data=payment.ChargePanel.DirectCallback(
+                        amount=pay_amount,
+                        service_id=service_id,
+                        menu_id=menu_id,
+                        proxy_id=proxy_id,
+                        mode="renew" if method == RenewMethods.now else "reserve",
+                    ),
+                )
             )
         if not discount_id:
-            self.button(
-                text="🎁 کد تخفیف دارم",
-                callback_data=account.UserPanel.Callback(
-                    action=account.UserPanelAction.redeem_code,
+            self.add(
+                premium_button(
+                    text="🎁 کد تخفیف دارم",
+                    key="purchase_redeem",
+                    callback_data=account.UserPanel.Callback(
+                        action=account.UserPanelAction.redeem_code,
+                        service_id=service_id,
+                        menu_id=menu_id,
+                        proxy_id=proxy_id,
+                        user_id=user_id,
+                        current_page=current_page,
+                        mode="renew" if method == RenewMethods.now else "reserve",
+                    ),
+                )
+            )
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=RenewSelectService.Callback(
+                    proxy_id=proxy_id,
                     service_id=service_id,
                     menu_id=menu_id,
-                    proxy_id=proxy_id,
                     user_id=user_id,
                     current_page=current_page,
-                    mode="renew" if method == RenewMethods.now else "reserve",
+                    action=RenewActions.show_service,
                 ),
             )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=RenewSelectService.Callback(
-                proxy_id=proxy_id,
-                service_id=service_id,
-                menu_id=menu_id,
-                user_id=user_id,
-                current_page=current_page,
-                action=RenewActions.show_service,
-            ),
         )
         self.adjust(1, 1)
 
@@ -743,31 +794,10 @@ class ReservePanel(InlineKeyboardBuilder):
     ) -> None:
         super().__init__(*args, **kwargs)
         if not confirmed:
-            self.button(
-                text="✅ فعالسازی",
-                callback_data=self.Callback(
-                    proxy_id=proxy.id,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=ReservePanelAction.activate,
-                    confirmed=confirmed,
-                ),
-            )
-            if cancelable:
-                self.button(
-                    text="⚠️ لغو پلن پشتیبان",
-                    callback_data=self.Callback(
-                        proxy_id=proxy.id,
-                        user_id=user_id,
-                        current_page=current_page,
-                        action=ReservePanelAction.cancel,
-                        confirmed=confirmed,
-                    ),
-                )
-        else:
-            if action == ReservePanelAction.activate:
-                self.button(
+            self.add(
+                premium_button(
                     text="✅ فعالسازی",
+                    key="reserve_activate",
                     callback_data=self.Callback(
                         proxy_id=proxy.id,
                         user_id=user_id,
@@ -776,10 +806,12 @@ class ReservePanel(InlineKeyboardBuilder):
                         confirmed=confirmed,
                     ),
                 )
-            elif action == ReservePanelAction.cancel:
-                if cancelable:
-                    self.button(
+            )
+            if cancelable:
+                self.add(
+                    premium_button(
                         text="⚠️ لغو پلن پشتیبان",
+                        key="reserve_cancel",
                         callback_data=self.Callback(
                             proxy_id=proxy.id,
                             user_id=user_id,
@@ -788,14 +820,48 @@ class ReservePanel(InlineKeyboardBuilder):
                             confirmed=confirmed,
                         ),
                     )
-        self.button(
-            text="🔙 برگشت",
-            callback_data=Proxies.Callback(
-                proxy_id=proxy.id,
-                user_id=user_id,
-                action=ProxiesActions.show_proxy,
-                current_page=current_page,
-            ),
+                )
+        else:
+            if action == ReservePanelAction.activate:
+                self.add(
+                    premium_button(
+                        text="✅ فعالسازی",
+                        key="reserve_activate",
+                        callback_data=self.Callback(
+                            proxy_id=proxy.id,
+                            user_id=user_id,
+                            current_page=current_page,
+                            action=ReservePanelAction.activate,
+                            confirmed=confirmed,
+                        ),
+                    )
+                )
+            elif action == ReservePanelAction.cancel:
+                if cancelable:
+                    self.add(
+                        premium_button(
+                            text="⚠️ لغو پلن پشتیبان",
+                            key="reserve_cancel",
+                            callback_data=self.Callback(
+                                proxy_id=proxy.id,
+                                user_id=user_id,
+                                current_page=current_page,
+                                action=ReservePanelAction.cancel,
+                                confirmed=confirmed,
+                            ),
+                        )
+                    )
+        self.add(
+            premium_button(
+                text="🔙 برگشت",
+                key="common_back",
+                callback_data=Proxies.Callback(
+                    proxy_id=proxy.id,
+                    user_id=user_id,
+                    action=ProxiesActions.show_proxy,
+                    current_page=current_page,
+                ),
+            )
         )
         self.adjust(1, 1, 1)
 

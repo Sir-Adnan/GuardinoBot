@@ -113,26 +113,48 @@ INLINE_BUTTONS: dict[str, str] = {
     "renew_now": "♻️ تمدید آنی اشتراک",
     "renew_reserve": "🌀 پلن پشتیبان (تمدید خودکار)",
     "renew_confirm": "✅ فعالسازی",
+    # -- links / QR (proxy.ProxyLinks + ProxyPanel) --
+    "links_qr": "📱 QR کانفیگ‌ها",
+    "links_subqr": "📱 QR اتصال هوشمند",
+    # -- reset password (proxy.ResetPassword) --
+    "reset_uuid": "🔑 تغییر پسوورد (کامل)",
+    "reset_subscription": "🔑 تغییر اتصال هوشمند",
+    # -- reserve / backup plan (proxy.ReservePanel + ProxyPanel) --
+    "reserve_activate": "✅ فعالسازی پلن پشتیبان",
+    "reserve_cancel": "⚠️ لغو پلن پشتیبان",
+    "show_reserve": "📁 پلن پشتیبان",
+    # -- generic confirm/cancel/back (shared across customer keyboards) --
+    "confirm_action": "⚠️ تأیید",
+    "common_back": "🔙 برگشت",
+    "common_cancel": "🔙 لغو",
 }
 
 STYLES = ("primary", "success", "danger")
+# A style value of "none" (vs an empty/missing value) means the admin explicitly
+# removed the colour — so it overrides the built-in default below.
+STYLE_NONE = "none"
 
-# Sensible default colours, applied only when premium buttons are enabled and the
-# admin hasn't overridden the style for that key.
+# Built-in default colours. Kept deliberately MINIMAL: only the important buttons
+# get a colour out of the box (green for money/confirm CTAs, red for destructive);
+# every other button is raw (no colour) until coloured in the web panel.
 DEFAULT_STYLES: dict[str, str] = {
-    "proxy_renew": "success",
-    "proxy_enable": "success",
-    "proxy_disable": "danger",
-    "proxy_remove": "danger",
-    "proxy_delete_payback": "danger",
-    "alert_renew": "success",
-    "alert_links": "primary",
-    "account_charge": "primary",
+    # money / confirm CTAs → green
     "purchase_buy": "success",
     "purchase_pay": "success",
+    "proxy_renew": "success",
     "renew_now": "success",
     "renew_confirm": "success",
+    "reserve_activate": "success",
+    # destructive → red
+    "proxy_remove": "danger",
+    "proxy_delete_payback": "danger",
+    "reserve_cancel": "danger",
+    "confirm_action": "danger",
 }
+
+# Keys that can carry a premium icon / style: every inline button + the main-menu
+# (reply) buttons. Used by the web panel to validate icon/style writes.
+ICONABLE_KEYS: set[str] = set(INLINE_BUTTONS) | set(MAIN_MENU_BUTTONS)
 
 
 # A leading run of emoji / pictographs / dingbats (+ variation selectors, ZWJ,
@@ -169,7 +191,35 @@ def resolve_icon(key: str | None, icons: dict | None) -> str | None:
 
 
 def resolve_style(key: str | None, styles: dict | None) -> str | None:
-    """Configured colour for ``key`` (override → default), or None if invalid."""
+    """Configured colour for ``key``:
+    - explicit ``primary``/``success``/``danger`` → that colour,
+    - explicit ``"none"`` → no colour (overrides the built-in default),
+    - empty/missing → the built-in default (raw for non-important buttons).
+    """
     val = ((styles or {}).get(key) or "").strip() if key else ""
-    val = val or DEFAULT_STYLES.get(key or "", "")
-    return val if val in STYLES else None
+    if val == STYLE_NONE:
+        return None
+    if val in STYLES:
+        return val
+    default = DEFAULT_STYLES.get(key or "", "")
+    return default if default in STYLES else None
+
+
+def main_menu_routing_map(settings) -> dict[str, str]:
+    """Map every form a main-menu (reply) button's text can take → its canonical
+    default text, so text-based handlers (``F.text == MainMenu.X``) keep matching
+    after a custom label and/or a premium icon (which strips the leading emoji).
+    Superset of :func:`reverse_map` for the main menu."""
+    labels = getattr(settings, "button_labels", None)
+    premium = getattr(settings, "premium_reply_enabled", False)
+    icons = getattr(settings, "button_icons", None)
+    out: dict[str, str] = {}
+    for key, default in MAIN_MENU_BUTTONS.items():
+        effective = resolve(key, labels)  # custom label or default
+        forms = {effective}
+        if premium and resolve_icon(key, icons):
+            forms.add(strip_leading_emoji(effective))
+        for form in forms:
+            if form and form != default:
+                out[form] = default
+    return out
