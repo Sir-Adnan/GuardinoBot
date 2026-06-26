@@ -64,7 +64,16 @@
     "usersMonth": "Users (30d)",
     "proxiesTotal": "Total subscriptions",
     "proxiesActive": "Active subscriptions",
-    "blockedUsers": "Blocked users"
+    "blockedUsers": "Blocked users",
+    "todayIncome": "Income today",
+    "todaySales": "Sales today",
+    "monthIncome": "Income (30d)",
+    "ordersToday": "Orders today",
+    "servers": "Panels enabled",
+    "pendingPayments": "Pending payments",
+    "last14": "Last 14 days",
+    "secSales": "Sales & revenue",
+    "secOps": "Users, subscriptions & system"
   },
   "users": {
     "title": "Users",
@@ -248,6 +257,8 @@
     "income_total": "Income",
     "orders": "Orders",
     "new_users": "New users",
+    "failed_payments": "Failed payments",
+    "export": "Export CSV",
     "revenueTrend": "Revenue trend",
     "paymentBreakdown": "Payment breakdown",
     "topServices": "Top services",
@@ -269,7 +280,13 @@
     "postpaid": "Postpaid",
     "status": "Status",
     "createdAt": "Joined",
-    "search": "Search reseller…"
+    "search": "Search reseller…",
+    "subtitle": "Manage resellers: promote, edit, balance and sub-users.",
+    "promote": "Promote to reseller",
+    "promoteTitle": "Promote a user to reseller",
+    "promoteHint": "Enter the numeric id or username of an existing user to promote them to the reseller role.",
+    "promoted": "User promoted to reseller",
+    "identifier": "ID / username"
   },
   "discounts": {
     "title": "Discount codes",
@@ -282,7 +299,18 @@
     "oncePerUser": "Once per user",
     "usage": "Used / Max",
     "expiresAt": "Expires",
-    "search": "Search code…"
+    "search": "Search code…",
+    "subtitle": "Create, edit and delete discount codes.",
+    "new": "New discount",
+    "addTitle": "New discount",
+    "editTitle": "Edit discount",
+    "saved": "Discount saved",
+    "created": "Discount created",
+    "deleteConfirm": "Delete this discount?",
+    "codeHint": "Leave blank to auto-generate.",
+    "codeAuto": "auto",
+    "maxUses": "Max uses",
+    "unlimited": "blank = unlimited"
   },
   "automation": {
     "title": "Automation",
@@ -345,6 +373,13 @@
     "subtitle": "Edit the bot's message texts (HTML).",
     "save": "Save",
     "saved": "Text saved",
+    "search": "Search text…",
+    "noMatch": "No matches.",
+    "g_general": "General",
+    "g_sales": "Sales",
+    "g_support": "Support",
+    "g_access": "Access & join",
+    "g_alerts": "Alerts",
     "variables": "Available variables",
     "emoji_hint": "Texts support HTML. For premium/custom emoji use <tg-emoji emoji-id=\"...\">💎</tg-emoji> — they render only if the bot's creator account has Telegram Premium. Keep {VARIABLE} tokens intact. Empty = reset to default.",
     "k": {

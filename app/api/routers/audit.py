@@ -5,6 +5,8 @@ Read-only oversight tool, **super-admin only**: it exposes who did what (incl.
 other admins/resellers), so it is intentionally not visible to resellers.
 """
 
+from datetime import datetime as dt
+from datetime import timedelta as td
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -48,6 +50,8 @@ async def list_audit(
     target_type: Optional[str] = None,
     target_id: Optional[str] = None,
     search: Optional[str] = None,
+    start: Optional[str] = None,  # ISO date — created_at >= start
+    end: Optional[str] = None,  # ISO date — created_at <= end (inclusive day)
 ) -> AuditPage:
     q = AuditLog.all().prefetch_related("actor")
     if action:
@@ -60,6 +64,16 @@ async def list_audit(
         q = q.filter(target_type=target_type)
     if target_id:
         q = q.filter(target_id=str(target_id))
+    if start:
+        try:
+            q = q.filter(created_at__gte=dt.fromisoformat(start))
+        except ValueError:
+            pass
+    if end:
+        try:
+            q = q.filter(created_at__lt=dt.fromisoformat(end) + td(days=1))
+        except ValueError:
+            pass
     if search:
         s = search.strip()
         q = q.filter(Q(target_label__icontains=s) | Q(action__icontains=s))

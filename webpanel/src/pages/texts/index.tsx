@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   App as AntdApp,
   Button,
@@ -6,20 +6,25 @@ import {
   Input,
   Space,
   Spin,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
+import { PageHeader } from "../../components/PageHeader";
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface TextItem {
   key: string;
   value: string;
   variables: string[];
+  group: string;
 }
+
+const GROUP_ORDER = ["general", "sales", "support", "access", "alerts"];
 
 export function TextsPage() {
   const { t } = useTranslation();
@@ -28,6 +33,7 @@ export function TextsPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     api
@@ -46,9 +52,7 @@ export function TextsPage() {
     setSavingKey(key);
     try {
       const r = await api.patch("/texts", { key, value: drafts[key] ?? "" });
-      setItems((arr) =>
-        arr.map((i) => (i.key === key ? { ...i, value: r.data.value } : i)),
-      );
+      setItems((arr) => arr.map((i) => (i.key === key ? { ...i, value: r.data.value } : i)));
       setDrafts((d) => ({ ...d, [key]: r.data.value }));
       message.success(t("texts.saved"));
     } catch (e: any) {
@@ -58,6 +62,18 @@ export function TextsPage() {
     }
   };
 
+  const label = (key: string) => {
+    const k = `texts.k.${key}`;
+    const tr = t(k);
+    return tr === k ? key : tr;
+  };
+
+  const groups = useMemo(() => {
+    const present = GROUP_ORDER.filter((g) => items.some((i) => i.group === g));
+    const extra = [...new Set(items.map((i) => i.group))].filter((g) => !GROUP_ORDER.includes(g));
+    return [...present, ...extra];
+  }, [items]);
+
   if (loading) {
     return (
       <div style={{ display: "grid", placeItems: "center", minHeight: 300 }}>
@@ -66,64 +82,83 @@ export function TextsPage() {
     );
   }
 
-  const label = (key: string) => {
-    const k = `texts.k.${key}`;
-    const tr = t(k);
-    return tr === k ? key : tr;
+  const renderCard = (it: TextItem) => {
+    const dirty = (drafts[it.key] ?? "") !== it.value;
+    return (
+      <Card
+        key={it.key}
+        title={label(it.key)}
+        size="small"
+        style={{ marginBottom: 16 }}
+        extra={
+          <Button
+            type="primary"
+            size="small"
+            icon={<SaveOutlined />}
+            loading={savingKey === it.key}
+            disabled={!dirty}
+            onClick={() => save(it.key)}
+          >
+            {t("texts.save")}
+          </Button>
+        }
+      >
+        {it.variables.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <Text type="secondary" style={{ marginInlineEnd: 6 }}>
+              {t("texts.variables")}:
+            </Text>
+            {it.variables.map((v) => (
+              <Tag key={v} className="mono">{`{${v}}`}</Tag>
+            ))}
+          </div>
+        )}
+        <Input.TextArea
+          value={drafts[it.key] ?? ""}
+          onChange={(e) => setDrafts((d) => ({ ...d, [it.key]: e.target.value }))}
+          autoSize={{ minRows: 3, maxRows: 14 }}
+          dir="auto"
+        />
+      </Card>
+    );
   };
+
+  const filtered = search
+    ? items.filter(
+        (i) =>
+          i.key.toLowerCase().includes(search.toLowerCase()) ||
+          label(i.key).toLowerCase().includes(search.toLowerCase()),
+      )
+    : null;
+
+  const tabItems = groups.map((g) => ({
+    key: g,
+    label: t(`texts.g_${g}`, g),
+    children: <div>{items.filter((i) => i.group === g).map(renderCard)}</div>,
+  }));
 
   return (
     <div>
-      <Title level={4} style={{ marginTop: 0 }}>
-        {t("texts.title")}
-      </Title>
-      <Paragraph type="secondary">{t("texts.subtitle")}</Paragraph>
+      <PageHeader
+        title={t("texts.title")}
+        subtitle={t("texts.subtitle")}
+        extra={
+          <Input.Search
+            placeholder={t("texts.search")}
+            allowClear
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 240 }}
+          />
+        }
+      />
       <Card size="small" style={{ marginBottom: 16 }}>
         <Text type="secondary">{t("texts.emoji_hint")}</Text>
       </Card>
-      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        {items.map((it) => {
-          const dirty = (drafts[it.key] ?? "") !== it.value;
-          return (
-            <Card
-              key={it.key}
-              title={label(it.key)}
-              size="small"
-              extra={
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<SaveOutlined />}
-                  loading={savingKey === it.key}
-                  disabled={!dirty}
-                  onClick={() => save(it.key)}
-                >
-                  {t("texts.save")}
-                </Button>
-              }
-            >
-              {it.variables.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <Text type="secondary" style={{ marginInlineEnd: 6 }}>
-                    {t("texts.variables")}:
-                  </Text>
-                  {it.variables.map((v) => (
-                    <Tag key={v} className="mono">{`{${v}}`}</Tag>
-                  ))}
-                </div>
-              )}
-              <Input.TextArea
-                value={drafts[it.key] ?? ""}
-                onChange={(e) =>
-                  setDrafts((d) => ({ ...d, [it.key]: e.target.value }))
-                }
-                autoSize={{ minRows: 3, maxRows: 14 }}
-                dir="auto"
-              />
-            </Card>
-          );
-        })}
-      </Space>
+      {filtered ? (
+        <div>{filtered.length ? filtered.map(renderCard) : <Text type="secondary">{t("texts.noMatch")}</Text>}</div>
+      ) : (
+        <Tabs items={tabItems} />
+      )}
     </div>
   );
 }

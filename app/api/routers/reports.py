@@ -7,6 +7,7 @@ breakdown loops the known payment types (simple filters, no group_by surprises).
 
 from datetime import datetime as dt
 from datetime import timedelta as td
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from tortoise.functions import Count, Sum
@@ -40,37 +41,65 @@ async def _sum(queryset, field: str = "amount") -> int:
     return int((rows[0]["s"] if rows else 0) or 0)
 
 
+def _parse_date(s: Optional[str]):
+    if not s:
+        return None
+    try:
+        return dt.fromisoformat(s)
+    except ValueError:
+        return None
+
+
 @router.get("/summary", response_model=ReportsOut)
 async def summary(
     _: User = Depends(require_role(User.Role.admin)),
     days: int = Query(30, ge=1, le=365),
+    start: Optional[str] = None,  # ISO date; overrides `days` when given
+    end: Optional[str] = None,
 ) -> ReportsOut:
     now = dt.now()
-    since = now - td(days=days)
+    start_dt = _parse_date(start)
+    if start_dt is not None:
+        since = start_dt
+        end_dt = _parse_date(end)
+        # date-only end → include the whole day
+        until = (end_dt + td(days=1)) if end_dt else now
+        days = max(1, (until - since).days)
+    else:
+        since = now - td(days=days)
+        until = now
 
-    sales_total = await _sum(Invoice.filter(is_draft=False, created_at__gte=since))
+    def _rng(q):
+        return q.filter(created_at__gte=since, created_at__lt=until)
+
+    sales_total = await _sum(_rng(Invoice.filter(is_draft=False)))
     income_total = await _sum(
-        Transaction.filter(status=Transaction.Status.finished, created_at__gte=since),
-        "amount_paid",
+        _rng(Transaction.filter(status=Transaction.Status.finished)), "amount_paid"
     )
-    orders = await Proxy.filter(created_at__gte=since).count()
-    new_users = await User.filter(created_at__gte=since).count()
+    orders = await _rng(Proxy.all()).count()
+    new_users = await _rng(User.all()).count()
+    total_tx = await _rng(Transaction.all()).count()
+    finished_tx = await _rng(
+        Transaction.filter(status=Transaction.Status.finished)
+    ).count()
+    failed_payments = max(0, total_tx - finished_tx)
 
-    # per-day revenue series (capped at 30 points), bucketed in Python
-    series_days = min(days, 30)
-    series_since = now - td(days=series_days)
+    # per-day revenue series (capped at 60 points), bucketed in Python
+    series_days = min(days, 60)
+    series_since = until - td(days=series_days)
     inv_rows = await Invoice.filter(
-        is_draft=False, created_at__gte=series_since
+        is_draft=False, created_at__gte=series_since, created_at__lt=until
     ).values("created_at", "amount")
     buckets: dict[str, int] = {}
     for r in inv_rows:
         d = r["created_at"]
         key = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)[:10]
         buckets[key] = buckets.get(key, 0) + int(r["amount"] or 0)
+    anchor = until - td(seconds=1)  # last inclusive instant of the range
     series = [
         ReportPoint(
-            date=(now - td(days=i)).strftime("%Y-%m-%d"),
-            amount=buckets.get((now - td(days=i)).strftime("%Y-%m-%d"), 0),
+            date=(anchor - td(days=i)).strftime("%Y-%m-%d"),
+            amount=buckets.get((anchor - td(days=i)).strftime("%Y-%m-%d"), 0),
         )
         for i in range(series_days, -1, -1)
     ]
@@ -78,8 +107,8 @@ async def summary(
     # payment breakdown by type (finished only)
     breakdown: list[PaymentBreakdownItem] = []
     for ty, name in TYPE_NAMES.items():
-        base = Transaction.filter(
-            status=Transaction.Status.finished, type=ty, created_at__gte=since
+        base = _rng(
+            Transaction.filter(status=Transaction.Status.finished, type=ty)
         )
         count = await base.count()
         if count == 0:
@@ -108,10 +137,13 @@ async def summary(
 
     return ReportsOut(
         days=days,
+        start=since.strftime("%Y-%m-%d"),
+        end=(until - td(seconds=1)).strftime("%Y-%m-%d"),
         sales_total=sales_total,
         income_total=income_total,
         orders=orders,
         new_users=new_users,
+        failed_payments=failed_payments,
         revenue_series=series,
         payment_breakdown=breakdown,
         top_services=top_services,

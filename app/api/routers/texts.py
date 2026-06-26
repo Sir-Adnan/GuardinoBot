@@ -44,6 +44,25 @@ _TEXTS: dict[str, list[str]] = {
 }
 _DIRTY = "texts:dirty"
 
+# Tab/category for each key (UI grouping only).
+_GROUPS: dict[str, str] = {
+    "start": "general",
+    "main_menu": "general",
+    "command_not_found": "general",
+    "purchase": "sales",
+    "charge": "sales",
+    "proxy_help": "support",
+    "support": "support",
+    "help": "support",
+    "force_join": "access",
+    "verify_phone_number": "access",
+    "referral_banner_text": "access",
+    "alert_expiry": "alerts",
+    "alert_low_data": "alerts",
+    "alert_unused": "alerts",
+    "alert_ended": "alerts",
+}
+
 
 @router.get("", response_model=TextsOut)
 async def get_texts(
@@ -53,7 +72,12 @@ async def get_texts(
     raw = {r["_key"]: r["_value"] for r in rows}
     return TextsOut(
         items=[
-            TextItem(key=k, value=raw.get(k) or "", variables=v)
+            TextItem(
+                key=k,
+                value=raw.get(k) or "",
+                variables=v,
+                group=_GROUPS.get(k, "general"),
+            )
             for k, v in _TEXTS.items()
         ]
     )

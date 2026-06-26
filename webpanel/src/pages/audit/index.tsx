@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { Card, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { App as AntdApp, Button, Card, DatePicker, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
+import type { Dayjs } from "dayjs";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtDate, fmtToman } from "../../utils/format";
+import { PageHeader } from "../../components/PageHeader";
 
 const { Text } = Typography;
+const { RangePicker } = DatePicker;
 
 const SOURCE_COLORS: Record<string, string> = {
   web: "blue",
@@ -27,24 +31,51 @@ export function AuditPage() {
   const [pageSize, setPageSize] = useState(30);
   const [source, setSource] = useState<string | undefined>();
   const [search, setSearch] = useState("");
+  const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
+  const { message } = AntdApp.useApp();
+
+  const filterParams = () => ({
+    source: source || undefined,
+    search: search || undefined,
+    start: range ? range[0].format("YYYY-MM-DD") : undefined,
+    end: range ? range[1].format("YYYY-MM-DD") : undefined,
+  });
 
   useEffect(() => {
     setLoading(true);
     api
-      .get("/audit", {
-        params: {
-          page,
-          per_page: pageSize,
-          source: source || undefined,
-          search: search || undefined,
-        },
-      })
+      .get("/audit", { params: { page, per_page: pageSize, ...filterParams() } })
       .then((r) => {
         setRows(r.data.items ?? []);
         setTotal(r.data.total ?? 0);
       })
       .finally(() => setLoading(false));
-  }, [page, pageSize, source, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, source, search, range]);
+
+  const exportCsv = async () => {
+    try {
+      const r = await api.get("/audit", { params: { page: 1, per_page: 1000, ...filterParams() } });
+      const items: any[] = r.data.items ?? [];
+      const esc = (s: any) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+      const lines = ["time,actor,role,source,action,target_type,target,amount,detail"];
+      items.forEach((a) =>
+        lines.push(
+          [a.created_at, a.actor_name || a.actor_id, a.actor_role_name, a.source, a.action, a.target_type, a.target_label || a.target_id, a.amount ?? "", JSON.stringify(a.detail ?? {})]
+            .map(esc)
+            .join(","),
+        ),
+      );
+      const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const el = document.createElement("a");
+      el.href = URL.createObjectURL(blob);
+      el.download = `audit_${new Date().toISOString().slice(0, 10)}.csv`;
+      el.click();
+      URL.revokeObjectURL(el.href);
+    } catch {
+      message.error(t("actions.failed"));
+    }
+  };
 
   const actionLabel = (a: string) => {
     const k = `audit.a.${a}`;
@@ -106,32 +137,49 @@ export function AuditPage() {
 
   return (
     <Card>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Input.Search
-          allowClear
-          placeholder={t("audit.search")}
-          style={{ width: 240 }}
-          onSearch={(v) => {
-            setSearch(v);
-            setPage(1);
-          }}
-        />
-        <Select
-          allowClear
-          placeholder={t("audit.source")}
-          style={{ width: 150 }}
-          value={source}
-          onChange={(v) => {
-            setSource(v);
-            setPage(1);
-          }}
-          options={[
-            { value: "web", label: t("audit.src.web") },
-            { value: "bot", label: t("audit.src.bot") },
-            { value: "system", label: t("audit.src.system") },
-          ]}
-        />
-      </Space>
+      <PageHeader
+        title={t("audit.title")}
+        subtitle={t("audit.subtitle")}
+        extra={
+          <Space wrap>
+            <Input.Search
+              allowClear
+              placeholder={t("audit.search")}
+              style={{ width: 220 }}
+              onSearch={(v) => {
+                setSearch(v);
+                setPage(1);
+              }}
+            />
+            <Select
+              allowClear
+              placeholder={t("audit.source")}
+              style={{ width: 140 }}
+              value={source}
+              onChange={(v) => {
+                setSource(v);
+                setPage(1);
+              }}
+              options={[
+                { value: "web", label: t("audit.src.web") },
+                { value: "bot", label: t("audit.src.bot") },
+                { value: "system", label: t("audit.src.system") },
+              ]}
+            />
+            <RangePicker
+              value={range as any}
+              onChange={(v) => {
+                setRange(v && v[0] && v[1] ? [v[0], v[1]] : null);
+                setPage(1);
+              }}
+              allowClear
+            />
+            <Button icon={<DownloadOutlined />} onClick={exportCsv}>
+              {t("reports.export")}
+            </Button>
+          </Space>
+        }
+      />
       <Table
         rowKey="id"
         loading={loading}

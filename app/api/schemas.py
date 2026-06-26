@@ -95,6 +95,15 @@ class DashboardOut(BaseModel):
     proxies_total: int
     proxies_active: int
     blocked_users: int
+    today_sales: int = 0  # Σ non-draft invoices today
+    today_income: int = 0  # Σ finished tx amount_paid today
+    month_sales: int = 0
+    month_income: int = 0
+    servers_total: int = 0
+    servers_enabled: int = 0
+    pending_payments: int = 0  # non-finished tx in last 30d
+    orders_today: int = 0  # subscriptions created today
+    revenue_spark: list[int] = []  # last 14 days' invoice totals (oldest→newest)
 
 
 # -- servers (panels) ---------------------------------------------------------
@@ -297,10 +306,13 @@ class TopServiceItem(BaseModel):
 
 class ReportsOut(BaseModel):
     days: int
+    start: Optional[str] = None  # effective range (ISO date), echoed back
+    end: Optional[str] = None
     sales_total: int  # Σ non-draft invoices in range (value of what was sold)
     income_total: int  # Σ finished transactions' amount_paid (actual money in)
     orders: int  # subscriptions created in range
     new_users: int
+    failed_payments: int  # non-finished transactions created in range
     revenue_series: list[ReportPoint]
     payment_breakdown: list[PaymentBreakdownItem]
     top_services: list[TopServiceItem]
@@ -332,6 +344,10 @@ class ResellerDetail(ResellerListItem):
     parent_id: Optional[int] = None
 
 
+class PromoteResellerIn(BaseModel):
+    identifier: str  # numeric id or @username of the user to promote
+
+
 # -- discounts ----------------------------------------------------------------
 class DiscountListItem(BaseModel):
     id: int
@@ -350,6 +366,28 @@ class DiscountListItem(BaseModel):
 class DiscountsPage(BaseModel):
     items: list[DiscountListItem]
     total: int
+
+
+class DiscountCreateIn(BaseModel):
+    code: Optional[str] = None  # blank → auto-generated
+    percentage: int
+    on_purchase: bool = True
+    on_renew: bool = False
+    once_per_user: bool = False
+    use_counts: Optional[int] = None  # null = unlimited
+    expires_at: Optional[datetime] = None
+    is_active: bool = True
+
+
+class DiscountUpdateIn(BaseModel):
+    code: Optional[str] = None
+    percentage: Optional[int] = None
+    on_purchase: Optional[bool] = None
+    on_renew: Optional[bool] = None
+    once_per_user: Optional[bool] = None
+    use_counts: Optional[int] = None
+    expires_at: Optional[datetime] = None
+    is_active: Optional[bool] = None
 
 
 # -- automation / broadcast ---------------------------------------------------
@@ -460,6 +498,7 @@ class TextItem(BaseModel):
     key: str
     value: str
     variables: list[str] = []
+    group: str = ""  # tab/category (general/sales/support/access/alerts)
 
 
 class TextsOut(BaseModel):

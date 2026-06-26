@@ -85,29 +85,41 @@ service provisioning picker).
 - **Remaining (minor):** a dedicated Orders view (currently Transactions covers payments); reseller
   scoping already applies to the detail (resellers see only their subtree).
 
-### P8 — Resellers: full management (web)
-Today: list/detail read-only.
-- Add/edit reseller; set wallet/credit + postpaid limit; margin/pricing; permissions;
-  subtree view; **"view as reseller"** (read-only support); reseller-scoped reports.
-- New: `resellers` POST/PATCH + wallet ops (audited, idempotent).
+### P8 — Resellers: full management (web) — ✅ done
+- **Promote** an existing user → reseller (`POST /resellers/promote` by id/@username, super-only,
+  audited) from the list.
+- **Detail = console** (tabbed: Overview · Sub-users · Subscriptions): edit (role/postpaid/credit
+  limit/discount %/test count/prefix) + **balance adjust** — reuses the P7 `users` PATCH + balance
+  endpoints (super-only, audited, same Transaction/Invoice math). Sub-users via
+  `GET /resellers/{id}/children`; subscriptions via `/proxies?user_id=`.
+- **Remaining (minor):** dedicated wallet/margin model beyond discount %, explicit permission
+  flags, and read-only **"view as reseller"** impersonation (deferred — needs auth scoping).
 
-### P9 — Reports & Analytics: complete + Jalali (web)
-Today: a single summary endpoint + CSS bar-chart.
-- **Date-range picker** (from→to) + presets (today/7d/30d/this month/custom).
-- Reports: Sales · Revenue · Reseller · Usage · Payment-breakdown · Top plans · New users ·
-  Failed payments · Refunds. Lightweight charts + CSV/Excel export.
-- **Jalali (Shamsi) dates** everywhere (toggle Gregorian/Jalali), incl. range pickers + axes.
-  Shared date util (dayjs + jalaali plugin); default from Settings; numbers locale-aware.
+### P9 — Reports & Analytics: complete + Jalali (web) — ✅ core done
+- **Date range**: `/reports/summary` now takes `start`/`end` (ISO) overriding `days`; correct
+  `created_at__gte/__lt` bounds + range echoed back. Web: preset Segmented (7/30/90) **+ custom
+  RangePicker** + range shown in the header.
+- **Metrics**: added **failed/incomplete payments** (non-finished tx in range) as a 5th KPI;
+  Sales · Income · Orders · New users · Failed already covered; payment breakdown + top services.
+- **Jalali display**: series tooltips + header range render via `formatDay` (P11a util) → follows
+  the global calendar toggle. **CSV export** of KPIs + breakdown + series.
+- **Remaining (P9b):** a true **Jalali date-picker** for selection (RangePicker is Gregorian for
+  now; presets cover most cases) + Reseller/Usage/Refunds report breakdowns + Excel export.
 
-### P10 — Finish the half-done pages (web)
-- **Discounts**: full CRUD + usage stats (today: list + toggle).
+### P10 — Finish the half-done pages (web) — ⏳ in progress
+- ✅ **Discounts**: full CRUD — `discounts` router POST/PATCH/DELETE (percentage 0..100 guard,
+  auto-generated code, unique-code 409, M2M-safe delete, audited create/update/delete); web page
+  = add/edit modal (code·%·max-uses·expiry·flags) + delete + PageHeader. (was list + toggle.)
 - **Automation**: broadcast compose (text/media + target filters) + schedule + reminders config
   + low-balance config + job monitor + logs. (Actual broadcast send = the §17.1 bot worker;
   add the cross-process trigger.)
-- **Audit**: complete filters (date range·actor·action·source) + detail drawer + export.
-- **Texts**: tabbed by area (start/purchase/account/alerts/errors/…), search, live preview,
-  premium-emoji helper.
-- Force-join editor; payment-gateway config (sensitive, guarded, secrets masked).
+- ✅ **Texts**: tabbed by area (general/sales/support/access/alerts) + search; per-card save +
+  variables + premium-emoji helper. Backend adds `group` to each curated key.
+- ✅ **Audit**: added **date-range** filter (`start`/`end`) + **CSV export** (current filters,
+  up to 1000 rows) + PageHeader; detail drawer + source/search filters already existed.
+- **Remaining:** **Automation** (broadcast compose + schedule + reminders/low-balance config +
+  job monitor — needs the §17.1 bot worker + a cross-process trigger); Force-join editor;
+  payment-gateway config (sensitive, guarded, secrets masked).
 
 ### P11 — UI/UX overhaul (web) — split foundation vs polish
 **P11a (foundation) — ⏳ in progress:**
@@ -118,11 +130,12 @@ Today: a single summary endpoint + CSS bar-chart.
 - ✅ `components/PageHeader.tsx` (consistent title/subtitle/actions) — adopt across pages in P5+.
 - [ ] Remaining: tab/section shell + breadcrumbs adoption, dashboard widget scaffold, responsive
   table→card helper, move font/calendar defaults into a Settings "Appearance" tab (server-side).
-**P11b (polish, do LAST):** dashboard pro (KPI cards: today sales · orders ok/fail · active
-users · revenue · Guardino balance · panel health · job status; mini-charts; recent activity;
-low-balance alerts); **minimal/cleaner icon set** (one family, consistent weight); more theme
-presets + density (compact/comfortable); full responsive audit (mobile drawer nav); empty/skeleton
-states; micro-interactions.
+**P11b (polish):**
+- ✅ **Dashboard pro**: enriched `/dashboard/summary` (today/30d sales + income, orders today,
+  servers enabled/total, pending payments, 14-day revenue spark); redesigned page = income hero +
+  sparkline + grouped KPI cards (Sales / Ops) with clean icon chips + PageHeader.
+- [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on
+  mobile), empty/skeleton states, low-balance/panel-health widgets on the dashboard, micro-interactions.
 
 ### P12 — Bot (Telegram) UX overhaul
 Goal: the customer-facing bot looks premium and converts better (customers browse/buy here).
