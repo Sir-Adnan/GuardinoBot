@@ -134,9 +134,11 @@ service provisioning picker).
 - ✅ **Shared `StatCard`** — polished KPI card whose value uses the **inherited (configured) font**
   + tabular-nums (fixes the hard-coded-mono bug where dashboard/report numbers ignored the font
   picker).
-- ✅ **Dashboard redesign**: enriched `/dashboard/summary` (today/30d/all-time sales + income,
-  active users, resellers, orders today, servers enabled/total, pending payments, 14-day spark);
-  gradient income **hero** + tooltip sparkline + grouped `StatCard` sections (Sales / Ops).
+- ✅ **Dashboard redesign — neumorphic**: enriched `/dashboard/summary` (today/30d/all-time sales
+  + income, active users, resellers, orders today, servers enabled/total, pending payments, 14-day
+  spark); full **neumorphism** style (dual soft shadows on a same-colour surface, light/dark-aware
+  via ColorModeContext): raised hero (big today-income + inset mini-stats + inset sparkline panel)
+  + raised KPI cards with **inset icon chips**, grouped sections. Numbers use the configured font.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
 - [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on
