@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -123,6 +123,44 @@ class ServiceListItem(BaseModel):
 class ServicesPage(BaseModel):
     items: list[ServiceListItem]
     total: int
+
+
+class ServiceDetail(ServiceListItem):
+    all_inbounds: bool = False
+    inbounds: Optional[Any] = None  # raw provisioning (Marzban) — read-only here
+    panel_config: Optional[Any] = None  # PasarGuard groups / Guardino nodes — read-only
+    flow: Optional[str] = None
+    one_time_only: bool = False
+    users_only: bool = False
+    create_on_hold_users: bool = False
+    usage_reset_strategy: str = "no_reset"
+    append_available_data_renew: bool = False
+    priority: int = 0
+    proxies_count: int = 0  # how many proxies reference it (delete guard)
+    reserves_count: int = 0  # active reserves (RESTRICT — block delete)
+
+
+class ServiceUpdateIn(BaseModel):
+    name: Optional[str] = None
+    data_limit: Optional[int] = None
+    expire_duration: Optional[int] = None
+    price: Optional[int] = None
+    purchaseable: Optional[bool] = None
+    renewable: Optional[bool] = None
+    is_test_service: Optional[bool] = None
+    one_time_only: Optional[bool] = None
+    resellers_only: Optional[bool] = None
+    users_only: Optional[bool] = None
+    create_on_hold_users: Optional[bool] = None
+    usage_reset_strategy: Optional[str] = None
+    append_available_data_renew: Optional[bool] = None
+    flow: Optional[str] = None  # "" / "none" → no flow; "xtls-rprx-vision"
+    button_icon: Optional[str] = None
+    button_style: Optional[str] = None
+
+
+class ServiceReorderIn(BaseModel):
+    ids: list[int]  # full ordered list of service ids → priority = index
 
 
 class ServiceButtonUpdateIn(BaseModel):

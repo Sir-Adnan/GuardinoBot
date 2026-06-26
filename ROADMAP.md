@@ -49,14 +49,15 @@ Immediate / carry-over (do anytime):
 > management and IS allowed. Never expose panel/payment/DB credentials. Reseller scoping holds.
 
 ### P5 — Plans & Sales: full CRUD + ordering (web)
-Today: Services page is read-only (+ per-service button emoji). Build real management.
-- Create / edit / delete services; **drag-reorder** (writes `priority`, re-index).
-- All fields: name, data_limit, expire, price, discount attach, menu attach, flags
-  (purchaseable·renewable·test·one_time·resellers_only·users_only·on_hold·reset_strategy·flow).
-- **Panel-aware provisioning** via `panel_config`: Marzban inbounds picker · PasarGuard group
-  picker · Guardino node picker (mirror the bot's admin service builder).
-- Folds in the per-service button emoji/style form (done).
-- New: `services` router POST/PATCH/DELETE + `/reorder`; web Services → tabbed editor + DnD.
+**P5a — ✅ done:** edit (all simple fields + 8 flags + reset_strategy + flow + button emoji/style),
+**reorder** (↑↓ → `POST /services/reorder`, priority=index), **delete** (guarded: 409 if proxies/
+reserves reference it — Proxy=SET_NULL, Reserve=RESTRICT), **duplicate** (`POST /{id}/duplicate`
+clones provisioning as a non-purchaseable draft → edit; M2M not copied). `services` router gained
+`GET /{id}` (ServiceDetail) + PATCH/DELETE/duplicate/reorder, all audited; web Services page = full
+edit modal (GB/days inputs) + PageHeader. data_limit↔GB, expire↔days handled in the form.
+**P5b — remaining:** create-from-scratch with the **panel-aware provisioning picker** (Marzban
+inbounds · PasarGuard groups · Guardino nodes — needs adapter `get_inbounds`/groups/nodes
+endpoints) + discount/menu attach UI + true drag-and-drop reorder. (Duplicate covers "new plan" for now.)
 
 ### P6 — Panels & Nodes: full CRUD (web)
 Today: Servers page is view + health/toggle only.

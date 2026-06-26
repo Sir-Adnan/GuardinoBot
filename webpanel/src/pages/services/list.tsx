@@ -1,54 +1,115 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   App as AntdApp,
   Button,
   Card,
+  Divider,
+  Form,
   Input,
+  InputNumber,
   Modal,
+  Popconfirm,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
+  Tooltip,
+  Typography,
 } from "antd";
-import { EditOutlined } from "@ant-design/icons";
-import { useList } from "@refinedev/core";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  EditOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { fmtToman } from "../../utils/format";
 import { api } from "../../providers/axios";
+import { fmtToman } from "../../utils/format";
+import { PageHeader } from "../../components/PageHeader";
 
-const gb = (b: number) =>
-  b ? `${(b / 1073741824).toFixed(b % 1073741824 ? 1 : 0)} GB` : "∞";
+const { Text } = Typography;
+const GBYTE = 1073741824;
+const toGb = (b: number) => (b ? +(b / GBYTE).toFixed(2) : 0);
+const toBytes = (gb: number) => Math.round((gb || 0) * GBYTE);
 
 export function ServiceList() {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
-  const { data, isLoading, refetch } = useList<any>({
-    resource: "services",
-    pagination: { current: 1, pageSize: 100 },
-  });
-
+  const [form] = Form.useForm();
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
-  const [icon, setIcon] = useState("");
-  const [style, setStyle] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const openEdit = (r: any) => {
-    setEditing(r);
-    setIcon(r.button_icon ?? "");
-    setStyle(r.button_style ?? "");
+  const load = () =>
+    api
+      .get("/services", { params: { per_page: 200 } })
+      .then((r) => setRows(r.data.items ?? []))
+      .catch(() => message.error(t("actions.failed")));
+
+  useEffect(() => {
+    load().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openEdit = async (id: number) => {
+    try {
+      const r = await api.get(`/services/${id}`);
+      const d = r.data;
+      setEditing(d);
+      form.resetFields();
+      form.setFieldsValue({
+        name: d.name,
+        price: d.price,
+        data_gb: toGb(d.data_limit),
+        expire_days: d.expire_duration ? Math.round(d.expire_duration / 86400) : 0,
+        purchaseable: d.purchaseable,
+        renewable: d.renewable,
+        is_test_service: d.is_test_service,
+        one_time_only: d.one_time_only,
+        resellers_only: d.resellers_only,
+        users_only: d.users_only,
+        create_on_hold_users: d.create_on_hold_users,
+        append_available_data_renew: d.append_available_data_renew,
+        usage_reset_strategy: d.usage_reset_strategy || "no_reset",
+        flow: d.flow || "",
+        button_icon: d.button_icon ?? "",
+        button_style: d.button_style ?? "",
+      });
+      setOpen(true);
+    } catch {
+      message.error(t("actions.failed"));
+    }
   };
 
-  const save = async () => {
+  const submit = async (v: any) => {
     if (!editing) return;
     setSaving(true);
     try {
-      await api.patch(`/services/${editing.id}/button`, {
-        button_icon: icon,
-        button_style: style,
+      await api.patch(`/services/${editing.id}`, {
+        name: v.name,
+        price: v.price ?? 0,
+        data_limit: toBytes(v.data_gb),
+        expire_duration: Math.round((v.expire_days || 0) * 86400),
+        purchaseable: !!v.purchaseable,
+        renewable: !!v.renewable,
+        is_test_service: !!v.is_test_service,
+        one_time_only: !!v.one_time_only,
+        resellers_only: !!v.resellers_only,
+        users_only: !!v.users_only,
+        create_on_hold_users: !!v.create_on_hold_users,
+        append_available_data_renew: !!v.append_available_data_renew,
+        usage_reset_strategy: v.usage_reset_strategy,
+        flow: v.flow || "",
+        button_icon: v.button_icon || "",
+        button_style: v.button_style || "",
       });
-      message.success(t("services.btn_saved"));
-      setEditing(null);
-      refetch();
+      message.success(t("services.saved"));
+      setOpen(false);
+      await load();
     } catch (e: any) {
       message.error(e?.response?.data?.detail || t("actions.failed"));
     } finally {
@@ -56,15 +117,43 @@ export function ServiceList() {
     }
   };
 
-  const styleOpts = [
-    { value: "", label: t("services.btn_no_color") },
-    { value: "primary", label: t("buttons.style_primary") },
-    { value: "success", label: t("buttons.style_success") },
-    { value: "danger", label: t("buttons.style_danger") },
-  ];
+  const duplicate = async (id: number) => {
+    try {
+      const r = await api.post(`/services/${id}/duplicate`);
+      message.success(t("services.duplicated"));
+      await load();
+      openEdit(r.data.id); // open the new draft for editing
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+    }
+  };
+
+  const remove = async (id: number) => {
+    try {
+      await api.delete(`/services/${id}`);
+      message.success(t("actions.deleted"));
+      await load();
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+    }
+  };
+
+  const move = async (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    setRows(next);
+    try {
+      await api.post("/services/reorder", { ids: next.map((r) => r.id) });
+    } catch {
+      message.error(t("actions.failed"));
+      load();
+    }
+  };
 
   const columns = [
-    { title: t("services.id"), dataIndex: "id", width: 70, className: "mono" },
+    { title: t("services.id"), dataIndex: "id", width: 64, className: "mono" },
     {
       title: t("services.name"),
       dataIndex: "name",
@@ -78,13 +167,18 @@ export function ServiceList() {
     {
       title: t("services.server"),
       dataIndex: "server_name",
-      render: (v: string) => v || "—",
+      render: (v: string, r: any) => (
+        <Space size={4}>
+          {v || "—"}
+          {r.panel_type && <Tag>{r.panel_type}</Tag>}
+        </Space>
+      ),
     },
     {
       title: t("services.dataLimit"),
       dataIndex: "data_limit",
       className: "mono",
-      render: (v: number) => gb(v),
+      render: (v: number) => (v ? `${toGb(v)} GB` : "∞"),
     },
     {
       title: t("services.duration"),
@@ -114,51 +208,177 @@ export function ServiceList() {
       ),
     },
     {
+      title: t("services.order"),
+      key: "order",
+      width: 78,
+      render: (_: any, __: any, i: number) => (
+        <Space size={0}>
+          <Button
+            type="text"
+            size="small"
+            icon={<ArrowUpOutlined />}
+            disabled={i === 0}
+            onClick={() => move(i, -1)}
+          />
+          <Button
+            type="text"
+            size="small"
+            icon={<ArrowDownOutlined />}
+            disabled={i === rows.length - 1}
+            onClick={() => move(i, 1)}
+          />
+        </Space>
+      ),
+    },
+    {
       title: t("services.actions"),
       key: "actions",
-      width: 110,
+      width: 130,
       render: (_: any, r: any) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
-          {t("services.btn_edit")}
-        </Button>
+        <Space size={2}>
+          <Tooltip title={t("services.btn_edit_full")}>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r.id)} />
+          </Tooltip>
+          <Tooltip title={t("services.duplicate")}>
+            <Button size="small" icon={<CopyOutlined />} onClick={() => duplicate(r.id)} />
+          </Tooltip>
+          <Popconfirm
+            title={t("services.deleteConfirm")}
+            okButtonProps={{ danger: true }}
+            onConfirm={() => remove(r.id)}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
 
+  const flowOpts = [
+    { value: "", label: t("services.flow_none") },
+    { value: "xtls-rprx-vision", label: "xtls-rprx-vision" },
+  ];
+  const resetOpts = ["no_reset", "day", "week", "month", "year"].map((k) => ({
+    value: k,
+    label: t(`services.reset_${k}`),
+  }));
+  const styleOpts = [
+    { value: "", label: t("services.btn_no_color") },
+    { value: "primary", label: t("buttons.style_primary") },
+    { value: "success", label: t("buttons.style_success") },
+    { value: "danger", label: t("buttons.style_danger") },
+  ];
+
   return (
     <Card>
+      <PageHeader title={t("services.title")} subtitle={t("services.subtitle")} />
       <Table
         rowKey="id"
-        loading={isLoading}
-        dataSource={data?.data ?? []}
+        loading={loading}
+        dataSource={rows}
         columns={columns}
-        scroll={{ x: 940 }}
+        scroll={{ x: 1040 }}
         pagination={false}
       />
+
       <Modal
-        open={!!editing}
-        title={`${t("services.btn_edit")} — ${editing?.name ?? ""}`}
-        onCancel={() => setEditing(null)}
-        onOk={save}
+        open={open}
+        title={`${t("services.btn_edit_full")} — ${editing?.name ?? ""}`}
+        onCancel={() => setOpen(false)}
+        onOk={() => form.submit()}
         confirmLoading={saving}
         okText={t("buttons.save")}
+        width={640}
+        destroyOnClose
       >
-        <p style={{ color: "#888", fontSize: 13 }}>{t("services.btn_hint")}</p>
-        <div style={{ marginBottom: 6 }}>{t("services.btn_icon")}</div>
-        <Input
-          allowClear
-          placeholder={t("buttons.emoji_id_ph")}
-          value={icon}
-          onChange={(e) => setIcon(e.target.value)}
-          style={{ marginBottom: 14 }}
-        />
-        <div style={{ marginBottom: 6 }}>{t("services.btn_style")}</div>
-        <Select
-          style={{ width: "100%" }}
-          options={styleOpts}
-          value={style}
-          onChange={setStyle}
-        />
+        {editing && (editing.proxies_count > 0 || editing.reserves_count > 0) && (
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t("services.inUseHint", {
+              proxies: editing.proxies_count,
+              reserves: editing.reserves_count,
+            })}
+          </Text>
+        )}
+        <Form form={form} layout="vertical" onFinish={submit} preserve={false}>
+          <Divider orientation="left" plain>
+            {t("services.sec_basic")}
+          </Divider>
+          <Space style={{ display: "flex" }} align="start" wrap>
+            <Form.Item name="name" label={t("services.name")} rules={[{ required: true }]} style={{ flex: 1, minWidth: 220 }}>
+              <Input maxLength={64} />
+            </Form.Item>
+            <Form.Item name="price" label={`${t("services.price")} (تومان)`}>
+              <InputNumber min={0} style={{ width: 160 }} />
+            </Form.Item>
+          </Space>
+          <Space wrap>
+            <Form.Item name="data_gb" label={`${t("services.dataLimit")} (GB, 0=∞)`}>
+              <InputNumber min={0} step={0.5} style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item name="expire_days" label={`${t("services.duration")} (${t("services.days")}, 0=∞)`}>
+              <InputNumber min={0} style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item name="usage_reset_strategy" label={t("services.reset")}>
+              <Select options={resetOpts} style={{ width: 150 }} />
+            </Form.Item>
+          </Space>
+
+          <Divider orientation="left" plain>
+            {t("services.sec_flags")}
+          </Divider>
+          <Space wrap size="large">
+            <Form.Item name="purchaseable" label={t("services.f_purchaseable")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="renewable" label={t("services.f_renewable")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="is_test_service" label={t("services.f_test")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="one_time_only" label={t("services.f_one_time")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="resellers_only" label={t("services.f_resellers")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="users_only" label={t("services.f_users")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="create_on_hold_users" label={t("services.f_on_hold")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="append_available_data_renew" label={t("services.f_append")} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+          </Space>
+
+          <Divider orientation="left" plain>
+            {t("services.sec_button")}
+          </Divider>
+          <Space wrap>
+            <Form.Item name="flow" label="flow">
+              <Select options={flowOpts} style={{ width: 200 }} />
+            </Form.Item>
+            <Form.Item name="button_icon" label={t("services.btn_icon")} style={{ minWidth: 220 }}>
+              <Input allowClear placeholder={t("buttons.emoji_id_ph")} />
+            </Form.Item>
+            <Form.Item name="button_style" label={t("services.btn_style")}>
+              <Select options={styleOpts} style={{ width: 150 }} />
+            </Form.Item>
+          </Space>
+
+          {editing?.panel_type !== "marzban" && editing?.panel_config && (
+            <>
+              <Divider orientation="left" plain>
+                {t("services.sec_provisioning")} ({editing?.panel_type})
+              </Divider>
+              <pre style={{ fontSize: 11, maxHeight: 120, overflow: "auto", margin: 0 }}>
+                {JSON.stringify(editing.panel_config, null, 2)}
+              </pre>
+            </>
+          )}
+        </Form>
       </Modal>
     </Card>
   );
