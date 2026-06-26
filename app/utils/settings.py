@@ -27,6 +27,7 @@ from app.plugins.payment.tronseller import tronado
 
 list_of_int_adapter = TypeAdapter(list[int])
 dict_of_str_str_adapter = TypeAdapter(dict[str, str])
+list_of_list_str_adapter = TypeAdapter(list[list[str]])
 
 
 class UsernameGenerators(str, Enum):
@@ -113,6 +114,11 @@ class Settings(BaseModel):
     button_styles: dict[str, str] = {}
     # Inline-button text override (rename). key -> custom label; not premium-gated.
     button_texts: dict[str, str] = {}
+    # Main (reply) menu layout: ordered rows of button keys (see
+    # app/utils/buttons.MAIN_MENU_DEFAULT_LAYOUT). Empty = built-in default.
+    # Controls visibility (omitted key = hidden), order, and row grouping only —
+    # routing is text-based, so layout edits never affect handlers.
+    main_menu_layout: list[list[str]] = []
 
     # --- User notification / proxy-alert system (jobs/proxy_alerts.py) ---
     alerts_enabled: bool = True  # master switch
@@ -187,6 +193,17 @@ class Settings(BaseModel):
                 return dict_of_str_str_adapter.validate_json(v)
             except ValidationError:
                 return {}
+        return v
+
+    @field_validator("main_menu_layout", mode="before")
+    def _validate_main_layout(cls, v: Any, info: ValidationInfo) -> list[list[str]]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return list_of_list_str_adapter.validate_json(v)
+            except ValidationError:
+                return []
         return v
 
     @classmethod

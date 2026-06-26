@@ -440,6 +440,9 @@ class ButtonsOut(BaseModel):
     items: list[ButtonItem]  # main-menu (reply) labels
     premium_enabled: bool = False
     inline: list[InlineButtonItem] = []  # inline buttons (premium emoji + colour)
+    # Effective main-menu layout: ordered rows of keys (default-resolved). Keys
+    # are ButtonItem keys + the "test_services" dynamic placeholder.
+    main_layout: list[list[str]] = []
 
 
 class ButtonsUpdateIn(BaseModel):
@@ -448,3 +451,4 @@ class ButtonsUpdateIn(BaseModel):
     icons: Optional[dict[str, str]] = None  # inline key -> custom_emoji_id
     styles: Optional[dict[str, str]] = None  # inline key -> style
     texts: Optional[dict[str, str]] = None  # inline key -> renamed text
+    main_layout: Optional[list[list[str]]] = None  # rows of main-menu keys ([] = default)

@@ -36,25 +36,37 @@ class MainMenu(ReplyKeyboardBuilder):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.button(text=self._lbl("purchase"))
-        if test_services:
-            for service in test_services:
-                self.button(text=service.display_name)
-        self.button(text=self._lbl("proxies"))
-        self.button(text=self._lbl("account"))
-        self.button(text=self._lbl("charge"))
-        if referral:
-            self.button(text=self._lbl("referral"))
-        self.button(text=self._lbl("help"))
-        self.button(text=self._lbl("support"))
-        orders = [1]
-        if test_services:
-            orders.append(len(test_services))
-        orders.append(3)
-        if referral:
-            orders.append(1)
-        orders.append(2)
-        if is_super_user:
+        from app.utils.settings import get_settings
+
+        layout = buttons.resolve_main_layout(get_settings().main_menu_layout)
+        rendered: set[str] = set()
+        orders: list[int] = []
+        for row in layout:
+            count = 0
+            for key in row:
+                if key == "test_services":
+                    for service in test_services:
+                        self.button(text=service.display_name)
+                        count += 1
+                elif key == "referral":
+                    if referral:
+                        self.button(text=self._lbl("referral"))
+                        count += 1
+                        rendered.add(key)
+                elif key == "admin_menu":
+                    if is_super_user:
+                        self.button(text=self._lbl("admin_menu"))
+                        count += 1
+                        rendered.add(key)
+                elif key in buttons.MAIN_MENU_BUTTONS:
+                    self.button(text=self._lbl(key))
+                    count += 1
+                    rendered.add(key)
+            if count:
+                orders.append(count)
+        # A super-user must never lose the admin entry, even if a customer-focused
+        # custom layout left it out.
+        if is_super_user and "admin_menu" not in rendered:
             self.button(text=self._lbl("admin_menu"))
             orders.append(1)
         self.adjust(*orders)

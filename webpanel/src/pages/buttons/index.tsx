@@ -5,15 +5,25 @@ import {
   Button,
   Card,
   Col,
+  Divider,
   Input,
   Row,
   Select,
+  Space,
   Spin,
   Switch,
   Tabs,
+  Tag,
+  Tooltip,
   Typography,
 } from "antd";
-import { SaveOutlined } from "@ant-design/icons";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 
@@ -33,6 +43,45 @@ interface InlineItem {
   default_style: string;
 }
 
+interface FlatBtn {
+  key: string;
+  brk: boolean; // starts a new row
+}
+
+// Editable main-menu keys (admin_menu is intentionally excluded — it's super-user
+// only and the bot always re-adds it). "test_services" is the dynamic placeholder.
+const EDIT_KEYS = [
+  "purchase",
+  "proxies",
+  "account",
+  "charge",
+  "referral",
+  "help",
+  "support",
+  "test_services",
+];
+
+const flatFromRows = (rows: string[][]): FlatBtn[] => {
+  const f: FlatBtn[] = [];
+  (rows || []).forEach((row) => {
+    (row || []).forEach((key, idx) => {
+      if (key === "admin_menu" || !EDIT_KEYS.includes(key)) return;
+      f.push({ key, brk: idx === 0 && f.length > 0 });
+    });
+  });
+  if (f.length) f[0].brk = false;
+  return f;
+};
+
+const rowsFromFlat = (flat: FlatBtn[]): string[][] => {
+  const rows: string[][] = [];
+  flat.forEach((it, i) => {
+    if (i === 0 || it.brk) rows.push([it.key]);
+    else rows[rows.length - 1].push(it.key);
+  });
+  return rows;
+};
+
 export function ButtonsPage() {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
@@ -45,6 +94,7 @@ export function ButtonsPage() {
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [styles, setStyles] = useState<Record<string, string>>({});
   const [premium, setPremium] = useState(false);
+  const [flat, setFlat] = useState<FlatBtn[]>([]);
 
   const apply = (d: any) => {
     const li: BtnItem[] = d.items ?? [];
@@ -56,7 +106,28 @@ export function ButtonsPage() {
     setIcons(Object.fromEntries(ii.map((i) => [i.key, i.icon])));
     setStyles(Object.fromEntries(ii.map((i) => [i.key, i.style])));
     setPremium(Boolean(d.premium_enabled));
+    setFlat(flatFromRows(d.main_layout ?? []));
   };
+
+  const moveFlat = (i: number, dir: -1 | 1) =>
+    setFlat((f) => {
+      const j = i + dir;
+      if (j < 0 || j >= f.length) return f;
+      const c = [...f];
+      [c[i], c[j]] = [c[j], c[i]];
+      if (c.length) c[0].brk = false;
+      return c;
+    });
+  const toggleBrk = (i: number) =>
+    setFlat((f) => f.map((it, idx) => (idx === i ? { ...it, brk: !it.brk } : it)));
+  const disableBtn = (i: number) =>
+    setFlat((f) => {
+      const c = f.filter((_, idx) => idx !== i);
+      if (c.length) c[0].brk = false;
+      return c;
+    });
+  const enableBtn = (key: string) =>
+    setFlat((f) => [...f, { key, brk: true }]);
 
   useEffect(() => {
     api
@@ -76,6 +147,7 @@ export function ButtonsPage() {
         icons,
         styles,
         texts,
+        main_layout: rowsFromFlat(flat),
       });
       apply(r.data);
       message.success(t("buttons.saved"));
@@ -112,30 +184,111 @@ export function ButtonsPage() {
       label: t("buttons.tab_menu"),
       children: (
         <>
-          <Card size="small" style={{ marginBottom: 16 }}>
-            <Text type="secondary">{t("buttons.hint")}</Text>
-          </Card>
-          <Row gutter={16}>
-            {labelItems.map((it) => (
-              <Col xs={24} sm={12} key={it.key}>
-                <div style={{ marginBottom: 4 }}>
-                  {label(it.key)}{" "}
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    ({t("buttons.default")}: {it.default})
-                  </Text>
-                </div>
-                <Input
-                  allowClear
-                  placeholder={it.default}
-                  value={labels[it.key] ?? ""}
-                  onChange={(e) =>
-                    setLabels((s) => ({ ...s, [it.key]: e.target.value }))
-                  }
-                  style={{ marginBottom: 12 }}
-                />
-              </Col>
+          <Card
+            size="small"
+            title={t("buttons.layout_title")}
+            style={{ marginBottom: 16 }}
+          >
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={t("buttons.layout_hint")}
+            />
+            {flat.map((it, i) => (
+              <div key={`${it.key}-${i}`}>
+                {it.brk && i > 0 && (
+                  <Divider plain style={{ margin: "8px 0", fontSize: 12 }}>
+                    {t("buttons.new_row")}
+                  </Divider>
+                )}
+                <Space
+                  style={{
+                    width: "100%",
+                    justifyContent: "space-between",
+                    padding: "4px 0",
+                  }}
+                >
+                  <Text>{label(it.key)}</Text>
+                  <Space size={4}>
+                    <Tooltip title={t("buttons.new_row")}>
+                      <Switch
+                        size="small"
+                        checkedChildren="↵"
+                        checked={it.brk}
+                        disabled={i === 0}
+                        onChange={() => toggleBrk(i)}
+                      />
+                    </Tooltip>
+                    <Button
+                      size="small"
+                      icon={<ArrowUpOutlined />}
+                      disabled={i === 0}
+                      onClick={() => moveFlat(i, -1)}
+                    />
+                    <Button
+                      size="small"
+                      icon={<ArrowDownOutlined />}
+                      disabled={i === flat.length - 1}
+                      onClick={() => moveFlat(i, 1)}
+                    />
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => disableBtn(i)}
+                    />
+                  </Space>
+                </Space>
+              </div>
             ))}
-          </Row>
+            {EDIT_KEYS.filter((k) => !flat.some((f) => f.key === k)).length >
+              0 && (
+              <>
+                <Divider plain style={{ margin: "12px 0", fontSize: 12 }}>
+                  {t("buttons.disabled")}
+                </Divider>
+                <Space wrap>
+                  {EDIT_KEYS.filter((k) => !flat.some((f) => f.key === k)).map(
+                    (k) => (
+                      <Tag
+                        key={k}
+                        icon={<PlusOutlined />}
+                        style={{ cursor: "pointer", padding: "4px 8px" }}
+                        onClick={() => enableBtn(k)}
+                      >
+                        {label(k)}
+                      </Tag>
+                    ),
+                  )}
+                </Space>
+              </>
+            )}
+          </Card>
+          <Card size="small" title={t("buttons.labels_title")}>
+            <Text type="secondary">{t("buttons.hint")}</Text>
+            <Row gutter={16} style={{ marginTop: 12 }}>
+              {labelItems.map((it) => (
+                <Col xs={24} sm={12} key={it.key}>
+                  <div style={{ marginBottom: 4 }}>
+                    {label(it.key)}{" "}
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      ({t("buttons.default")}: {it.default})
+                    </Text>
+                  </div>
+                  <Input
+                    allowClear
+                    placeholder={it.default}
+                    value={labels[it.key] ?? ""}
+                    onChange={(e) =>
+                      setLabels((s) => ({ ...s, [it.key]: e.target.value }))
+                    }
+                    style={{ marginBottom: 12 }}
+                  />
+                </Col>
+              ))}
+            </Row>
+          </Card>
         </>
       ),
     },

@@ -32,8 +32,10 @@ from app.utils.audit import record_audit
 from app.utils.buttons import (
     DEFAULT_STYLES,
     INLINE_BUTTONS,
+    MAIN_LAYOUT_KEYS,
     MAIN_MENU_BUTTONS,
     STYLES,
+    resolve_main_layout,
 )
 
 router = APIRouter(prefix="/buttons", tags=["buttons"])
@@ -42,6 +44,7 @@ _LABELS = "button_labels"
 _ICONS = "button_icons"
 _BTN_STYLES = "button_styles"
 _TEXTS = "button_texts"
+_LAYOUT = "main_menu_layout"
 _ENABLED = "premium_buttons_enabled"
 _DIRTY = "settings:dirty"
 
@@ -55,6 +58,17 @@ async def _read_json(key: str) -> dict:
         return v if isinstance(v, dict) else {}
     except (ValueError, TypeError):
         return {}
+
+
+async def _read_list(key: str) -> list:
+    rows = await BotSetting.filter(_key=key).values("_value")
+    if not rows or not rows[0]["_value"]:
+        return []
+    try:
+        v = json.loads(rows[0]["_value"])
+        return v if isinstance(v, list) else []
+    except (ValueError, TypeError):
+        return []
 
 
 async def _read_bool(key: str) -> bool:
@@ -84,6 +98,7 @@ async def _out() -> ButtonsOut:
             )
             for k, label in INLINE_BUTTONS.items()
         ],
+        main_layout=resolve_main_layout(await _read_list(_LAYOUT)),
     )
 
 
@@ -147,6 +162,15 @@ async def update_buttons(
             for k, v in body.texts.items()
             if k in INLINE_BUTTONS and str(v).strip()
         }
+
+    if body.main_layout is not None:
+        # Keep only known keys; drop empty rows. Stored [] resets to the default.
+        cleaned = [
+            [k for k in row if k in MAIN_LAYOUT_KEYS]
+            for row in body.main_layout
+            if isinstance(row, list)
+        ]
+        changes[_LAYOUT] = [row for row in cleaned if row]
 
     if changes:
         await BotSetting.update(**changes)

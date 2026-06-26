@@ -19,8 +19,9 @@
 - [ ] Verify Phase 3 (premium emoji on inline buttons) renders on a real deploy with a
       Premium owner account; if aiogram 3.4.1 drops the extra fields, add a raw-payload
       sender (httpx → Bot API) or bump aiogram. See **Phase 3** below.
-- [ ] **Phase 4a (cont.)** — extend inline coverage to the **admin** keyboards + shared
-      back/confirm buttons. User-facing flows (account/purchase/payment/renew) already done.
+- [ ] **Phase 4a (cont.)** — remaining *customer-facing* inline buttons (shared back/confirm,
+      reserve panel, links/QR). Admin keyboards are **out of scope** (owner: focus on the
+      customer UI). User flows (account/purchase/payment/renew) already done.
 - [ ] Phase 2 polish: user/proxy **detail pages with tabs** (Overview·Links·Orders·
       Payments·Panel Status·Logs), skeletons + empty states.
 - [ ] Plan file `delightful-crafting-micali.md`: add-panel / edit-service bug fixes +
@@ -83,14 +84,15 @@ Goal owner asked for: edit **every** bot button (text + premium emoji + colour),
 buttons with **actions**, group them into **sections**, and fully customize the **main reply
 menu** (the post-/start buttons that drive customer first-impression + retention). Big +
 architectural → build per stage, confirm each before starting.
-- **4a — Cover all inline buttons** (low risk, incremental): extend `INLINE_BUTTONS` to every
-  inline keyboard (purchase, category, account, payment, renew, admin) so rename/emoji/colour
-  already built in Phase 3 apply everywhere. Pure registry + `premium_button(key=...)` swaps.
-- **4b — Main reply-menu builder** (medium): today only label-override exists (`button_labels`).
-  Add **enable/disable**, **reorder**, **row layout**, and **per-button emoji** for the main menu.
-  Constraint: reply-button text is the routing key → keep the `button_labels` reverse-map
-  middleware; a disabled button must also drop its handler entry. Reply buttons can't carry
-  `icon_custom_emoji_id` (inline only) → "emoji" here means a normal/unicode emoji in the label.
+- **4a — Cover inline buttons** ✅ (customer-facing): `INLINE_BUTTONS` now covers account /
+  purchase / payment / renew / proxy-panel (rename + emoji + colour). Admin keyboards **out of
+  scope** (owner decision). Remaining customer back/confirm/reserve buttons → 4a (cont.) above.
+- **4b — Main reply-menu builder** ✅: `main_menu_layout` setting (ordered rows of keys, empty =
+  default) drives `keyboards/base.MainMenu`. Web editor (Buttons → Main-menu tab): enable/disable
+  (remove = hide), reorder (↑↓), row grouping (↵ new-row), + the existing per-button label/emoji.
+  Routing stays text-based (no handler change); super-admins always keep the admin button.
+  Per-button premium `icon_custom_emoji_id` is inline-only, so reply buttons use unicode emoji in
+  the label. `sync_settings.py` reloads via `settings:dirty`. No migration (key-value setting).
 - **4c — Dynamic custom buttons + actions** (large, needs design + DB model + migration):
   super-admin defines a NEW button with an **action type** (open URL · open a service menu ·
   show a text/page · trigger support · run a safe whitelisted command) and a **placement**
@@ -129,6 +131,10 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
   low-data / unused / ended with **self-healing dedup** (flag drops when condition clears).
   Throttled non-blocking send + glass renew/links buttons. 4 Persian templates (`texts.alert_*`)
   + 9 settings, both editable in the web panel.
+- ✅ **Phase 4a/4b — Button customization (customer-facing)** — inline rename + premium emoji +
+  colour across account/purchase/payment/renew/proxy-panel; double-emoji auto-fix; main reply-menu
+  builder (`main_menu_layout`: enable/disable + reorder + row layout). Web Buttons page (2 tabs).
+  Admin buttons out of scope. No migration (key-value settings).
 - ✅ **Fix §17.2** — reseller test-service counting (`record_purchase_service` uses `user.role`;
   unified Redis key + `count >= limit`).
 
@@ -140,6 +146,8 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
 - **Web panel goal is bot operations, not re-creating upstream panels** (Guardino Hub etc.).
   Cover sales/management/support/reporting through the same §6 adapter for all three panels.
 - **Premium buttons** default OFF; safe fallback always; inline-only; emoji needs owner Premium.
+- **Button customization targets the customer UI only** — admin buttons + the ⚙️ admin-panel
+  menu are deliberately NOT made premium/customizable (focus is customer attraction/retention).
 - **Backend FastAPI + Frontend React/Refine/AntD** (RTL, Vazirmatn, emerald, dark+light, responsive).
 - **The API process must never import `app.main`** (it pulls payment plugins). Routers touch
   `BotSetting`/`BotText` directly + dirty-flags.

@@ -24,6 +24,38 @@ MAIN_MENU_BUTTONS: dict[str, str] = {
 }
 
 
+# Default main-menu layout: ordered rows of keys, reproducing the historical
+# adjust(1, [tests], 3, 1, 2, [admin]) arrangement. "test_services" is a dynamic
+# placeholder (expands to the available test-service buttons); "referral" and
+# "admin_menu" render only when their condition holds (see keyboards/base.py).
+MAIN_MENU_DEFAULT_LAYOUT: list[list[str]] = [
+    ["purchase"],
+    ["test_services"],
+    ["proxies", "account", "charge"],
+    ["referral"],
+    ["help", "support"],
+    ["admin_menu"],
+]
+
+# Keys allowed inside a layout row (real buttons + the test-services placeholder).
+MAIN_LAYOUT_KEYS: set[str] = set(MAIN_MENU_BUTTONS) | {"test_services"}
+
+
+def resolve_main_layout(overrides: list | None) -> list[list[str]]:
+    """Effective main-menu layout: the admin override (cleaned of unknown keys
+    and empty rows) if it has any content, else the built-in default."""
+    if isinstance(overrides, list) and any(overrides):
+        cleaned = [
+            [k for k in row if k in MAIN_LAYOUT_KEYS]
+            for row in overrides
+            if isinstance(row, list)
+        ]
+        cleaned = [row for row in cleaned if row]
+        if cleaned:
+            return cleaned
+    return MAIN_MENU_DEFAULT_LAYOUT
+
+
 def resolve(key: str, overrides: dict | None) -> str:
     """Custom label for ``key`` if set & non-empty, else the built-in default."""
     default = MAIN_MENU_BUTTONS[key]
