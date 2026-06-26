@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Col,
-  Divider,
   Form,
   Input,
   InputNumber,
@@ -12,6 +11,7 @@ import {
   Select,
   Spin,
   Switch,
+  Tabs,
   Typography,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
@@ -79,7 +79,6 @@ export function SettingsPage() {
   const save = async (values: any) => {
     setSaving(true);
     try {
-      // mode="tags" Select yields strings; the API expects list[int].
       const payload = {
         ...values,
         charge_amount_list: toNumbers(values.charge_amount_list),
@@ -103,26 +102,33 @@ export function SettingsPage() {
     );
   }
 
-  return (
-    <Card>
-      <Title level={4} style={{ marginTop: 0 }}>
-        {t("settings.title")}
-      </Title>
-      <Text type="secondary">{t("settings.subtitle")}</Text>
+  const switchItem = (k: string) => (
+    <Col xs={24} sm={12} md={8} key={k}>
+      <Form.Item name={k} label={t(`settings.${k}`)} valuePropName="checked">
+        <Switch />
+      </Form.Item>
+    </Col>
+  );
+  const numberItem = (k: string) => (
+    <Col xs={24} sm={12} md={8} key={k}>
+      <Form.Item name={k} label={t(`settings.${k}`)}>
+        <InputNumber style={{ width: "100%" }} min={0} />
+      </Form.Item>
+    </Col>
+  );
 
-      <Form form={form} layout="vertical" onFinish={save} style={{ marginTop: 16 }}>
-        <Divider orientation="left">{t("settings.behavior")}</Divider>
-        <Row gutter={16}>
-          {SWITCHES.map((k) => (
-            <Col xs={24} sm={12} md={8} key={k}>
-              <Form.Item name={k} label={t(`settings.${k}`)} valuePropName="checked">
-                <Switch />
-              </Form.Item>
-            </Col>
-          ))}
-        </Row>
-
-        <Divider orientation="left">{t("settings.values")}</Divider>
+  const tabItems = [
+    {
+      key: "general",
+      label: t("settings.behavior"),
+      forceRender: true,
+      children: <Row gutter={16}>{SWITCHES.map(switchItem)}</Row>,
+    },
+    {
+      key: "values",
+      label: t("settings.values"),
+      forceRender: true,
+      children: (
         <Row gutter={16}>
           <Col xs={24} sm={12} md={8}>
             <Form.Item
@@ -132,16 +138,15 @@ export function SettingsPage() {
               <Input />
             </Form.Item>
           </Col>
-          {NUMBERS.map((k) => (
-            <Col xs={24} sm={12} md={8} key={k}>
-              <Form.Item name={k} label={t(`settings.${k}`)}>
-                <InputNumber style={{ width: "100%" }} min={0} />
-              </Form.Item>
-            </Col>
-          ))}
+          {NUMBERS.map(numberItem)}
         </Row>
-
-        <Divider orientation="left">{t("settings.advanced")}</Divider>
+      ),
+    },
+    {
+      key: "advanced",
+      label: t("settings.advanced"),
+      forceRender: true,
+      children: (
         <Row gutter={16}>
           <Col xs={24} sm={12} md={8}>
             <Form.Item
@@ -192,25 +197,30 @@ export function SettingsPage() {
             </Col>
           ))}
         </Row>
-
-        <Divider orientation="left">{t("settings.alerts")}</Divider>
+      ),
+    },
+    {
+      key: "alerts",
+      label: t("settings.alerts"),
+      forceRender: true,
+      children: (
         <Row gutter={16}>
-          {ALERT_SWITCHES.map((k) => (
-            <Col xs={24} sm={12} md={8} key={k}>
-              <Form.Item name={k} label={t(`settings.${k}`)} valuePropName="checked">
-                <Switch />
-              </Form.Item>
-            </Col>
-          ))}
-          {ALERT_NUMBERS.map((k) => (
-            <Col xs={24} sm={12} md={8} key={k}>
-              <Form.Item name={k} label={t(`settings.${k}`)}>
-                <InputNumber style={{ width: "100%" }} min={0} />
-              </Form.Item>
-            </Col>
-          ))}
+          {ALERT_SWITCHES.map(switchItem)}
+          {ALERT_NUMBERS.map(numberItem)}
         </Row>
+      ),
+    },
+  ];
 
+  return (
+    <Card>
+      <Title level={4} style={{ marginTop: 0 }}>
+        {t("settings.title")}
+      </Title>
+      <Text type="secondary">{t("settings.subtitle")}</Text>
+
+      <Form form={form} layout="vertical" onFinish={save} style={{ marginTop: 16 }}>
+        <Tabs defaultActiveKey="general" items={tabItems} />
         <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>
           {t("settings.save")}
         </Button>

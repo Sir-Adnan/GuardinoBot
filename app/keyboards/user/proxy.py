@@ -5,6 +5,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.keyboards.admin import user
+from app.keyboards.premium import premium_button
 from app.keyboards.user import account, payment
 from app.models.proxy import Proxy, ProxyStatus
 from app.models.user import UserSetting
@@ -245,14 +246,17 @@ class ProxyPanel(InlineKeyboardBuilder):
         super().__init__(*args, **kwargs)
         if proxy.status in [ProxyStatus.active, ProxyStatus.on_hold]:
             if _settings.show_connect_links_button:
-                self.button(
-                    text="🔗 دریافت لینک‌های اتصال",
-                    callback_data=self.Callback(
-                        proxy_id=proxy.id,
-                        user_id=user_id,
-                        current_page=current_page,
-                        action=ProxyPanelActions.links,
-                    ),
+                self.add(
+                    premium_button(
+                        text="🔗 دریافت لینک‌های اتصال",
+                        key="proxy_links",
+                        callback_data=self.Callback(
+                            proxy_id=proxy.id,
+                            user_id=user_id,
+                            current_page=current_page,
+                            action=ProxyPanelActions.links,
+                        ),
+                    )
                 )
             else:
                 self.button(
@@ -265,54 +269,69 @@ class ProxyPanel(InlineKeyboardBuilder):
                     ),
                 )
             if _settings.reset_password_button:
-                self.button(
-                    text="🔑 تغییر پسوورد",
-                    callback_data=self.Callback(
-                        proxy_id=proxy.id,
-                        user_id=user_id,
-                        current_page=current_page,
-                        action=ProxyPanelActions.reset_password,
-                    ),
+                self.add(
+                    premium_button(
+                        text="🔑 تغییر پسوورد",
+                        key="proxy_reset_password",
+                        callback_data=self.Callback(
+                            proxy_id=proxy.id,
+                            user_id=user_id,
+                            current_page=current_page,
+                            action=ProxyPanelActions.reset_password,
+                        ),
+                    )
                 )
             if can_disable:
-                self.button(
-                    text="🚫 غیرفعال سازی موقت",
-                    callback_data=self.Callback(
-                        proxy_id=proxy.id,
-                        user_id=user_id,
-                        current_page=current_page,
-                        action=ProxyPanelActions.disable,
-                    ),
+                self.add(
+                    premium_button(
+                        text="🚫 غیرفعال سازی موقت",
+                        key="proxy_disable",
+                        callback_data=self.Callback(
+                            proxy_id=proxy.id,
+                            user_id=user_id,
+                            current_page=current_page,
+                            action=ProxyPanelActions.disable,
+                        ),
+                    )
                 )
         else:
             if can_enable:
-                self.button(
-                    text="✅ فعال سازی",
+                self.add(
+                    premium_button(
+                        text="✅ فعال سازی",
+                        key="proxy_enable",
+                        callback_data=self.Callback(
+                            proxy_id=proxy.id,
+                            user_id=user_id,
+                            current_page=current_page,
+                            action=ProxyPanelActions.enable,
+                        ),
+                    )
+                )
+            self.add(
+                premium_button(
+                    text="🗑 حذف از لیست اشتراک‌های من",
+                    key="proxy_remove",
                     callback_data=self.Callback(
                         proxy_id=proxy.id,
                         user_id=user_id,
                         current_page=current_page,
-                        action=ProxyPanelActions.enable,
+                        action=ProxyPanelActions.remove,
                     ),
                 )
-            self.button(
-                text="🗑 حذف از لیست اشتراک‌های من",
-                callback_data=self.Callback(
-                    proxy_id=proxy.id,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=ProxyPanelActions.remove,
-                ),
             )
         if renewable:
-            self.button(
-                text="♻️ تمدید سرویس",
-                callback_data=self.Callback(
-                    proxy_id=proxy.id,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=ProxyPanelActions.renew,
-                ),
+            self.add(
+                premium_button(
+                    text="♻️ تمدید سرویس",
+                    key="proxy_renew",
+                    callback_data=self.Callback(
+                        proxy_id=proxy.id,
+                        user_id=user_id,
+                        current_page=current_page,
+                        action=ProxyPanelActions.renew,
+                    ),
+                )
             )
         self.button(
             text="✏️ تنظیم اسم دلخواه",
@@ -787,14 +806,17 @@ class ProxySettings(InlineKeyboardBuilder):
 
 def alert_renew_keyboard(proxy_id: int):
     """Single inline 'renew' button for proxy-alert messages → opens the standard
-    renew flow for that proxy (the existing ProxyPanel renew callback). Inline
-    button labels are callback-routed, so the text is safe to restyle."""
+    renew flow for that proxy (the existing ProxyPanel renew callback). Supports
+    an optional premium-emoji icon + colour (see app.keyboards.premium)."""
     kb = InlineKeyboardBuilder()
-    kb.button(
-        text="🔄 تمدید سرویس",
-        callback_data=ProxyPanel.Callback(
-            proxy_id=proxy_id, action=ProxyPanelActions.renew
-        ),
+    kb.add(
+        premium_button(
+            text="🔄 تمدید سرویس",
+            key="alert_renew",
+            callback_data=ProxyPanel.Callback(
+                proxy_id=proxy_id, action=ProxyPanelActions.renew
+            ),
+        )
     )
     return kb.as_markup()
 
@@ -803,10 +825,13 @@ def alert_links_keyboard(proxy_id: int):
     """Inline 'connection links' button for the 'unused subscription' alert →
     opens the proxy's links so the user can finally connect."""
     kb = InlineKeyboardBuilder()
-    kb.button(
-        text="🔗 دریافت لینک اتصال",
-        callback_data=ProxyPanel.Callback(
-            proxy_id=proxy_id, action=ProxyPanelActions.links
-        ),
+    kb.add(
+        premium_button(
+            text="🔗 دریافت لینک اتصال",
+            key="alert_links",
+            callback_data=ProxyPanel.Callback(
+                proxy_id=proxy_id, action=ProxyPanelActions.links
+            ),
+        )
     )
     return kb.as_markup()

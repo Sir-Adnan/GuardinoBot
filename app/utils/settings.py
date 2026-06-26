@@ -104,6 +104,14 @@ class Settings(BaseModel):
     # key falls back to the hard-coded default in app/utils/buttons.py).
     button_labels: dict[str, str] = {}
 
+    # Premium/custom-emoji + colour on INLINE buttons (Bot API
+    # icon_custom_emoji_id + style). Master switch defaults OFF, so behaviour is
+    # unchanged until the super-admin opts in (and the bot owner has Premium for
+    # custom emoji). key -> custom_emoji_id / key -> style.
+    premium_buttons_enabled: bool = False
+    button_icons: dict[str, str] = {}
+    button_styles: dict[str, str] = {}
+
     # --- User notification / proxy-alert system (jobs/proxy_alerts.py) ---
     alerts_enabled: bool = True  # master switch
     notify_expiry_enabled: bool = True
@@ -166,8 +174,8 @@ class Settings(BaseModel):
                 return {}
         return v
 
-    @field_validator("button_labels", mode="before")
-    def _validate_button_labels(cls, v: Any, info: ValidationInfo) -> dict[str, str]:
+    @field_validator("button_labels", "button_icons", "button_styles", mode="before")
+    def _validate_str_dict(cls, v: Any, info: ValidationInfo) -> dict[str, str]:
         if v is None:
             return {}
         if isinstance(v, str):

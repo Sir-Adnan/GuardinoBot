@@ -427,9 +427,22 @@ class ButtonItem(BaseModel):
     value: str  # current custom label, or "" when using the default
 
 
+class InlineButtonItem(BaseModel):
+    key: str
+    label: str
+    icon: str = ""  # configured custom_emoji_id, or ""
+    style: str = ""  # configured colour (primary/success/danger), or ""
+    default_style: str = ""
+
+
 class ButtonsOut(BaseModel):
-    items: list[ButtonItem]
+    items: list[ButtonItem]  # main-menu (reply) labels
+    premium_enabled: bool = False
+    inline: list[InlineButtonItem] = []  # inline buttons (premium emoji + colour)
 
 
 class ButtonsUpdateIn(BaseModel):
-    labels: dict[str, str]  # key -> custom label ("" / missing = reset to default)
+    labels: Optional[dict[str, str]] = None  # key -> custom label ("" = default)
+    premium_enabled: Optional[bool] = None
+    icons: Optional[dict[str, str]] = None  # inline key -> custom_emoji_id
+    styles: Optional[dict[str, str]] = None  # inline key -> style

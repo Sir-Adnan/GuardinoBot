@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import { authProvider } from "./providers/authProvider";
 import { dataProvider } from "./providers/dataProvider";
-import { darkTheme, lightTheme } from "./theme";
+import { makeTheme } from "./theme";
 import { ColorModeContext, type ColorMode } from "./contexts/color-mode";
 import { AppLayout } from "./components/Layout";
 import { LoginPage } from "./pages/login";
@@ -36,6 +36,9 @@ export default function App() {
   const [mode, setMode] = useState<ColorMode>(
     (localStorage.getItem("theme") as ColorMode) || "dark",
   );
+  const [accent, setAccentState] = useState<string>(
+    localStorage.getItem("accent") || "emerald",
+  );
   const { i18n } = useTranslation();
   const direction: "rtl" | "ltr" = i18n.language === "en" ? "ltr" : "rtl";
 
@@ -45,6 +48,11 @@ export default function App() {
     localStorage.setItem("theme", next);
   };
 
+  const setAccent = (a: string) => {
+    setAccentState(a);
+    localStorage.setItem("accent", a);
+  };
+
   useEffect(() => {
     document.documentElement.dir = direction;
     document.documentElement.lang = i18n.language;
@@ -52,11 +60,11 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <ColorModeContext.Provider value={{ mode, toggle }}>
+      <ColorModeContext.Provider value={{ mode, toggle, accent, setAccent }}>
         <ConfigProvider
           direction={direction}
           locale={direction === "rtl" ? faIR : enUS}
-          theme={mode === "dark" ? darkTheme : lightTheme}
+          theme={makeTheme(accent, mode)}
         >
           <AntdApp>
             <Refine

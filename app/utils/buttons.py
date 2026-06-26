@@ -42,3 +42,48 @@ def reverse_map(overrides: dict | None) -> dict[str, str]:
         if custom and custom != default:
             out[custom] = default
     return out
+
+
+# --- INLINE (glass) buttons: premium-emoji icon + colour --------------------
+# Unlike the main menu (a reply keyboard, label-only), inline buttons support a
+# custom-emoji icon and a colour via the Bot API InlineKeyboardButton fields
+# `icon_custom_emoji_id` and `style`. These are the buttons the super-admin can
+# decorate from the web panel (key -> human label, for the editor UI).
+INLINE_BUTTONS: dict[str, str] = {
+    "proxy_renew": "♻️ تمدید سرویس",
+    "proxy_links": "🔗 دریافت لینک‌های اتصال",
+    "proxy_reset_password": "🔑 تغییر پسوورد",
+    "proxy_disable": "🚫 غیرفعال‌سازی موقت",
+    "proxy_enable": "✅ فعال‌سازی",
+    "proxy_remove": "🗑 حذف از لیست",
+    "proxy_set_name": "✏️ تنظیم اسم دلخواه",
+    "alert_renew": "🔄 تمدید (آلارم)",
+    "alert_links": "🔗 لینک اتصال (آلارم)",
+}
+
+STYLES = ("primary", "success", "danger")
+
+# Sensible default colours, applied only when premium buttons are enabled and the
+# admin hasn't overridden the style for that key.
+DEFAULT_STYLES: dict[str, str] = {
+    "proxy_renew": "success",
+    "proxy_enable": "success",
+    "proxy_disable": "danger",
+    "proxy_remove": "danger",
+    "alert_renew": "success",
+    "alert_links": "primary",
+}
+
+
+def resolve_icon(key: str | None, icons: dict | None) -> str | None:
+    """Configured custom_emoji_id for ``key``, or None."""
+    if not key or not icons:
+        return None
+    return (icons.get(key) or "").strip() or None
+
+
+def resolve_style(key: str | None, styles: dict | None) -> str | None:
+    """Configured colour for ``key`` (override → default), or None if invalid."""
+    val = ((styles or {}).get(key) or "").strip() if key else ""
+    val = val or DEFAULT_STYLES.get(key or "", "")
+    return val if val in STYLES else None

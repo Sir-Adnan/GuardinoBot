@@ -30,7 +30,13 @@
     "loading": "Loading…",
     "retry": "Retry",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "accent": "Accent colour",
+    "accent_emerald": "Emerald",
+    "accent_blue": "Blue",
+    "accent_violet": "Violet",
+    "accent_rose": "Rose",
+    "accent_amber": "Amber"
   },
   "login": {
     "title": "Sign in to the panel",
@@ -277,11 +283,20 @@
   },
   "buttons": {
     "title": "Bot Buttons",
-    "subtitle": "Customise the main-menu button labels.",
-    "hint": "Only the main reply-menu buttons are editable. Standard emoji work; custom/premium emoji can't appear on Telegram buttons (use them in Bot Texts instead). Empty = keep the default. Show/hide toggles for optional buttons live in Settings.",
+    "subtitle": "Customise main-menu labels and inline-button premium emoji + colour.",
+    "hint": "Main reply-menu button labels (standard emoji only — custom emoji can't go on reply-keyboard buttons). Empty = keep the default. Show/hide toggles live in Settings.",
     "default": "Default",
     "save": "Save",
     "saved": "Buttons saved",
+    "tab_menu": "Main menu (labels)",
+    "tab_inline": "Inline buttons (premium)",
+    "premium_enabled": "Enable premium buttons",
+    "premium_hint": "Custom emoji + colour on inline (glass) buttons via the Bot API. The emoji icon requires the bot owner to have Telegram Premium (colour works without). Off = unchanged.",
+    "emoji_id_ph": "custom_emoji_id (numeric)",
+    "style_none": "Default",
+    "style_primary": "Primary (blue)",
+    "style_success": "Success (green)",
+    "style_danger": "Danger (red)",
     "k": {
       "purchase": "Buy subscription",
       "proxies": "My subscriptions",
@@ -290,7 +305,16 @@
       "referral": "Referral",
       "help": "Help",
       "support": "Support",
-      "admin_menu": "Admin panel"
+      "admin_menu": "Admin panel",
+      "proxy_renew": "Renew subscription",
+      "proxy_links": "Connection links",
+      "proxy_reset_password": "Change password",
+      "proxy_disable": "Disable (temp)",
+      "proxy_enable": "Enable",
+      "proxy_remove": "Remove from list",
+      "proxy_set_name": "Set custom name",
+      "alert_renew": "Alert · renew",
+      "alert_links": "Alert · links"
     }
   },
   "settings": {

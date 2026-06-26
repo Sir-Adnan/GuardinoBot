@@ -1,7 +1,8 @@
 import { theme as antdTheme, type ThemeConfig } from "antd";
+import type { ColorMode } from "./contexts/color-mode";
 
-// Translated from the Dashboard-Example-Theme-UI mockup: emerald accent,
-// Vazirmatn UI font, rounded corners, dark + light. (oklch → nearest hex.)
+// Translated from the Dashboard-Example-Theme-UI mockup: Vazirmatn UI font,
+// rounded corners, dark + light, with a selectable accent palette.
 const shared: ThemeConfig["token"] = {
   fontFamily: "'Vazirmatn', system-ui, -apple-system, sans-serif",
   borderRadius: 10,
@@ -11,21 +12,35 @@ const shared: ThemeConfig["token"] = {
   colorInfo: "#3b82f6",
 };
 
-export const lightTheme: ThemeConfig = {
-  algorithm: antdTheme.defaultAlgorithm,
-  token: {
-    ...shared,
-    colorPrimary: "#059669",
-    colorBgLayout: "#f6f7f9",
-  },
+export type AccentKey = "emerald" | "blue" | "violet" | "rose" | "amber";
+
+// Accent primary per mode (light / dark). Emerald is the default brand colour.
+const ACCENTS: Record<AccentKey, { light: string; dark: string }> = {
+  emerald: { light: "#059669", dark: "#34d399" },
+  blue: { light: "#2563eb", dark: "#60a5fa" },
+  violet: { light: "#7c3aed", dark: "#a78bfa" },
+  rose: { light: "#e11d48", dark: "#fb7185" },
+  amber: { light: "#d97706", dark: "#fbbf24" },
 };
 
-export const darkTheme: ThemeConfig = {
-  algorithm: antdTheme.darkAlgorithm,
-  token: {
-    ...shared,
-    colorPrimary: "#34d399",
-    colorBgLayout: "#13161c",
-    colorBgContainer: "#1b1f27",
-  },
-};
+export const ACCENT_KEYS = Object.keys(ACCENTS) as AccentKey[];
+
+export function accentColor(accent: string, mode: ColorMode): string {
+  const a = (ACCENTS as Record<string, { light: string; dark: string }>)[accent];
+  return (a ?? ACCENTS.emerald)[mode];
+}
+
+export function makeTheme(accent: string, mode: ColorMode): ThemeConfig {
+  const primary = accentColor(accent, mode);
+  return {
+    algorithm:
+      mode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    token: {
+      ...shared,
+      colorPrimary: primary,
+      ...(mode === "dark"
+        ? { colorBgLayout: "#13161c", colorBgContainer: "#1b1f27" }
+        : { colorBgLayout: "#f6f7f9" }),
+    },
+  };
+}

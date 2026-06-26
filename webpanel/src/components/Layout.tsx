@@ -3,6 +3,7 @@ import {
   Avatar,
   Button,
   Drawer,
+  Dropdown,
   Grid,
   Input,
   Layout,
@@ -17,6 +18,7 @@ import {
   AuditOutlined,
   BarChartOutlined,
   BellOutlined,
+  BgColorsOutlined,
   BulbOutlined,
   CloudServerOutlined,
   ClusterOutlined,
@@ -40,6 +42,7 @@ import { useTranslation } from "react-i18next";
 import { useGetIdentity, useLogout } from "@refinedev/core";
 
 import { ColorModeContext } from "../contexts/color-mode";
+import { ACCENT_KEYS, accentColor } from "../theme";
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -74,7 +77,7 @@ const TITLE_KEYS: Record<string, string> = {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
-  const { mode, toggle } = useContext(ColorModeContext);
+  const { mode, toggle, accent, setAccent } = useContext(ColorModeContext);
   const { token } = theme.useToken();
   const screens = useBreakpoint();
   const navigate = useNavigate();
@@ -282,6 +285,38 @@ export function AppLayout({ children }: { children: ReactNode }) {
               {i18n.language === "fa" ? "EN" : "FA"}
             </Button>
           </Tooltip>
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              selectable: true,
+              selectedKeys: [accent],
+              onClick: ({ key }) => setAccent(key),
+              items: ACCENT_KEYS.map((k) => ({
+                key: k,
+                label: (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <span
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        background: accentColor(k, mode),
+                        display: "inline-block",
+                      }}
+                    />
+                    {t(`common.accent_${k}`)}
+                  </span>
+                ),
+              })),
+            }}
+          >
+            <Tooltip title={t("common.accent")}>
+              <Button
+                type="text"
+                icon={<BgColorsOutlined style={{ color: accentColor(accent, mode) }} />}
+              />
+            </Tooltip>
+          </Dropdown>
           <Tooltip title={t("common.theme")}>
             <Button type="text" icon={<BulbOutlined />} onClick={toggle} />
           </Tooltip>
