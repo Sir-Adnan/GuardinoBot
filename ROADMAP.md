@@ -60,21 +60,30 @@ inbounds · PasarGuard groups · Guardino nodes — needs adapter `get_inbounds`
 endpoints) + discount/menu attach UI + true drag-and-drop reorder. (Duplicate covers "new plan" for now.)
 
 ### P6 — Panels & Nodes: full CRUD (web)
-Today: Servers page is view + health/toggle only.
-- Add panel (Marzban/PasarGuard token · Guardino reseller login, 2FA-aware) via the §6 adapter
-  validate flow; edit; enable/disable; delete (block if services/proxies attached); `link_policy`.
-- Browse PasarGuard **groups** / Guardino **nodes** (feeds the P5 service builder).
-- Credentials stored encrypted (`PasswordField`), **never returned**. Audited.
-- New: `servers` router POST/PATCH/DELETE + validate/groups/nodes endpoints.
+**P6 core — ✅ done:** add panel (validates the connection via §6 `fetch_token`/`login` +
+`validate` BEFORE saving — Marzban/PasarGuard token flow, Guardino reseller login with a clear
+"disable 2FA" error), edit (re-connects + refreshes the token when host/port/https/username/
+password change), delete (**blocked** if services/proxies attached — FK is CASCADE, would wipe
+live subs), `link_policy` (Guardino), health + enable/disable (existing). Credentials stored
+encrypted (`PasswordField`), password/token **never returned**; all audited (`server.add/update/
+delete`). `servers` router gained `GET /{id}` (ServerDetail) + POST/PATCH/DELETE; web Servers page
+= add/edit modal (panel picker, host/port/https, creds, link policy) + PageHeader.
+**P6b — remaining:** browse PasarGuard **groups** / Guardino **nodes** endpoints (feed the P5b
+service provisioning picker).
 
-### P7 — Users 360°: detail + actions (web)
-Today: list + block only. Make it a real support console.
-- **Detail page, tabbed**: Overview · Subscriptions · Orders · Payments · Logs.
-- Actions: block/unblock, charge/decharge (audited), role change, postpaid toggle + credit,
-  daily-test count, discount %, username prefix; **view & act on their proxies**
-  (enable/disable/reset/revoke/delete via the §6 adapter, audited).
-- List: show **username + numeric id together** (search by either), status chips, quick actions.
-- Decision: numeric id ALWAYS shown (owner) **plus** username for readability.
+### P7 — Users 360°: detail + actions (web) — ✅ done
+- **Detail page, tabbed**: Overview · Subscriptions · Transactions · Logs (Logs = super-only,
+  via `/audit?target_type=user&target_id=`). List already shows id + username (search by either).
+- **Overview actions**: block/unblock; **Edit** (role [super-only escalation guard], postpaid +
+  credit, daily-test count, discount %, username prefix → `PATCH /users/{id}`, audit `user.update`);
+  **Adjust balance** (super-only: charge→`Transaction(by_admin,finished)` / decharge→`Invoice(by_admin)`,
+  mirroring the bot so stats stay exact, audit `balance.adjust`).
+- **Subscriptions tab**: their proxies via `/proxies?user_id=` + enable/disable/reset/revoke/delete
+  (reuses the §6-backed proxy action/delete endpoints, audited).
+- Backend: `users` router gained `PATCH /{id}` + `POST /{id}/balance`; `UserDetail` enriched
+  (postpaid credit, test count, discount %, prefix, parent/referrer); `audit` got a `target_id` filter.
+- **Remaining (minor):** a dedicated Orders view (currently Transactions covers payments); reseller
+  scoping already applies to the detail (resellers see only their subtree).
 
 ### P8 — Resellers: full management (web)
 Today: list/detail read-only.

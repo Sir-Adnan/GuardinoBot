@@ -46,6 +46,7 @@ async def list_audit(
     source: Optional[str] = None,
     actor_id: Optional[int] = None,
     target_type: Optional[str] = None,
+    target_id: Optional[str] = None,
     search: Optional[str] = None,
 ) -> AuditPage:
     q = AuditLog.all().prefetch_related("actor")
@@ -57,6 +58,8 @@ async def list_audit(
         q = q.filter(actor_id=actor_id)
     if target_type:
         q = q.filter(target_type=target_type)
+    if target_id:
+        q = q.filter(target_id=str(target_id))
     if search:
         s = search.strip()
         q = q.filter(Q(target_label__icontains=s) | Q(action__icontains=s))

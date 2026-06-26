@@ -60,6 +60,26 @@ class UserDetail(UserListItem):
     is_verified: bool = False
     is_postpaid: bool = False
     proxies_count: int = 0
+    max_post_paid_credit: int = 0
+    daily_test_services: int = 0
+    discount_percentage: int = 0
+    proxy_username_prefix: Optional[str] = None
+    parent_id: Optional[int] = None
+    referrer_id: Optional[int] = None
+
+
+class UserUpdateIn(BaseModel):
+    role: Optional[int] = None  # 0..3 — role change requires super-admin
+    is_postpaid: Optional[bool] = None
+    max_post_paid_credit: Optional[int] = None
+    daily_test_services: Optional[int] = None
+    discount_percentage: Optional[int] = None
+    proxy_username_prefix: Optional[str] = None
+
+
+class BalanceAdjustIn(BaseModel):
+    amount: int  # > 0
+    direction: str  # "charge" (add) | "decharge" (subtract)
 
 
 class UsersPage(BaseModel):
@@ -100,6 +120,36 @@ class ServerHealth(BaseModel):
 class ServersPage(BaseModel):
     items: list[ServerListItem]
     total: int
+
+
+class ServerDetail(ServerListItem):
+    port: Optional[int] = None
+    https: bool = False
+    username: Optional[str] = None  # admin/reseller login name (NEVER the password/token)
+    services_count: int = 0
+    proxies_count: int = 0
+
+
+class ServerCreateIn(BaseModel):
+    host: str
+    port: Optional[int] = None
+    https: bool = False
+    panel_type: str  # marzban | pasarguard | guardino
+    username: str
+    password: str
+    name: Optional[str] = None
+    link_policy: Optional[str] = None  # guardino: master_first | node_first
+
+
+class ServerUpdateIn(BaseModel):
+    name: Optional[str] = None
+    is_enabled: Optional[bool] = None
+    link_policy: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    https: Optional[bool] = None
+    username: Optional[str] = None
+    password: Optional[str] = None  # provided → re-connect + refresh token
 
 
 # -- services (plans) ---------------------------------------------------------
