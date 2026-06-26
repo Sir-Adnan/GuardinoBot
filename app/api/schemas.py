@@ -104,6 +104,10 @@ class DashboardOut(BaseModel):
     pending_payments: int = 0  # non-finished tx in last 30d
     orders_today: int = 0  # subscriptions created today
     revenue_spark: list[int] = []  # last 14 days' invoice totals (oldest→newest)
+    total_sales: int = 0  # all-time Σ non-draft invoices
+    total_income: int = 0  # all-time Σ finished tx amount_paid
+    active_users: int = 0  # users with ≥1 active subscription
+    resellers_total: int = 0
 
 
 # -- servers (panels) ---------------------------------------------------------

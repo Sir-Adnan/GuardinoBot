@@ -131,11 +131,16 @@ service provisioning picker).
 - [ ] Remaining: tab/section shell + breadcrumbs adoption, dashboard widget scaffold, responsive
   table→card helper, move font/calendar defaults into a Settings "Appearance" tab (server-side).
 **P11b (polish):**
-- ✅ **Dashboard pro**: enriched `/dashboard/summary` (today/30d sales + income, orders today,
-  servers enabled/total, pending payments, 14-day revenue spark); redesigned page = income hero +
-  sparkline + grouped KPI cards (Sales / Ops) with clean icon chips + PageHeader.
+- ✅ **Shared `StatCard`** — polished KPI card whose value uses the **inherited (configured) font**
+  + tabular-nums (fixes the hard-coded-mono bug where dashboard/report numbers ignored the font
+  picker).
+- ✅ **Dashboard redesign**: enriched `/dashboard/summary` (today/30d/all-time sales + income,
+  active users, resellers, orders today, servers enabled/total, pending payments, 14-day spark);
+  gradient income **hero** + tooltip sparkline + grouped `StatCard` sections (Sales / Ops).
+- ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
+  payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
 - [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on
-  mobile), empty/skeleton states, low-balance/panel-health widgets on the dashboard, micro-interactions.
+  mobile), skeleton loaders, low-balance/panel-health widgets, micro-interactions.
 
 ### P12 — Bot (Telegram) UX overhaul
 Goal: the customer-facing bot looks premium and converts better (customers browse/buy here).

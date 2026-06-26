@@ -63,4 +63,8 @@ async def summary(_: User = Depends(require_role(User.Role.admin))) -> Dashboard
         .count(),
         orders_today=await Proxy.filter(created_at__gt=day_ago).count(),
         revenue_spark=spark,
+        total_sales=await _sum(Invoice.filter(is_draft=False)),
+        total_income=await _sum(Transaction.filter(status=fin), "amount_paid"),
+        active_users=await User.filter(proxies__status="active").distinct().count(),
+        resellers_total=await User.filter(role__gte=User.Role.reseller).count(),
     )
