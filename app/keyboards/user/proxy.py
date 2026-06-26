@@ -333,14 +333,17 @@ class ProxyPanel(InlineKeyboardBuilder):
                     ),
                 )
             )
-        self.button(
-            text="✏️ تنظیم اسم دلخواه",
-            callback_data=self.Callback(
-                proxy_id=proxy.id,
-                user_id=user_id,
-                current_page=current_page,
-                action=ProxyPanelActions.set_name,
-            ),
+        self.add(
+            premium_button(
+                text="✏️ تنظیم اسم دلخواه",
+                key="proxy_set_name",
+                callback_data=self.Callback(
+                    proxy_id=proxy.id,
+                    user_id=user_id,
+                    current_page=current_page,
+                    action=ProxyPanelActions.set_name,
+                ),
+            )
         )
         if show_reserve:
             self.button(
@@ -359,14 +362,17 @@ class ProxyPanel(InlineKeyboardBuilder):
                 ProxyStatus.limited,
             ]
         ):
-            self.button(
-                text="🗑 حذف و بازگشت وجه",
-                callback_data=self.Callback(
-                    proxy_id=proxy.id,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=ProxyPanelActions.delete_wpayback,
-                ),
+            self.add(
+                premium_button(
+                    text="🗑 حذف و بازگشت وجه",
+                    key="proxy_delete_payback",
+                    callback_data=self.Callback(
+                        proxy_id=proxy.id,
+                        user_id=user_id,
+                        current_page=current_page,
+                        action=ProxyPanelActions.delete_wpayback,
+                    ),
+                )
             )
         self.button(
             text="🔙 برگشت",
@@ -599,27 +605,33 @@ class RenewSelectMethod(InlineKeyboardBuilder):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.button(
-            text="♻️ تمدید آنی اشتراک",
-            callback_data=self.Callback(
-                proxy_id=proxy_id,
-                service_id=service_id,
-                menu_id=menu_id or 0,
-                user_id=user_id,
-                current_page=current_page,
-                method=RenewMethods.now,
-            ),
+        self.add(
+            premium_button(
+                text="♻️ تمدید آنی اشتراک",
+                key="renew_now",
+                callback_data=self.Callback(
+                    proxy_id=proxy_id,
+                    service_id=service_id,
+                    menu_id=menu_id or 0,
+                    user_id=user_id,
+                    current_page=current_page,
+                    method=RenewMethods.now,
+                ),
+            )
         )
-        self.button(
-            text="🌀 پلن پشتیبان (تمدید خودکار)",
-            callback_data=self.Callback(
-                proxy_id=proxy_id,
-                service_id=service_id,
-                menu_id=menu_id or 0,
-                user_id=user_id,
-                current_page=current_page,
-                method=RenewMethods.reserve,
-            ),
+        self.add(
+            premium_button(
+                text="🌀 پلن پشتیبان (تمدید خودکار)",
+                key="renew_reserve",
+                callback_data=self.Callback(
+                    proxy_id=proxy_id,
+                    service_id=service_id,
+                    menu_id=menu_id or 0,
+                    user_id=user_id,
+                    current_page=current_page,
+                    method=RenewMethods.reserve,
+                ),
+            )
         )
         self.button(
             text="🔙 برگشت",
@@ -651,18 +663,21 @@ class ConfirmRenew(InlineKeyboardBuilder):
     ) -> None:
         super().__init__(*args, **kwargs)
         if has_balance:
-            self.button(
-                text="✅ فعالسازی",
-                callback_data=RenewSelectMethod.Callback(
-                    proxy_id=proxy_id,
-                    service_id=service_id,
-                    menu_id=menu_id or 0,
-                    user_id=user_id,
-                    discount_id=discount_id,
-                    current_page=current_page,
-                    method=method,
-                    confirmed=True,
-                ),
+            self.add(
+                premium_button(
+                    text="✅ فعالسازی",
+                    key="renew_confirm",
+                    callback_data=RenewSelectMethod.Callback(
+                        proxy_id=proxy_id,
+                        service_id=service_id,
+                        menu_id=menu_id or 0,
+                        user_id=user_id,
+                        discount_id=discount_id,
+                        current_page=current_page,
+                        method=method,
+                        confirmed=True,
+                    ),
+                )
             )
         else:
             self.button(

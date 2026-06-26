@@ -27,6 +27,7 @@ interface BtnItem {
 interface InlineItem {
   key: string;
   label: string;
+  text: string;
   icon: string;
   style: string;
   default_style: string;
@@ -40,6 +41,7 @@ export function ButtonsPage() {
   const [labelItems, setLabelItems] = useState<BtnItem[]>([]);
   const [inlineItems, setInlineItems] = useState<InlineItem[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [texts, setTexts] = useState<Record<string, string>>({});
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [styles, setStyles] = useState<Record<string, string>>({});
   const [premium, setPremium] = useState(false);
@@ -50,6 +52,7 @@ export function ButtonsPage() {
     setLabelItems(li);
     setInlineItems(ii);
     setLabels(Object.fromEntries(li.map((i) => [i.key, i.value])));
+    setTexts(Object.fromEntries(ii.map((i) => [i.key, i.text])));
     setIcons(Object.fromEntries(ii.map((i) => [i.key, i.icon])));
     setStyles(Object.fromEntries(ii.map((i) => [i.key, i.style])));
     setPremium(Boolean(d.premium_enabled));
@@ -72,6 +75,7 @@ export function ButtonsPage() {
         premium_enabled: premium,
         icons,
         styles,
+        texts,
       });
       apply(r.data);
       message.success(t("buttons.saved"));
@@ -152,37 +156,50 @@ export function ButtonsPage() {
             <Switch checked={premium} onChange={setPremium} />
             <Text strong>{t("buttons.premium_enabled")}</Text>
           </div>
-          <Row gutter={[16, 10]}>
+          <Row gutter={[16, 16]}>
             {inlineItems.map((it) => (
-              <Col xs={24} key={it.key}>
-                <Row gutter={8} align="middle">
-                  <Col xs={24} sm={8}>
-                    <Text>{label(it.key)}</Text>
-                  </Col>
-                  <Col xs={14} sm={10}>
-                    <Input
-                      allowClear
-                      placeholder={t("buttons.emoji_id_ph")}
-                      value={icons[it.key] ?? ""}
-                      onChange={(e) =>
-                        setIcons((s) => ({ ...s, [it.key]: e.target.value }))
-                      }
-                      disabled={!premium}
-                    />
-                  </Col>
-                  <Col xs={10} sm={6}>
-                    <Select
-                      style={{ width: "100%" }}
-                      options={styleOpts}
-                      value={styles[it.key] ?? ""}
-                      onChange={(v) =>
-                        setStyles((s) => ({ ...s, [it.key]: v }))
-                      }
-                      disabled={!premium}
-                      placeholder={it.default_style || t("buttons.style_none")}
-                    />
-                  </Col>
-                </Row>
+              <Col xs={24} lg={12} key={it.key}>
+                <Card size="small" title={label(it.key)}>
+                  <div style={{ marginBottom: 4 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {t("buttons.text_label")} ({t("buttons.default")}: {it.label})
+                    </Text>
+                  </div>
+                  <Input
+                    allowClear
+                    placeholder={it.label}
+                    value={texts[it.key] ?? ""}
+                    onChange={(e) =>
+                      setTexts((s) => ({ ...s, [it.key]: e.target.value }))
+                    }
+                    style={{ marginBottom: 10 }}
+                  />
+                  <Row gutter={8}>
+                    <Col xs={14}>
+                      <Input
+                        allowClear
+                        placeholder={t("buttons.emoji_id_ph")}
+                        value={icons[it.key] ?? ""}
+                        onChange={(e) =>
+                          setIcons((s) => ({ ...s, [it.key]: e.target.value }))
+                        }
+                        disabled={!premium}
+                      />
+                    </Col>
+                    <Col xs={10}>
+                      <Select
+                        style={{ width: "100%" }}
+                        options={styleOpts}
+                        value={styles[it.key] ?? ""}
+                        onChange={(v) =>
+                          setStyles((s) => ({ ...s, [it.key]: v }))
+                        }
+                        disabled={!premium}
+                        placeholder={it.default_style || t("buttons.style_none")}
+                      />
+                    </Col>
+                  </Row>
+                </Card>
               </Col>
             ))}
           </Row>

@@ -3,6 +3,7 @@ from enum import Enum
 from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from app.keyboards.premium import premium_button
 from app.keyboards.user import payment
 from app.keyboards.user.account import UserPanel, UserPanelAction
 from app.models.service import Service
@@ -77,31 +78,40 @@ class PurchaseService(InlineKeyboardBuilder):
     ) -> None:
         super().__init__(*args, **kwargs)
         if has_balance:
-            self.button(
-                text="🛒 خرید سرویس",
-                callback_data=self.Callback(
-                    service_id=service_id, discount_id=discount_id
-                ),
+            self.add(
+                premium_button(
+                    text="🛒 خرید سرویس",
+                    key="purchase_buy",
+                    callback_data=self.Callback(
+                        service_id=service_id, discount_id=discount_id
+                    ),
+                )
             )
         else:
-            self.button(
-                text=f"💳 پرداخت {pay_amount:,} تومان",
-                callback_data=payment.ChargePanel.DirectCallback(
-                    amount=pay_amount,
-                    service_id=service_id,
-                    menu_id=menu_id,
-                    mode="purchase",
-                ),
+            self.add(
+                premium_button(
+                    text=f"💳 پرداخت {pay_amount:,} تومان",
+                    key="purchase_pay",
+                    callback_data=payment.ChargePanel.DirectCallback(
+                        amount=pay_amount,
+                        service_id=service_id,
+                        menu_id=menu_id,
+                        mode="purchase",
+                    ),
+                )
             )
         if not discount_id:
-            self.button(
-                text="🎁 کد تخفیف دارم",
-                callback_data=UserPanel.Callback(
-                    action=UserPanelAction.redeem_code,
-                    service_id=service_id,
-                    menu_id=menu_id,
-                    mode="purchase",
-                ),
+            self.add(
+                premium_button(
+                    text="🎁 کد تخفیف دارم",
+                    key="purchase_redeem",
+                    callback_data=UserPanel.Callback(
+                        action=UserPanelAction.redeem_code,
+                        service_id=service_id,
+                        menu_id=menu_id,
+                        mode="purchase",
+                    ),
+                )
             )
         self.button(
             text="🔙 برگشت",

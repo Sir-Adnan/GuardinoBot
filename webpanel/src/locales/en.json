@@ -291,7 +291,8 @@
     "tab_menu": "Main menu (labels)",
     "tab_inline": "Inline buttons (premium)",
     "premium_enabled": "Enable premium buttons",
-    "premium_hint": "Custom emoji + colour on inline (glass) buttons via the Bot API. The emoji icon requires the bot owner to have Telegram Premium (colour works without). Off = unchanged.",
+    "premium_hint": "Custom emoji + colour on inline (glass) buttons via the Bot API. The emoji icon requires the bot owner to have Telegram Premium (colour works without). When an icon is set, the button text's leading emoji is auto-removed to avoid a duplicate. Off = unchanged.",
+    "text_label": "Button text (rename — no Premium needed)",
     "emoji_id_ph": "custom_emoji_id (numeric)",
     "style_none": "Default",
     "style_primary": "Primary (blue)",
@@ -313,8 +314,22 @@
       "proxy_enable": "Enable",
       "proxy_remove": "Remove from list",
       "proxy_set_name": "Set custom name",
+      "proxy_delete_payback": "Delete & refund",
       "alert_renew": "Alert · renew",
-      "alert_links": "Alert · links"
+      "alert_links": "Alert · links",
+      "account_charge": "Account · top up",
+      "account_referral": "Account · referral",
+      "account_proxies": "Account · my subscriptions",
+      "account_redeem": "Account · redeem code",
+      "account_settings": "Account · settings",
+      "account_manage_users": "Account · manage users",
+      "purchase_buy": "Purchase · buy service",
+      "purchase_pay": "Purchase · pay (CTA)",
+      "purchase_redeem": "Purchase · have a code",
+      "pay_custom_amount": "Charge · custom amount",
+      "renew_now": "Renew · now",
+      "renew_reserve": "Renew · reserve plan",
+      "renew_confirm": "Renew · activate"
     }
   },
   "settings": {

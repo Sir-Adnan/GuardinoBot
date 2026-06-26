@@ -429,7 +429,8 @@ class ButtonItem(BaseModel):
 
 class InlineButtonItem(BaseModel):
     key: str
-    label: str
+    label: str  # built-in default label (for the editor)
+    text: str = ""  # custom renamed text, or "" when using the default
     icon: str = ""  # configured custom_emoji_id, or ""
     style: str = ""  # configured colour (primary/success/danger), or ""
     default_style: str = ""
@@ -446,3 +447,4 @@ class ButtonsUpdateIn(BaseModel):
     premium_enabled: Optional[bool] = None
     icons: Optional[dict[str, str]] = None  # inline key -> custom_emoji_id
     styles: Optional[dict[str, str]] = None  # inline key -> style
+    texts: Optional[dict[str, str]] = None  # inline key -> renamed text

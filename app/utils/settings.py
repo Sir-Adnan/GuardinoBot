@@ -111,6 +111,8 @@ class Settings(BaseModel):
     premium_buttons_enabled: bool = False
     button_icons: dict[str, str] = {}
     button_styles: dict[str, str] = {}
+    # Inline-button text override (rename). key -> custom label; not premium-gated.
+    button_texts: dict[str, str] = {}
 
     # --- User notification / proxy-alert system (jobs/proxy_alerts.py) ---
     alerts_enabled: bool = True  # master switch
@@ -174,7 +176,9 @@ class Settings(BaseModel):
                 return {}
         return v
 
-    @field_validator("button_labels", "button_icons", "button_styles", mode="before")
+    @field_validator(
+        "button_labels", "button_icons", "button_styles", "button_texts", mode="before"
+    )
     def _validate_str_dict(cls, v: Any, info: ValidationInfo) -> dict[str, str]:
         if v is None:
             return {}

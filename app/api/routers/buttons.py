@@ -41,6 +41,7 @@ router = APIRouter(prefix="/buttons", tags=["buttons"])
 _LABELS = "button_labels"
 _ICONS = "button_icons"
 _BTN_STYLES = "button_styles"
+_TEXTS = "button_texts"
 _ENABLED = "premium_buttons_enabled"
 _DIRTY = "settings:dirty"
 
@@ -65,6 +66,7 @@ async def _out() -> ButtonsOut:
     labels = await _read_json(_LABELS)
     icons = await _read_json(_ICONS)
     styles = await _read_json(_BTN_STYLES)
+    texts = await _read_json(_TEXTS)
     return ButtonsOut(
         items=[
             ButtonItem(key=k, default=d, value=str(labels.get(k) or ""))
@@ -75,6 +77,7 @@ async def _out() -> ButtonsOut:
             InlineButtonItem(
                 key=k,
                 label=label,
+                text=str(texts.get(k) or ""),
                 icon=str(icons.get(k) or ""),
                 style=str(styles.get(k) or ""),
                 default_style=DEFAULT_STYLES.get(k, ""),
@@ -136,6 +139,13 @@ async def update_buttons(
             k: v
             for k, v in body.styles.items()
             if k in INLINE_BUTTONS and v in STYLES
+        }
+
+    if body.texts is not None:
+        changes[_TEXTS] = {
+            k: str(v).strip()
+            for k, v in body.texts.items()
+            if k in INLINE_BUTTONS and str(v).strip()
         }
 
     if changes:

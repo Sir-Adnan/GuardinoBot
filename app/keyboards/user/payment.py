@@ -8,6 +8,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from tortoise.functions import Count, Sum
 
+from app.keyboards.premium import premium_button
 from app.keyboards.user import account
 from app.models.user import RialGatewayPayment, Transaction
 
@@ -239,9 +240,12 @@ class SelectPayAmount(InlineKeyboardBuilder):
                         method=method,
                     ),
                 )
-            self.button(
-                text="✍️ مبلغ دلخواه",
-                callback_data=self.Callback(amount=0, method=method),
+            self.add(
+                premium_button(
+                    text="✍️ مبلغ دلخواه",
+                    key="pay_custom_amount",
+                    callback_data=self.Callback(amount=0, method=method),
+                )
             )
 
             self.button(

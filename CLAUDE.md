@@ -4,6 +4,9 @@
 > Keep changes safe, targeted, modular, and token-efficient.
 > (Written in English on purpose — fewer tokens per session than Persian.
 > Bot UI strings stay Persian; this file is internal guidance only.)
+>
+> **Docs split:** this file = stable "how to work here" (auto-loaded every session, keep lean).
+> `ROADMAP.md` = the changing plan (phases, status, todo) — read on demand. `README.md` = public docs.
 
 ---
 
@@ -235,18 +238,11 @@ Before a big panel refactor, present a migration plan and get approval.
 
 Current state: `app/views` is webhook-only; no authenticated panel yet. Before starting, review current code: `app/views`, templates, auth, models, config, Docker/runtime.
 
-**Status (Phase 1 scaffolded — backend + frontend foundation; not yet built/run):**
-- **Backend** `app/api/` (FastAPI) = the `api` compose service (uvicorn :8000), sharing DB/Redis via `config.TORTOISE_ORM` + the §6 adapter. **Telegram-OTP → JWT** auth (`security.py` + `routers/auth.py`, reseller+ only; OTP in Redis, sent via a send-only Bot in `clients.py`); routers: `dashboard`, `users` (+`/block`), `proxies` (+`/action` enable·disable·reset·revoke and `DELETE`, via the §6 adapter with a fresh `build_panel` per call), `services`, `servers` (+`/health` ping, +`/enabled`), `transactions`, `reports` (`/reports/summary` — sales/revenue, admin+), `resellers` (list/detail with balance+subtree, admin+), `discounts` (list + activate toggle, admin+), `automation` (broadcast monitor + cancel via the shared `broadcast:job` Redis hash — the §17.1 worker stays in the bot), `settings` (curated bot settings written to `BotSetting` directly — the API can't import `app.utils.settings` as it pulls `app.main` — + a `settings:dirty` Redis flag that `app/jobs/sync_settings.py` reloads in the bot; super-admin) — reseller subtree scoping (`deps.require_role`/`_scope`) where applicable; servers/services/reports/resellers/discounts/automation admin+, settings super-admin, credentials never exposed; **payment approve/reject stays in the bot** (`jobs.activate_service`/`revoke_activated_transaction`), not the API. New py deps: `fastapi`, **`uvicorn` (NOT `[standard]` — it pulls uvloop, which breaks `aerich` in prestart)**, `pyjwt`.
-- **Frontend** `webpanel/` (Vite + React + TS + **Refine + AntD**, RTL, emerald theme, fully responsive) served by nginx (`webpanel` service :8080, proxies `/api` → api so no CORS). Providers in `webpanel/src/providers/` (axios JWT+refresh · authProvider OTP · custom dataProvider for `{items,total}`); responsive shell `components/Layout.tsx` (role-gated menu); pages: Login, Dashboard, Reports (CSS bar-chart, no chart dep), + list pages Users (detail+block), Subscriptions (+enable/disable/reset/revoke/delete), Services, Payments, Panels (+health/toggle), Resellers (list+detail), Discounts (list+toggle), Automation (live broadcast status + cancel, 4s poll), Settings (curated bot-settings form, super-admin). Needs `npm install` + build (untested).
-- **Auth:** Telegram **OTP** (`/auth/request-code`→`/auth/verify`) AND Telegram **Web App auto-login** (`/auth/telegram` validates signed `initData` per bot token → no code). In-bot inline "🖥 پنل وب مدیریت" web_app button (admin panel) opens the panel; needs `DOMAIN` set (HTTPS). The API's send-bot uses the proxy session (`app/api/clients.py`); Tortoise is init'd in the FastAPI **lifespan** (NOT `register_tortoise` — a custom lifespan skips its on_event init).
-- **Audit & customization (done):** **Audit log** — `AuditLog` model (`app/models/audit.py`, append-only, table `audit_logs`, **migration `48_*`**) + shared `app/utils/audit.record_audit` (model-layer only, API-safe). Every web write-action (proxy action/delete, user block, server toggle, discount toggle, settings/texts/menus/buttons writes) **and** key bot admin actions (super-admin `/charge`·`/decharge`·`/undotr`·`/undoiv` balance ops, server add/delete, service create/edit/delete) write a row with actor+role+source(web/bot)+target+amount+detail. Super-admin `/audit` router + **Logs** page (filter by source/action/search). Purpose: catch financial abuse when the bot is run by a third-party super-admin on the owner's panel.
-- **Owner decision — NO manual sell in the web panel:** purchases/renew stay **bot-only** (user-centric; avoids free-provisioning on the owner's panel). Web panel = manage/support/report/customize + audit. Support actions that exist (enable/disable/reset/revoke/delete) are all audited.
-- **Settings parity expanded:** the `settings` router now also covers `username_generator`, `on_hold_timeout_seconds`, `transaction_logs`/`orders_logs` (log channels), and `charge_amount_list`/`charge_amount_orders` (JSON list[int]); `payment_*` gateway settings stay excluded (secrets). **Texts** editor (`/texts` router + page, curated `BotText` keys, `texts:dirty` → `sync_settings.py` reloads; HTML texts support **custom/premium emoji** via `<tg-emoji emoji-id>` — only if the bot's creator is Premium; inline-button labels can't carry them). **Service Menus** nested CRUD (`/menus` router + page, cycle-safe parent, service attach). **Button labels** (`/buttons` router + page): main-menu reply-button labels stored in `settings.button_labels`; `app/middlewares/button_labels.py` remaps a tapped custom label back to the canonical default so existing `F.text==MainMenu.X` filters keep matching (no-op until customized). All five are super-admin; menus/texts/buttons/audit are super-gated in the web menu.
-- **Next:** §9 menu fully covered + bot-parity for settings/texts/buttons/menus/audit. Remaining (optional): force-join dict editor + payment-gateway config (sensitive), broader bot-side admin-proxy-op auditing, web-initiated text broadcast (cross-process worker trigger), and Guardino reserves/efficient sync (§6 deferred).
+**Build status & remaining work → see `ROADMAP.md`** (Done log + Now/Next/Backlog). This
+section keeps only the *stable* design spec (stack, theme, menu, UX rules) — what's already
+shipped and what's next lives in ROADMAP so it doesn't cost tokens every session.
 
-**Stack (agreed — plan + confirm before scaffolding; mostly done above):**
-
-**Stack (agreed — plan + confirm before the first scaffold):**
+**Stack (agreed):**
 - **Backend: FastAPI** (a separate service beside the bot, sharing the same DB/Redis and **the same adapter layer in §6**). Fully async and same family as the current code; Pydantic + auto OpenAPI; JWT; PasarGuard/Guardino are also FastAPI. Tortoise via `tortoise.contrib.fastapi`.
 - **Frontend: React + TypeScript + Vite + Refine + Ant Design.** CRUD-heavy panel (users, orders, panels, services, resellers) is fast with Refine (data/auth providers + RBAC); Ant Design has ready tables/forms/dashboards and **built-in RTL** for Persian. State via TanStack Query.
 - **Theme target** (captured from the `Dashboard-Example-Theme-UI/` mockup so it never needs re-reading): RTL Persian, **Vazirmatn** UI font + **IBM Plex Mono** for numerals, **Material Symbols Rounded** icons, **emerald/green accent**, **dark + light** themes (CSS-var/oklch palette with green/red/amber/blue/violet status colors), layout = fixed **sidebar (~266px, grouped nav) + sticky topbar (title, search, lang + theme toggles, notifications) + card grid**. Must be **fully responsive** (sidebar → drawer on mobile). Map these onto the AntD `ConfigProvider` theme tokens.
@@ -379,19 +375,13 @@ Report: what changed, what was checked, what was **not** checked, whether a migr
 
 ## 17) Known bugs & improvement backlog
 
-> Confirm current code before working on any item; proceed item-by-item with the needed migration/approval.
+**The live backlog (phases, status, todo, decisions) lives in `ROADMAP.md`** — read it when
+you pick up a roadmap item. Don't grow the list here; this section keeps only the one bug
+that's still the bot's top priority:
 
-**Priority bugs:**
-1. **Blocking broadcast [critical]:** with many users, sending runs in a sync loop; Telegram rate-limits and the whole bot hangs until done. Fix: move broadcast to a **non-blocking background worker** (APScheduler job or `asyncio.create_task`) that throttles (~25–30 msg/s global), handles `TelegramRetryAfter` with `await asyncio.sleep(e.retry_after)`, persists progress/resumability in Redis, marks blockers via the existing `blocked_bot` field, and never blocks the polling loop.
-2. ✅ **Fixed — Reseller test-service counting:** `record_purchase_service` now uses `user.role` (was `user.Role`, always False) so the reseller daily test cap increments; the Redis incr key was unified with `can_get_test_service`'s read key (+ TTL), and `can_get_test_service` now casts the Redis count to int and uses `count >= limit`.
-
-**Improvement backlog (with user approval):**
-- ✅ **User notification / proxy-alert system** (`app/jobs/proxy_alerts.py`, migration `49` adds `Proxy.notified` JSON): panel-agnostic batch `get_users`, evaluates **expiry-soon / low-data / unused / ended** per proxy with **self-healing dedup** (a flag drops when its condition clears, e.g. after renew). Throttled non-blocking send + glass **renew/links** button (`app/keyboards/user/proxy.py` `alert_renew_keyboard`/`alert_links_keyboard`). 4 editable Persian templates (`texts.alert_*`, in the §9 Texts editor). 9 settings (master + per-type enables + thresholds: `alerts_enabled`, `notify_expiry_days`, `notify_traffic_percent`, `notify_data_remaining_gb`, `notify_unused_days`, …) in the §9 Settings page. Runs cron `hour="6,16"`. **Deferred:** mirroring the thresholds in the bot's bespoke settings-FSM menu (web panel covers config).
-- ⏳ **Premium/custom emoji on inline (glass) buttons — feasible, planned (Phase 3).** CORRECTION: this IS possible via the Bot API (not a platform limit as previously noted). `InlineKeyboardButton` accepts **`icon_custom_emoji_id`** (a custom-emoji icon shown before the button text) and **`style`** (`primary`/`success`/`danger` button colour) — confirmed by real bots/screenshots. Constraints: inline buttons only (NOT reply-keyboard buttons); the **bot owner must have Telegram Premium** (or the bot a Fragment username). aiogram 3.4.1 likely doesn't model these fields → pass them via a raw-payload helper / extra-field passthrough, with a **safe fallback** (retry the send without the extras if the API rejects them, so a non-Premium owner never breaks the UI). Plan: `build_inline_button(...)` helper + per-button `icon_custom_emoji_id`/`style` config in `settings` + the §9 Buttons page (parallel to `button_labels`). Custom emoji in **message text** already works via `<tg-emoji emoji-id>`.
-- ✅ Multi-panel adapter layer + **PasarGuard complete** (data-plane + admin UI + webhook) — §6. Only native `reset_proxy_credentials` remains.
-- ✅ Guardino Hub (phase 2, §6): id-based, GB/days, hub pricing. Stages 0–4 done (model+migration, adapter, admin UX, purchase/manage, low-balance job); reserves + efficient sync + on_hold deferred.
-- Brand migration `marzbot`/`Marzdemo` → GuardinoBot/Guardino (§2), gradually.
-- Admin/reseller web panel (§9).
-- Review `aiogram==3.4.1` (old); `parse_mode=` on the constructor is deprecated in newer versions (`DefaultBotProperties`). Upgrade only with testing + approval.
-- General background worker/queue for heavy tasks (broadcast, panel sync, reporting) to keep the bot loop light.
-- Better observability: structured metrics/logs for panel and gateway errors.
+**Top priority bug — Blocking broadcast [critical]:** with many users, sending runs in a sync
+loop; Telegram rate-limits and the whole bot hangs until done. Fix: a **non-blocking background
+worker** that throttles (~25–30 msg/s), handles `TelegramRetryAfter` with
+`await asyncio.sleep(e.retry_after)`, persists progress/resumability in Redis, marks blockers
+via the existing `blocked_bot` field, and never blocks the polling loop. (Web monitor/cancel
+already exists via the `broadcast:job` Redis hash.)

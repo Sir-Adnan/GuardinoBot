@@ -4,6 +4,7 @@ from typing import Literal
 from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+from app.keyboards.premium import premium_button
 from app.keyboards.user import proxy
 from app.models.user import User
 
@@ -32,36 +33,54 @@ class UserPanel(InlineKeyboardBuilder):
 
     def __init__(self, user: User, referral: bool = True, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.button(
-            text="💳 شارژ حساب",
-            callback_data=self.Callback(action=UserPanelAction.charge),
+        self.add(
+            premium_button(
+                text="💳 شارژ حساب",
+                key="account_charge",
+                callback_data=self.Callback(action=UserPanelAction.charge),
+            )
         )
         if referral:
-            self.button(
-                text="💎 زیرمجموعه گیری",
-                callback_data=self.Callback(action=UserPanelAction.referral),
+            self.add(
+                premium_button(
+                    text="💎 زیرمجموعه گیری",
+                    key="account_referral",
+                    callback_data=self.Callback(action=UserPanelAction.referral),
+                )
             )
-        self.button(
-            text="📍 اشتراک‌های من",
-            callback_data=self.Callback(action=UserPanelAction.proxies),
+        self.add(
+            premium_button(
+                text="📍 اشتراک‌های من",
+                key="account_proxies",
+                callback_data=self.Callback(action=UserPanelAction.proxies),
+            )
         )
-        self.button(
-            text="🎁 ثبت کد تخفیف",
-            callback_data=self.Callback(action=UserPanelAction.redeem_code),
+        self.add(
+            premium_button(
+                text="🎁 ثبت کد تخفیف",
+                key="account_redeem",
+                callback_data=self.Callback(action=UserPanelAction.redeem_code),
+            )
         )
 
         if user.role > User.Role.reseller:
-            self.button(
-                text="⚙️ تنظیمات حساب",
-                callback_data=self.Callback(action=UserPanelAction.settings),
+            self.add(
+                premium_button(
+                    text="⚙️ تنظیمات حساب",
+                    key="account_settings",
+                    callback_data=self.Callback(action=UserPanelAction.settings),
+                )
             )
         if user.role > User.Role.reseller:
-            self.button(
-                text="👥 مدیریت کاربران",
-                callback_data=ManageUsers.Callback(
-                    current_page=0,
-                    action=ManageUsersAction.all,
-                ),
+            self.add(
+                premium_button(
+                    text="👥 مدیریت کاربران",
+                    key="account_manage_users",
+                    callback_data=ManageUsers.Callback(
+                        current_page=0,
+                        action=ManageUsersAction.all,
+                    ),
+                )
             )
         self.adjust(1, 1, 1, 2)
 

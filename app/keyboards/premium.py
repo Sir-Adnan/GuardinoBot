@@ -32,7 +32,7 @@ def premium_button(
     icon_custom_emoji_id: Optional[str] = None,
     style: Optional[str] = None,
 ) -> InlineKeyboardButton:
-    base: dict = {"text": text}
+    base: dict = {}
     if callback_data is not None:
         base["callback_data"] = (
             callback_data.pack()
@@ -49,13 +49,24 @@ def premium_button(
     from app.utils.settings import get_settings
 
     s = get_settings()
+
+    # 1) Text rename (NOT premium-gated): a custom label from the web panel wins.
+    label = _b.resolve_label(key, getattr(s, "button_texts", {}))
+    if label:
+        text = label
+
+    # 2) Premium icon + colour (gated by the master switch).
     if getattr(s, "premium_buttons_enabled", False):
         icon = icon_custom_emoji_id or _b.resolve_icon(key, getattr(s, "button_icons", {}))
         st = style or _b.resolve_style(key, getattr(s, "button_styles", {}))
         if icon:
             extras["icon_custom_emoji_id"] = icon
+            # The icon sits before the text → drop a duplicate leading emoji.
+            text = _b.strip_leading_emoji(text)
         if st:
             extras["style"] = st
+
+    base["text"] = text
 
     if extras:
         try:
