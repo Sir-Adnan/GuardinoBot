@@ -205,6 +205,12 @@ def resolve_style(key: str | None, styles: dict | None) -> str | None:
     return default if default in STYLES else None
 
 
+def sanitize_style(value: str | None) -> str | None:
+    """A stored per-object style value → a valid Bot API style, or None.
+    ("none"/""/invalid all become None.)"""
+    return value if value in STYLES else None
+
+
 def main_menu_routing_map(settings) -> dict[str, str]:
     """Map every form a main-menu (reply) button's text can take → its canonical
     default text, so text-based handlers (``F.text == MainMenu.X``) keep matching

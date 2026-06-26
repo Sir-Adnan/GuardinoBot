@@ -235,7 +235,12 @@ async def redeem_code(
 سرویس‌هایی که این تخفیف روی اون‌ها اعمال میشه:
 """
         svs = [
-            (service.id, await service.get_display_name(user=user))
+            (
+                service.id,
+                await service.get_display_name(user=user),
+                service.button_icon,
+                service.button_style,
+            )
             for service in services
         ]
         await message.answer(

@@ -47,7 +47,18 @@ class MainMenu(ReplyKeyboardBuilder):
             for key in row:
                 if key == "test_services":
                     for service in test_services:
-                        self.button(text=service.display_name)
+                        # Per-service premium icon/colour; no emoji-strip because the
+                        # reply button routes by its text (== display_name).
+                        self.add(
+                            premium_reply_button(
+                                service.display_name,
+                                icon_custom_emoji_id=getattr(service, "button_icon", None),
+                                style=buttons.sanitize_style(
+                                    getattr(service, "button_style", None)
+                                ),
+                                strip_emoji=False,
+                            )
+                        )
                         count += 1
                 elif key == "referral":
                     if referral:

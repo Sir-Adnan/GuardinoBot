@@ -7,6 +7,7 @@ from app.keyboards.premium import premium_button
 from app.keyboards.user import payment
 from app.keyboards.user.account import UserPanel, UserPanelAction
 from app.models.service import Service
+from app.utils.buttons import sanitize_style
 
 
 class ServicesActions(str, Enum):
@@ -41,13 +42,17 @@ class Services(InlineKeyboardBuilder):
                 ),
             )
         for service in services:
-            self.button(
-                text=service[1],
-                callback_data=self.Callback(
-                    service_id=service[0],
-                    menu_id=menu_id,
-                    action=ServicesActions.show_service,
-                ),
+            self.add(
+                premium_button(
+                    text=service[1],
+                    icon_custom_emoji_id=service[2] if len(service) > 2 else None,
+                    style=sanitize_style(service[3]) if len(service) > 3 else None,
+                    callback_data=self.Callback(
+                        service_id=service[0],
+                        menu_id=menu_id,
+                        action=ServicesActions.show_service,
+                    ),
+                )
             )
         if has_previous:
             self.add(

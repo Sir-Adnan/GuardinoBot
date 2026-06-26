@@ -116,11 +116,18 @@ class ServiceListItem(BaseModel):
     server_id: int
     server_name: Optional[str] = None
     panel_type: Optional[str] = None
+    button_icon: Optional[str] = None  # premium custom_emoji_id for this service's button
+    button_style: Optional[str] = None  # button colour: primary/success/danger
 
 
 class ServicesPage(BaseModel):
     items: list[ServiceListItem]
     total: int
+
+
+class ServiceButtonUpdateIn(BaseModel):
+    button_icon: Optional[str] = None  # "" clears
+    button_style: Optional[str] = None  # ""/"none" clears; primary/success/danger
 
 
 # -- proxies (subscriptions) --------------------------------------------------

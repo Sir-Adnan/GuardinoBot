@@ -31,6 +31,7 @@ def premium_button(
     web_app=None,
     icon_custom_emoji_id: Optional[str] = None,
     style: Optional[str] = None,
+    strip_emoji: bool = True,
 ) -> InlineKeyboardButton:
     base: dict = {}
     if callback_data is not None:
@@ -61,8 +62,10 @@ def premium_button(
         st = style or _b.resolve_style(key, getattr(s, "button_styles", {}))
         if icon:
             extras["icon_custom_emoji_id"] = icon
-            # The icon sits before the text → drop a duplicate leading emoji.
-            text = _b.strip_leading_emoji(text)
+            # The icon sits before the text → drop a duplicate leading emoji
+            # (skipped when the caller routes by text and must keep it intact).
+            if strip_emoji:
+                text = _b.strip_leading_emoji(text)
         if st:
             extras["style"] = st
 
@@ -76,7 +79,14 @@ def premium_button(
     return InlineKeyboardButton(**base)
 
 
-def premium_reply_button(text: str, *, key: Optional[str] = None) -> KeyboardButton:
+def premium_reply_button(
+    text: str,
+    *,
+    key: Optional[str] = None,
+    icon_custom_emoji_id: Optional[str] = None,
+    style: Optional[str] = None,
+    strip_emoji: bool = True,
+) -> KeyboardButton:
     """A main-menu (reply) ``KeyboardButton`` that, when premium buttons are on,
     carries ``icon_custom_emoji_id`` + ``style``.
 
@@ -93,11 +103,12 @@ def premium_reply_button(text: str, *, key: Optional[str] = None) -> KeyboardBut
     s = get_settings()
     extras: dict = {}
     if getattr(s, "premium_reply_enabled", False):
-        icon = _b.resolve_icon(key, getattr(s, "button_icons", {}))
-        st = _b.resolve_style(key, getattr(s, "button_styles", {}))
+        icon = icon_custom_emoji_id or _b.resolve_icon(key, getattr(s, "button_icons", {}))
+        st = style or _b.resolve_style(key, getattr(s, "button_styles", {}))
         if icon:
             extras["icon_custom_emoji_id"] = icon
-            text = _b.strip_leading_emoji(text)
+            if strip_emoji:
+                text = _b.strip_leading_emoji(text)
         if st:
             extras["style"] = st
 

@@ -9,6 +9,7 @@ from app.keyboards.premium import premium_button
 from app.keyboards.user import account, payment
 from app.models.proxy import Proxy, ProxyStatus
 from app.models.user import UserSetting
+from app.utils.buttons import sanitize_style
 
 if TYPE_CHECKING:
     from app.utils import settings
@@ -576,16 +577,20 @@ class RenewSelectService(InlineKeyboardBuilder):
                 ),
             )
         for service in services:
-            self.button(
-                text=service[1],
-                callback_data=self.Callback(
-                    proxy_id=proxy_id,
-                    service_id=service[0],
-                    menu_id=menu_id,
-                    user_id=user_id,
-                    current_page=current_page,
-                    action=RenewActions.show_service,
-                ),
+            self.add(
+                premium_button(
+                    text=service[1],
+                    icon_custom_emoji_id=service[2] if len(service) > 2 else None,
+                    style=sanitize_style(service[3]) if len(service) > 3 else None,
+                    callback_data=self.Callback(
+                        proxy_id=proxy_id,
+                        service_id=service[0],
+                        menu_id=menu_id,
+                        user_id=user_id,
+                        current_page=current_page,
+                        action=RenewActions.show_service,
+                    ),
+                )
             )
         if has_previous:
             self.add(

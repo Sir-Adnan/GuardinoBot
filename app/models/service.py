@@ -71,6 +71,11 @@ class Service(TimedBase):
 
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=64, null=False)
+    # Premium button decoration for this service's button (reply + inline). Lets a
+    # named (e.g. test) service carry a custom/premium emoji + colour. Nullable →
+    # no decoration. button_style is one of primary/success/danger (or null).
+    button_icon = fields.CharField(max_length=64, null=True)
+    button_style = fields.CharField(max_length=16, null=True)
     data_limit = fields.BigIntField(null=False)  # in bytes
     expire_duration = fields.BigIntField(null=False)  # in seconds
     all_inbounds = fields.BooleanField(default=False)

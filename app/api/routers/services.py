@@ -3,11 +3,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import require_role
-from app.api.schemas import ServiceListItem, ServicesPage
+from app.api.schemas import ServiceButtonUpdateIn, ServiceListItem, ServicesPage
 from app.models.service import Service
 from app.models.user import User
+from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/services", tags=["services"])
+
+_VALID_STYLES = ("primary", "success", "danger")
 
 
 def _item(s: Service) -> ServiceListItem:
@@ -27,6 +30,8 @@ def _item(s: Service) -> ServiceListItem:
         panel_type=str(getattr(server.panel_type, "value", server.panel_type))
         if server
         else None,
+        button_icon=s.button_icon,
+        button_style=s.button_style,
     )
 
 
@@ -49,4 +54,38 @@ async def get_service(
     s = await Service.filter(id=service_id).prefetch_related("server").first()
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
+    return _item(s)
+
+
+@router.patch("/{service_id}/button", response_model=ServiceListItem)
+async def update_service_button(
+    service_id: int,
+    body: ServiceButtonUpdateIn,
+    actor: User = Depends(require_role(User.Role.admin)),
+) -> ServiceListItem:
+    """Set the premium emoji / colour shown on this service's button (reply +
+    inline). The bot reads the Service row live, so no reload flag is needed."""
+    s = await Service.filter(id=service_id).prefetch_related("server").first()
+    if s is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Service not found")
+
+    changed: dict = {}
+    if body.button_icon is not None:
+        s.button_icon = body.button_icon.strip() or None
+        changed["button_icon"] = s.button_icon
+    if body.button_style is not None:
+        v = (body.button_style or "").strip()
+        s.button_style = v if v in _VALID_STYLES else None
+        changed["button_style"] = s.button_style
+
+    if changed:
+        await s.save()
+        await record_audit(
+            action="service.button",
+            actor=actor,
+            target_type="service",
+            target_id=str(s.id),
+            target_label=s.name,
+            detail=changed,
+        )
     return _item(s)
