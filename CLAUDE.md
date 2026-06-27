@@ -16,7 +16,7 @@ Goal: max quality, min tokens. The repo is large; blind/whole-file reads are ban
 
 **Read/Search**
 - Never read a whole dir or big file "to be safe". Grep/Glob to the exact spot, then Read with `offset`/`limit`.
-- Do NOT read these unless strictly required (100KB+, repetitive): `openapi.json`, `openapi-pasarguard.json`, `openapi-guardino.json`, `marzban_client/`, `Dashboard-Example-Theme-UI/` (87KB html + 57KB `support.js` — a visual-only mockup; its theme is already captured in §9, so don't re-read it). To understand panel behavior, read the neutral interface in `app/panels/base.py`, not the raw spec.
+- Do NOT read these unless strictly required (100KB+, repetitive): `openapi.json`, `openapi-pasarguard.json`, `openapi-guardino.json`, `marzban_client/`, `Dashboard-Example-Theme-UI/` (87KB html + 57KB `support.js` — a visual-only mockup; its theme is already captured in §9, so don't re-read it), and `docs/references/upstream-apis/*.json` (vendor Postman/OpenAPI specs, 100–760KB — **parse with a `python -c json` script to the one endpoint you need; never Read whole**). To understand panel behavior, read the neutral interface in `app/panels/base.py`, not the raw spec.
 - Don't read all of `migrations/models/`; only the latest or the one you need.
 - For codebase-wide search where you only need a conclusion (not raw content), use the `Explore` subagent so raw output stays out of the main context.
 
@@ -106,6 +106,7 @@ Verify current code before assuming a path, model name, DB table, migration stat
 | Cache/queue/state | **Redis** — FSM storage, APScheduler jobstore, cache |
 | Scheduler | APScheduler (`AsyncIOScheduler` + RedisJobStore) |
 | Web server | aiohttp (`app/views`) for payment IPN + panel webhooks on `WEBAPP_PORT` (default 3333) |
+| Web panel | **FastAPI** (`app/api/`, JWT, separate process — must NOT import `app.main`) + **React/Vite/Refine/AntD** (`webpanel/`); shares DB/Redis + §6 adapter (§9) |
 | Panel layer | **`app/panels/`** neutral adapter (§6). Marzban on `marzban_client/` (auto-gen); PasarGuard + Guardino are hand-written httpx. Specs: `openapi-pasarguard.json` / `openapi-guardino.json` (heavy — don't read unless needed) |
 | Config | `python-decouple` from `.env` (sample: `.env.example`) |
 | Crypto | `pycryptodomex` + `SECRET_KEY_STRING` (`PasswordField`) |
@@ -124,23 +125,29 @@ app/
   main.py            # bootstrap: bot, dp, redis, scheduler
   marzban.py         # legacy registry (Marzban.servers) + setup_api; also refreshes PanelRegistry on startup
   panels/            # ★ neutral adapter layer (§6): base, marzban, pasarguard, guardino, registry
+  api/               # ★ FastAPI WEB-PANEL backend (§9): routers/ (dashboard, users, services,
+                     # servers, proxies, transactions, reports, resellers, discounts, menus,
+                     # buttons, texts, settings, audit, automation), deps/auth (JWT), schemas, clients
   handlers/
     admin/           # admin, user, server, service, service_menu, setting, payment, discount
     user/            # account, payment, proxy, purchase, ...
     start.py, base.py, prebase.py, errors.py
-  keyboards/         # mirrors handlers (admin/* and user/*)
+  keyboards/         # mirrors handlers (admin/* and user/*) + premium.py (inline emoji/colour)
   models/            # Tortoise: user, server, service, proxy, setting
   plugins/
-    payment/         # crypto/nowpayments, card_to_card, perfect_money,
-                     # rial_gateway (zarinpal/zibal/payping/aqaye_pardakht), tronseller
+    payment/         # crypto/{nowpayments,plisio,swapino,clients,views}, card_to_card,
+                     # perfect_money, rial_gateway (zarinpal/zibal/payping/aqaye_pardakht), tronseller
     referral/
-  jobs/              # check_reserves, del_unpaid_payments, refresh_proxies, remind_invoices
+  jobs/              # check_reserves, del_unpaid_payments, refresh_proxies, remind_invoices,
+                     # proxy_alerts, check_hub_balance, sync_settings
   middlewares/       # acl, rate_limit
-  utils/             # helpers, settings, texts, encryption, proxy_management, qr, ...
+  utils/             # helpers, settings, texts, encryption, proxy_management, qr, broadcast, ...
   views/             # aiohttp: status, notifications (panel webhook)
   templates/         # jinja2 (currently only payment.html)
+webpanel/            # ★ React+TS+Vite+Refine+AntD web panel frontend (§9) — src/{pages,components,...}
 marzban_client/      # ❗ auto-generated — do not hand-edit (§7)
 migrations/models/   # aerich migrations
+docs/references/upstream-apis/  # vendor API specs (NOWPayments/Plisio/Marzban/PasarGuard/Guardino) — heavy, parse don't read whole
 scripts/             # import/migrate + backup
 config.py            # reads env + TORTOISE_ORM
 ```
@@ -236,7 +243,15 @@ Before a big panel refactor, present a migration plan and get approval.
 
 ## 9) Web panel (main admin + reseller)
 
-Current state: `app/views` is webhook-only; no authenticated panel yet. Before starting, review current code: `app/views`, templates, auth, models, config, Docker/runtime.
+Current state: **BUILT and substantial.** The panel is a separate **FastAPI** backend (`app/api/`,
+JWT auth, role-scoped) + a **React/Vite/Refine/AntD** frontend (`webpanel/`), sharing the bot's DB/
+Redis and the §6 adapter. Most of P5–P13 shipped (dashboard, users 360°, services CRUD incl.
+create-from-scratch with a panel-aware provisioning picker, panels CRUD, reports + Jalali, resellers,
+discounts, texts/buttons editors, audit, alert config, force-join editor, panel-health widget, theme/
+font/calendar/density). The legacy `app/views` (aiohttp) still serves payment IPN + panel webhooks.
+The API process **must NOT import `app.main`** (it pulls the bot/Dispatcher); it reads/writes the
+key-value `BotSetting`/`BotText` tables directly and signals the bot via Redis `settings:dirty`/
+`texts:dirty` flags (picked up by `jobs/sync_settings.py`).
 
 **Build status & remaining work → see `ROADMAP.md`** (Done log + Now/Next/Backlog). This
 section keeps only the *stable* design spec (stack, theme, menu, UX rules) — what's already
@@ -376,12 +391,15 @@ Report: what changed, what was checked, what was **not** checked, whether a migr
 ## 17) Known bugs & improvement backlog
 
 **The live backlog (phases, status, todo, decisions) lives in `ROADMAP.md`** — read it when
-you pick up a roadmap item. Don't grow the list here; this section keeps only the one bug
-that's still the bot's top priority:
+you pick up a roadmap item. Don't grow the list here.
 
-**Top priority bug — Blocking broadcast [critical]:** with many users, sending runs in a sync
-loop; Telegram rate-limits and the whole bot hangs until done. Fix: a **non-blocking background
-worker** that throttles (~25–30 msg/s), handles `TelegramRetryAfter` with
-`await asyncio.sleep(e.retry_after)`, persists progress/resumability in Redis, marks blockers
-via the existing `blocked_bot` field, and never blocks the polling loop. (Web monitor/cancel
-already exists via the `broadcast:job` Redis hash.)
+**Broadcast [resolved]:** the non-blocking worker is built (`app/utils/broadcast.py` — throttled,
+`TelegramRetryAfter` sleep-retry, Redis progress + `resume_pending`, marks `blocked_bot`). Compose/
+start stays bot-only (`/broadcast` + `/forward`, reply → command); the web has read-only monitor/
+cancel (owner decided against a web composer). See ROADMAP for the current top items (crypto gateways:
+Plisio added, NowPayments IPN security fixed; offline gateway; web gateway-config; admin glass buttons).
+
+**Payment safety reminder (§10):** all crypto IPNs MUST verify the provider signature **mandatorily**
+(no secret → reject — a missing check is a self-credit forgery hole). Balance credits on
+`transaction.status = finished` via `Sum("amount")`, so never mark finished on an under/over-paid
+("mismatch") callback — flag it for manual review instead.

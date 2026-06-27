@@ -14,7 +14,7 @@ import config
 from app.models import user
 from app.models.setting import BotSetting
 from app.plugins.payment.card_to_card import card_to_card
-from app.plugins.payment.crypto import nowpayments, swapino
+from app.plugins.payment.crypto import nowpayments, plisio, swapino
 from app.plugins.payment.perfect_money import perfect_money
 from app.plugins.payment.rial_gateway import (
     aqaye_pardakht,
@@ -158,6 +158,7 @@ class Settings(BaseModel):
 
     # payment crypto
     payment_nowpayments: nowpayments.Settings = nowpayments.Settings()
+    payment_plisio: plisio.Settings = plisio.Settings()
     payment_swapino: swapino.Settings = swapino.Settings()
 
     payment_card_to_card: card_to_card.Settings = card_to_card.Settings()

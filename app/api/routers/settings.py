@@ -13,7 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.clients import redis
 from app.api.deps import require_role
-from app.api.schemas import SettingsOut, SettingsUpdateIn
+from app.api.schemas import (
+    ForceJoinChat,
+    ForceJoinOut,
+    ForceJoinUpdateIn,
+    SettingsOut,
+    SettingsUpdateIn,
+)
 from app.models.setting import BotSetting
 from app.models.user import User
 from app.utils.audit import record_audit
@@ -135,3 +141,54 @@ async def update_settings(
             detail={"changed": changes},  # curated, non-secret keys only
         )
     return SettingsOut(**await _read())
+
+
+_FJ_KEY = "force_join_chats"
+
+
+async def _read_fj() -> dict:
+    rows = await BotSetting.filter(_key=_FJ_KEY).values("_value")
+    raw = (rows[0]["_value"] if rows else "") or ""
+    if not raw:
+        return {}
+    try:
+        v = json.loads(raw)
+        return v if isinstance(v, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+@router.get("/force-join", response_model=ForceJoinOut)
+async def get_force_join(
+    _: User = Depends(require_role(User.Role.super_user)),
+) -> ForceJoinOut:
+    d = await _read_fj()
+    return ForceJoinOut(
+        chats=[ForceJoinChat(id=str(k), username=str(v)) for k, v in d.items()]
+    )
+
+
+@router.put("/force-join", response_model=ForceJoinOut)
+async def update_force_join(
+    body: ForceJoinUpdateIn,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> ForceJoinOut:
+    """Replace the forced-join channel set. `id` (chat id or @username) is what
+    the membership check uses; `username` (no @) builds the join link."""
+    chats: dict[str, str] = {}
+    for c in body.chats:
+        cid = (c.id or "").strip()
+        uname = (c.username or "").strip().lstrip("@")
+        if cid and uname:
+            chats[cid] = uname
+    await BotSetting.update(**{_FJ_KEY: chats})  # dict → JSON in the DB
+    await redis.set(_DIRTY, "1")
+    await record_audit(
+        action="settings.force_join",
+        actor=actor,
+        target_type="settings",
+        detail={"count": len(chats)},
+    )
+    return ForceJoinOut(
+        chats=[ForceJoinChat(id=k, username=v) for k, v in chats.items()]
+    )

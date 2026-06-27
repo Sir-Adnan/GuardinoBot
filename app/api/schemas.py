@@ -602,6 +602,20 @@ class SettingsUpdateIn(BaseModel):
     alerts_quiet_end_hour: Optional[int] = None
 
 
+# -- force-join channels ------------------------------------------------------
+class ForceJoinChat(BaseModel):
+    id: str  # channel id or @username — used for the membership check
+    username: str  # public username (no @) — builds the join link/button
+
+
+class ForceJoinOut(BaseModel):
+    chats: list[ForceJoinChat] = []
+
+
+class ForceJoinUpdateIn(BaseModel):
+    chats: list[ForceJoinChat] = []
+
+
 # -- audit log ----------------------------------------------------------------
 class AuditListItem(BaseModel):
     id: int

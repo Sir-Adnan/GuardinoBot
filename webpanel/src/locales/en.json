@@ -643,6 +643,15 @@
     "alerts_quiet_start_hour": "Quiet start (hour, Iran time)",
     "alerts_quiet_end_hour": "Quiet end (hour, Iran time)"
   },
+  "forceJoin": {
+    "title": "Forced channel join",
+    "hint": "Per channel: 'id' is what the membership check uses (numeric chat_id for a private channel, or @username) and your bot must be an admin there; 'username' (no @) builds the join link.",
+    "id_ph": "Channel id (chat_id or @username)",
+    "username_ph": "Public username (no @)",
+    "add": "Add channel",
+    "empty": "No channels set — forced join is off.",
+    "saved": "Forced-join channels saved"
+  },
   "actions": {
     "done": "Done",
     "failed": "Action failed",

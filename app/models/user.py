@@ -264,6 +264,7 @@ class CryptoPayment(TimedBase):
         swapwallet = "swapwallet"
         eswap = "eswap"
         swapino = "swapino"
+        plisio = "plisio"  # fits the existing VARCHAR(11) column → no migration
 
     type = fields.IntEnumField(
         Transaction.PaymentType, default=Transaction.PaymentType.crypto

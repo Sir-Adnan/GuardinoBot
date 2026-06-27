@@ -12,6 +12,7 @@ from . import card_to_card, crypto, perfect_money, rial_gateway, tronseller
 
 handlers = [
     crypto.nowpayments,
+    crypto.plisio_payment,
     crypto.swapino,
     card_to_card.card_to_card,
     perfect_money.perfect_money,

@@ -17,6 +17,7 @@ import { SaveOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { PageHeader } from "../../components/PageHeader";
+import { ForceJoinEditor } from "./ForceJoin";
 
 const SWITCHES = [
   "access_only",
@@ -230,15 +231,21 @@ export function SettingsPage() {
   ];
 
   return (
-    <Card>
-      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
+    <>
+      <Card>
+        <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
-      <Form form={form} layout="vertical" onFinish={save} style={{ marginTop: 16 }}>
-        <Tabs defaultActiveKey="general" items={tabItems} />
-        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>
-          {t("settings.save")}
-        </Button>
-      </Form>
-    </Card>
+        <Form form={form} layout="vertical" onFinish={save} style={{ marginTop: 16 }}>
+          <Tabs defaultActiveKey="general" items={tabItems} />
+          <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>
+            {t("settings.save")}
+          </Button>
+        </Form>
+      </Card>
+
+      <Card style={{ marginTop: 16 }} title={t("forceJoin.title")}>
+        <ForceJoinEditor />
+      </Card>
+    </>
   );
 }

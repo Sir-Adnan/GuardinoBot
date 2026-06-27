@@ -1,1 +1,1 @@
-from . import nowpayments, swapino, views  # noqa: F401
+from . import nowpayments, plisio_payment, swapino, views  # noqa: F401

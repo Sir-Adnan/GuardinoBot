@@ -15,16 +15,22 @@
 
 ---
 
-## Now — the big push: web-panel maturity + bot UX
+## Now — crypto gateways + payment config (security-first)
 
-Recommended order (full blocks under **Planned phases** below):
-**P11a UI foundation → P5 Plans CRUD → P6 Panels CRUD → P7 Users 360° →
-P9 Reports + Jalali → P10 finish half-done pages → P8 Resellers →
-P12 Bot UX → P13 Alerts v2 → P11b polish.**
+The big web-panel + bot-UX push is **largely shipped**: P5 (incl. create-from-scratch), P6, P7,
+P8, P9 (incl. Jalali picker), P10 (Discounts/Texts/Audit/Automation-monitor/Force-join), P11
+(foundation + most polish), P12 (subscription bar, account page, empty-state CTA, onboarding,
+insufficient-balance clarity), P13 (alerts v2 complete). Editor UX (texts insert/preview, button
+grouping) + payment-method buttons customizable. Details in **Done log** + the **Pxx blocks**.
 
-Reasoning: land the shared UI foundation (tab shell, font setting, Jalali date util,
-dashboard widgets) first so every later page adopts it; then close the biggest management
-gaps (plans, panels, users); then reporting; then polish.
+**Current focus (in order):**
+1. **Plisio gateway** — client/verify/handler/IPN built ✅; needs the **web gateway-config** to enable it.
+2. **Web payment-gateway config** — enable/title/min-amount + **masked** api_key/IPN-secret, super-admin only.
+3. **Offline crypto gateway** — wallet-per-coin (USDT-BEP20/TRX/TON/…), customer picks + sends TXID+screenshot,
+   manual admin confirm + optional on-chain auto-check. (needs a model + additive migration)
+4. **Admin glass buttons in the bot** — fix/extend the ⚙️ admin-panel inline buttons.
+5. Polish leftovers: theme presets/density done; remaining = micro-interactions, broader audit,
+   detail-page tabs already done. Deferred infra: brand migration, aiogram 3.4.1 bump, Guardino reserves.
 
 Immediate / carry-over (do anytime):
 - [ ] Verify Phase 3/4 premium rendering on a real deploy (Premium owner); if the fields are
@@ -35,6 +41,28 @@ Immediate / carry-over (do anytime):
       + `ReplyKeyboardRemove` on confirm, month=31d, panel-aware admin service/panel menus.
 
 ## Carry-over backlog (folded into the phases below)
+- ⏳ **Crypto gateways** (payment-critical, security-first):
+  - ✅ **NowPayments IPN security fix** — signature is now **mandatory** (no secret → reject; closes a
+    forgery/self-credit hole), constant-time compare, proper HTTP responses, less logging
+    (`crypto/views.py`). **Owner action: set the NowPayments *IPN secret* in the bot** or crypto
+    crediting (correctly) won't run. Endpoints verified unchanged vs the live v1 API — any create-side
+    failure needs the exact `NowPaymentsError` body from logs.
+  - ⏳ **Plisio gateway** — verified against the official OpenAPI (`Plisio-API.json`): server
+    `https://plisio.net/api/v1`, `GET /invoices/new` (hosted invoice via `source_amount`+
+    `source_currency`+`allowed_psys_cids`). Done: `crypto/plisio.py` client + `Settings`
+    (`payment_plisio`, web-configured) + `verify_callback` (HMAC-SHA1 over PHP-`serialize()`,
+    **byte-exact self-tested**); `Provider.plisio` registered (fits VARCHAR(11) → **no migration**);
+    `payment_plisio` wired into bot Settings (auto charge-menu button when enabled).
+    ✅ **Create handler** `plisio_payment.py` (router, filter `method=="plisio"`, separate module —
+    no settings↔plisio cycle; registered in the plugin handlers list) builds a Transaction + hosted
+    Plisio invoice + shows the pay link. ✅ **IPN route** `/plisio` in `crypto/views.py`: read via
+    `request.post()` (form/PHP-`$_POST`), **mandatory** api-key + `verify_hash`, credit only on
+    `completed` (sets `status=finished` → balance counts `transaction.amount`); **`mismatch` never
+    auto-credits** — alerts super-users for manual review; `confirming/pending` → status update.
+    All compiles. **Remaining: web config to enable/set api_key/menu_title/allowed_coins** (until then
+    it stays disabled = inert/safe).
+  - [ ] **Offline crypto gateway** (manual: admin wallet address → user pays → TXID/admin-confirm credit).
+  - [ ] Web payment-gateway config (P10) — enable/title/min-amount + masked keys/IPN-secret.
 - ✅ **Broadcast → non-blocking worker [§17.1]**: `app/utils/broadcast.py` (throttled, `TelegramRetryAfter`
   sleep-retry, marks `blocked_bot`, Redis progress + `resume_pending`). Web has read-only monitor/cancel.
   **Web compose/start dropped (owner decision)** — `/broadcast` + `/forward` in the bot (reply → command)
@@ -128,7 +156,11 @@ service provisioning picker).
   variables + premium-emoji helper. Backend adds `group` to each curated key.
 - ✅ **Audit**: added **date-range** filter (`start`/`end`) + **CSV export** (current filters,
   up to 1000 rows) + PageHeader; detail drawer + source/search filters already existed.
-- **Remaining:** **Force-join editor**; **payment-gateway config** (sensitive, guarded, secrets masked).
+- ✅ **Force-join editor** (super-admin): `GET`/`PUT /settings/force-join` read/replace the
+  `force_join_chats` dict (key = chat id/@username for the membership check, value = public username
+  for the join link); web = a self-contained editor card on the Settings page (add/remove rows, save
+  → `settings:dirty` reload). Audited `settings.force_join`.
+- **Remaining:** **payment-gateway config** (sensitive, guarded, secrets masked).
 
 ### P11 — UI/UX overhaul (web) — split foundation vs polish
 **P11a (foundation) — ⏳ in progress:**

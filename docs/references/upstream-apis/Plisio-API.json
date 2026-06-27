@@ -1,0 +1,3894 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Plisio API",
+    "description": "Plisio API",
+    "contact": {
+      "name": "Alexey",
+      "email": "lead@plisio.net"
+    },
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "https://plisio.net/api/v1",
+      "description": "main server"
+    }
+  ],
+  "paths": {
+    "/balances/{psys_cid}": {
+      "get": {
+        "tags": [
+          "balance"
+        ],
+        "summary": "Get cryptocurrency balance",
+        "operationId": "2d20e6d6d29bb6efb6cab47205cf415f",
+        "parameters": [
+          {
+            "name": "psys_cid",
+            "in": "path",
+            "description": "ID column from one of the supported cryptocurrencies supported by Plisio",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns BalanceApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceApiResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/currencies/{fiat}": {
+      "get": {
+        "tags": [
+          "currencies"
+        ],
+        "summary": "List of supported cryptocurrencies",
+        "operationId": "903a934f3ccfd7ab3faf8b1a02b471c4",
+        "parameters": [
+          {
+            "name": "fiat",
+            "in": "path",
+            "description": "one of the 168 fiat currencies https://plisio.net/documentation/appendices/supported-fiat-currencies",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns CryptocurrencyApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptocurrencyApiResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/exchanges/new": {
+      "get": {
+        "tags": [
+          "exchange"
+        ],
+        "summary": "Create a new exchange",
+        "operationId": "509d99808760b661b915e7df0e316b21",
+        "parameters": [
+          {
+            "name": "from_currency",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_currency",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "ExchangeResponseDto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/exchanges/estimate": {
+      "get": {
+        "tags": [
+          "exchange"
+        ],
+        "summary": "Estimate exchange amounts",
+        "operationId": "c9f47947e042e81aded122fca1dd34c2",
+        "parameters": [
+          {
+            "name": "from_currency",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_currency",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ExchangeEstimateResponseDto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeEstimateResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/exchanges/list": {
+      "get": {
+        "tags": [
+          "exchange"
+        ],
+        "summary": "List currencies supported for API exchange",
+        "operationId": "1ca8bcb651b15b50cfcf29ef0c46a34d",
+        "responses": {
+          "200": {
+            "description": "ExchangesListDto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangesListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API disabled or IP not whitelisted"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/exchanges/{id}": {
+      "get": {
+        "tags": [
+          "exchange"
+        ],
+        "summary": "Get exchange status",
+        "operationId": "e34b144d268dd9b51523779b0e5a6f12",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ExchangeStatusResponseDto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeStatusResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Exchange not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/invoices/new": {
+      "get": {
+        "tags": [
+          "invoice"
+        ],
+        "summary": "Create new invoice",
+        "operationId": "58d47847f7f627e878244d4af8b99a65",
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "description": "one of the cryptocurrencies supported by Plisio (ID column from supported https://plisio.net/documentation/appendices/supported-cryptocurrencies). Optional parameter. If the parameter is not set, one of the active cryptocurrencies from the API settings is selected automatically when creating an invoice.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "description": "any cryptocurrency float value. !!! Please, skip this field If you want to convert a fiat currency and use source_currency and source_amount fields instead",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_currency",
+            "in": "query",
+            "description": "one of the 167 fiat currencies https://plisio.net/documentation/appendices/supported-fiat-currencies",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_amount",
+            "in": "query",
+            "description": "any float value",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "allowed_psys_cids",
+            "in": "query",
+            "description": "comma-separated list of cryptocurrencies that allowed for payment. Customer will be able to select one of them. Example: BTC,ETH,TZEC",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_name",
+            "in": "query",
+            "description": "merchant internal order name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_number",
+            "in": "query",
+            "description": "merchant internal order number. Must be unique number in your store for each new store`s order!!!",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "merchant invoice description",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_url",
+            "in": "query",
+            "description": "merchant full URL to get invoice updates. The “POST” request will be sent to this URL (example). If this parameter isn’t set, Plisio will send a callback to URL that can be set under profile API » API settings » ”Status URL” field",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "description": "an auto-fill invoice email. The customer will be asked to insert their email where a notification will be sent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "en_US (we support EN language only)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plugin",
+            "in": "query",
+            "description": "Plisio’s internal field to determine integration plugin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "description": "Plisio’s internal field to determine integration plugin version ",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_to_invoice",
+            "in": "query",
+            "description": "Instead of JSON response user will be redirected to the Plisio's invoice page (is not working for a white-label shop)",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "expire_min",
+            "in": "query",
+            "description": "Interval in minutes when invoice will be expired",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "success_callback_url",
+            "in": "query",
+            "description": "merchant full URL to get succeed invoice. When adding json=true to the url, the response will come in the form of JSON",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fail_callback_url",
+            "in": "query",
+            "description": "merchant full URL to get failed invoice. When adding json=true to the url, the response will come in the form of JSON",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "success_invoice_url",
+            "in": "query",
+            "description": "`To the site` invoice's button link in a case of invoice has been paid",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fail_invoice_url",
+            "in": "query",
+            "description": "`To the site` invoice's button link in a case of invoice has not been paid",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "return_existing",
+            "in": "query",
+            "description": "Return existing invoice instead of error. Default 0",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns InvoiceResponseDto object or InvoiceWhiteLabelResponseDto object if white-label is enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceWhiteLabelResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/invoices/switch/{id}": {
+      "get": {
+        "tags": [
+          "invoice"
+        ],
+        "summary": "Invoice details",
+        "operationId": "c3d6ca087f6fa994e550f2857073206c",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "invoice id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "psys_cid",
+            "in": "query",
+            "description": "destination cryptocurrency id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns InvoiceDetailsApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailsApiResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "view_key": []
+          }
+        ]
+      }
+    },
+    "/invoices/email/{id}": {
+      "get": {
+        "tags": [
+          "invoice"
+        ],
+        "summary": "Invoice details",
+        "operationId": "40a0d2fcd1400aeb5eeba3fbe0dffc3e",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "invoice id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "description": "payer's email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns InvoiceDetailsApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailsApiResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/invoices/{id}": {
+      "get": {
+        "tags": [
+          "invoice"
+        ],
+        "summary": "Invoice details",
+        "operationId": "6aa128cf525d73c861855b467eb410d0",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "invoice id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns InvoiceDetailsApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailsApiResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/operations/commission/{psys_cid}": {
+      "get": {
+        "tags": [
+          "transaction"
+        ],
+        "summary": "Estimate cryptocurrency fee and Plisio commission",
+        "operationId": "b4b8a6df087852e9675afa0cd6edff54",
+        "parameters": [
+          {
+            "name": "psys_cid",
+            "in": "path",
+            "description": "ID column from one of the supported cryptocurrencies supported by Plisio",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "addresses",
+            "in": "query",
+            "description": "wallet address or comma separated addresses when estimating fee for mass withdrawal",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amounts",
+            "in": "query",
+            "description": "amount or comma separated amount that will be send in case of mass withdraw",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "operation type",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cash_out",
+                "mass_cash_out"
+              ]
+            }
+          },
+          {
+            "name": "feePlan",
+            "in": "query",
+            "description": "normal or priority (https://plisio.net/documentation/endpoints/fee-plans)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "priority"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns CommissionApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionApiResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/operations/withdraw": {
+      "get": {
+        "tags": [
+          "transaction",
+          "withdraw"
+        ],
+        "summary": "Create new invoice",
+        "operationId": "434eabf7adbaecbbfc5ea4ba44326fd0",
+        "parameters": [
+          {
+            "name": "psys_cid",
+            "in": "query",
+            "description": "one of the cryptocurrencies supported by Plisio (ID column from supported cryptocurrencies https://plisio.net/documentation/appendices/supported-cryptocurrencies)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "hash or multiple comma separated hashes pooled for the 'mass_cash_out'",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "description": "any comma separated float values for the “ mass_cash_out” in the order that hashes are in “to” parameter",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "'cash_out' or 'mass_cash_out' to send to single or multiple comma separated hashes",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feePlan",
+            "in": "query",
+            "description": " normal or priority (https://plisio.net/documentation/endpoints/fee-plan)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns WithdrawApiResponseDto object ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WithdrawApiResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/operations/fee/{psys_cid}": {
+      "get": {
+        "tags": [
+          "transaction"
+        ],
+        "summary": "Estimate fee",
+        "operationId": "6ff7130eb4f7fd74589b46ad317bac25",
+        "parameters": [
+          {
+            "name": "psys_cid",
+            "in": "path",
+            "description": "ID column from one of the supported cryptocurrencies supported by Plisio",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "addresses",
+            "in": "query",
+            "description": "wallet address or comma separated addresses when estimating fee for mass withdrawal",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amounts",
+            "in": "query",
+            "description": "amount or comma separated amount that will be send in case of mass withdraw",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feePlan",
+            "in": "query",
+            "description": "normal or priority (https://plisio.net/documentation/endpoints/fee-plans)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "priority"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns FeeApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeApiResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/operations/fee-plan/{psys_cid}": {
+      "get": {
+        "tags": [
+          "transaction"
+        ],
+        "summary": "Get Plisio fee plans",
+        "operationId": "a77dcce946b4b2cd112b61dea37c70c3",
+        "parameters": [
+          {
+            "name": "psys_cid",
+            "in": "path",
+            "description": "ID column from one of the supported cryptocurrencies supported by Plisio",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns FeePlanApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePlanApiResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/operations": {
+      "get": {
+        "tags": [
+          "transaction"
+        ],
+        "summary": "List of all user transactions",
+        "operationId": "1997dad878fa530a0004705bbfd00919",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "page number",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "number of elements on the page",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "shop_id",
+            "in": "query",
+            "description": "Filter operation by shop",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Transaction type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cash_in",
+                "cash_out",
+                "mass_cash_out",
+                "invoice"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Transaction status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "completed",
+                "error",
+                "new",
+                "expired",
+                "mismatch",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "description": "one of the cryptocurrencies supported by Plisio (ID column from supported cryptocurrencies https://plisio.net/documentation/appendices/supported-cryptocurrencies)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "text search by the transaction id (txid), invoice’s order number or customer email from invoice",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns OperationsApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsApiResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/operations/{id}": {
+      "get": {
+        "tags": [
+          "transaction"
+        ],
+        "summary": "Transaction details",
+        "operationId": "c25c0f3e62ed46fbb965155265cd9f71",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "transactoion id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns OperationApiResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationApiResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/payment-button/new/{hash}": {
+      "get": {
+        "tags": [
+          "payment_button"
+        ],
+        "summary": "Create new payment button",
+        "operationId": "4cc07cac1b8ab2c427a6ce35da759408",
+        "parameters": [
+          {
+            "name": "hash",
+            "in": "path",
+            "description": "Unique hash for the payment button",
+            "required": true
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to invoice"
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT": []
+          }
+        ]
+      }
+    },
+    "/shops/deposit": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Returns list of shop deposit by uid",
+        "operationId": "cf50d9891baa34c3820a4d52966217c2",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "description": "Unique deposit identifier",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "psys_cid",
+            "in": "query",
+            "description": "One or comma-separated list of the cryptocurrencies supported by Plisio (ID column from supported cryptocurrencies https://plisio.net/documentation/appendices/supported-cryptocurrencies)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns array of ShopDepositResponseDto objects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShopDepositResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/shops/deposit/new": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Create new shop deposit",
+        "operationId": "067093c5a63af6f9f4c7856afe97b97b",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "description": "Unique deposit identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "psys_cid",
+            "in": "query",
+            "description": "One or comma-separated list of supported cryptocurrency IDs",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns ShopDepositResponseDto object or array of objects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ShopDepositResponseDto"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ShopDepositResponseDto"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/telegram-bot/create": {
+      "post": {
+        "tags": [
+          "telegram_bot"
+        ],
+        "summary": "Create telegram bot webhook",
+        "operationId": "501bfd7eee7e15faf844370d0265adf3",
+        "parameters": [
+          {
+            "name": "x-telegram-bot-api-secret-token",
+            "in": "header",
+            "description": "Telegram bot secret token",
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "message": {
+                    "properties": {
+                      "from": {
+                        "properties": {
+                          "id": {
+                            "description": "Telegram user ID",
+                            "type": "integer"
+                          },
+                          "username": {
+                            "description": "Telegram username",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "example": true
+              }
+            }
+          },
+          "422": {
+            "description": "Returns validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shops": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Get shop info by api_key",
+        "operationId": "c2bab6f5d3cffcb93cdf5517ef244fe3",
+        "responses": {
+          "200": {
+            "description": "Returns ShopResponseDto object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Returns error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BalanceApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/BalanceResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "BalanceResponseDto": {
+        "properties": {
+          "psys_cid": {
+            "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "currency": {
+            "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "balance": {
+            "description": "Balance in cryptocurrency",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CommissionApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/CommissionResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "CommissionResponseBoostDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommissionResponseSimpleDto"
+          },
+          {
+            "properties": {
+              "minFeeRate": {
+                "description": "Minimal fee rate for boost",
+                "type": "number",
+                "format": "float",
+                "nullable": true
+              },
+              "maxFeeRate": {
+                "description": "Maximum fee rate for boost",
+                "type": "number",
+                "format": "float",
+                "nullable": true
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "CommissionResponseDto": {
+        "properties": {
+          "commission": {
+            "description": "Plisio commission value",
+            "type": "string"
+          },
+          "fee": {
+            "description": "Cryptocurrency fee value",
+            "type": "string"
+          },
+          "feeUnit": {
+            "description": "Cryptocurrency feeUnit value",
+            "type": "string"
+          },
+          "plan": {
+            "description": "Plisio's cryptocurrency fee estimation plan",
+            "type": "string"
+          },
+          "useWallet": {
+            "description": "Pay fee from wallet",
+            "type": "string"
+          },
+          "useWalletBalance": {
+            "description": "Balance of wallet that will be used to pay fee",
+            "type": "string"
+          },
+          "plans": {
+            "description": "Cryptocurrency fee plans",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeePlanDto"
+            }
+          }
+        },
+        "type": "object"
+      },
+      "CommissionResponseSimpleDto": {
+        "properties": {
+          "commission": {
+            "description": "Plisio commission value",
+            "type": "string"
+          },
+          "fee": {
+            "description": "Cryptocurrency fee value",
+            "type": "string"
+          },
+          "feeUnit": {
+            "description": "Cryptocurrency feeUnit value",
+            "type": "string"
+          },
+          "feeFiat": {
+            "description": "Cryptocurrency fee value in selected fiat currency",
+            "type": "string"
+          },
+          "feeFiatUnit": {
+            "description": "Selected fiat currency",
+            "type": "string"
+          },
+          "maxAmount": {
+            "description": "Maximum allowed amount to withdrawal",
+            "type": "string"
+          },
+          "plan": {
+            "description": "Plisio's cryptocurrency fee estimation plan",
+            "type": "string"
+          },
+          "useWallet": {
+            "description": "Pay fee from wallet",
+            "type": "string",
+            "nullable": true
+          },
+          "useWalletBalance": {
+            "description": "Balance of wallet that will be used to pay fee",
+            "type": "string",
+            "nullable": true
+          },
+          "plans": {
+            "$ref": "#/components/schemas/FeeSimplePlanDto"
+          },
+          "custom": {
+            "description": "Cryptocurrency fee limits",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeePlanCustomDto"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionResponseSimpleErrorDto"
+            },
+            "nullable": true
+          },
+          "customFeeRate": {
+            "type": "number",
+            "format": "float",
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "CommissionResponseSimpleErrorDto": {
+        "properties": {
+          "amount": {
+            "description": "Amount",
+            "type": "string"
+          },
+          "to": {
+            "description": "Plisio commission value",
+            "type": "string"
+          },
+          "balance": {
+            "description": "Balance in cryptocurrency",
+            "type": "string"
+          },
+          "cid": {
+            "description": "Cryptocurrency Plisio Abbr",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CryptocurrencyApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PaysysDto"
+                }
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "DonateBlockDto": {
+        "properties": {
+          "donate_id": {
+            "description": "Name",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name",
+            "type": "string"
+          },
+          "url": {
+            "description": "Url",
+            "type": "string"
+          },
+          "image": {
+            "description": "Image",
+            "type": "string",
+            "format": "uri"
+          },
+          "icon": {
+            "description": "Icon",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DonateDto": {
+        "properties": {
+          "name": {
+            "description": "Donate name",
+            "type": "string"
+          },
+          "info_name": {
+            "description": "Donate info name",
+            "type": "string"
+          },
+          "info_description": {
+            "description": "Donate description",
+            "type": "string"
+          },
+          "info_image": {
+            "description": "Donate info image",
+            "nullable": true
+          },
+          "allowed_psys_name": {
+            "description": "Donate allowed_psys_name",
+            "type": "string"
+          },
+          "allowed_psys_cids": {
+            "description": "Donate $allowed_psys_cids",
+            "type": "string"
+          },
+          "completed_name": {
+            "description": "Donate $completed_name",
+            "type": "string"
+          },
+          "completed_text": {
+            "description": "Donate $completed_text",
+            "type": "string"
+          },
+          "color_background_first": {
+            "description": "Donate $color_background_first",
+            "type": "string"
+          },
+          "color_background_second": {
+            "description": "Donate $color_background_second",
+            "type": "string"
+          },
+          "color_title": {
+            "description": "Donate $color_title",
+            "type": "string"
+          },
+          "color_description": {
+            "description": "Donate $color_description",
+            "type": "string"
+          },
+          "color_link_button": {
+            "description": "Donate $color_link_button",
+            "type": "string"
+          },
+          "color_text": {
+            "description": "Donate $color_text",
+            "type": "string"
+          },
+          "button_color": {
+            "description": "Donate $button_color",
+            "type": "string"
+          },
+          "button_type": {
+            "description": "Donate $button_type",
+            "type": "string"
+          },
+          "url_donate": {
+            "description": "Donate $url_donate",
+            "type": "string"
+          },
+          "block_info": {
+            "description": "Model DonateBlockDto",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ErrorDto": {
+        "properties": {
+          "message": {
+            "description": "Error message or validation json",
+            "type": "string"
+          },
+          "code": {
+            "description": "Internal error code",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ErrorResponseDto": {
+        "properties": {
+          "status": {
+            "description": "success or error",
+            "type": "string",
+            "example": "error"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ErrorDto"
+          }
+        },
+        "type": "object"
+      },
+      "FeeApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FeeResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeeParamsDto": {
+        "properties": {
+          "conf_target": {
+            "description": "estimated fee parameter to confirm the transaction in the “conf_target” blocks",
+            "type": "string"
+          },
+          "plan": {
+            "description": "the Plisio’s fee plan name",
+            "type": "string"
+          },
+          "value": {
+            "description": "fee value",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeePlanApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FeePlanDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeePlanBtcDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FeePlanCommonDto"
+          },
+          {
+            "properties": {
+              "conf_target": {
+                "description": "estimate fee to be included into next 'conf_target' block(s)",
+                "type": "number"
+              },
+              "feeRate": {
+                "description": "fee rate that will be used for transaction",
+                "type": "number",
+                "format": "float"
+              },
+              "feeRateUnit": {
+                "description": "fee rate unit",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeePlanCommonDto": {
+        "properties": {
+          "key": {
+            "description": "fee plan key",
+            "type": "string"
+          },
+          "name": {
+            "description": "fee plan name",
+            "type": "string"
+          },
+          "description": {
+            "description": "fee plan description",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeePlanCustomDto": {
+        "properties": {
+          "min": {
+            "description": "minimal custom fee plan value",
+            "type": "integer"
+          },
+          "max": {
+            "description": "estimated fee parameter to confirm the transaction in the “conf_target” blocks",
+            "type": "integer"
+          },
+          "default": {
+            "description": "estimated fee parameter to confirm the transaction in the “conf_target” blocks",
+            "type": "integer"
+          },
+          "borders": {
+            "description": "comma-separated rates of supported plans",
+            "type": "string"
+          },
+          "unit": {
+            "description": "Fee unit",
+            "type": "string"
+          },
+          "field": {
+            "description": "Fee unit",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeePlanDto": {
+        "properties": {
+          "economy": {
+            "description": "estimated fee parameter to confirm the transaction in the “conf_target” blocks",
+            "type": "object"
+          },
+          "normal": {
+            "description": "estimated fee parameter to confirm the transaction in the “conf_target” blocks",
+            "type": "object"
+          },
+          "priority": {
+            "description": "estimated fee parameter to confirm the transaction in the “conf_target” blocks",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "FeePlanEthDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FeePlanCommonDto"
+          },
+          {
+            "properties": {
+              "gasLimit": {
+                "description": "Ethereum gas limit",
+                "type": "number",
+                "format": "float"
+              },
+              "gasPrice": {
+                "description": "Ethereum gas price",
+                "type": "number",
+                "format": "float"
+              },
+              "value": {
+                "description": "Fee value",
+                "type": "string"
+              },
+              "feeUnit": {
+                "description": "Fee unit value",
+                "type": "string"
+              },
+              "nonce": {
+                "description": "Nonce param to update tx"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeePlanLimitsBtcDto": {
+        "properties": {
+          "plan": {
+            "description": "Plan name: normal, priority or custom",
+            "type": "string"
+          },
+          "value": {
+            "description": "Fee value",
+            "type": "string"
+          },
+          "unit": {
+            "description": "Fee unit",
+            "type": "number"
+          },
+          "conf_target": {
+            "description": "estimate fee to be included into next 'conf_target' block(s)",
+            "type": "number"
+          },
+          "feerate": {
+            "description": "Fee rate in BTC/Kb",
+            "type": "number"
+          },
+          "sat_b": {
+            "description": "Fee rate in sat/byte",
+            "type": "number"
+          },
+          "dynamicValues": {
+            "description": "Name of dynamic property name (ex: sat_b)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeePlanLimitsEthDto": {
+        "properties": {
+          "plan": {
+            "description": "Plan name: normal, priority or custom",
+            "type": "string"
+          },
+          "value": {
+            "description": "Fee value",
+            "type": "string"
+          },
+          "unit": {
+            "description": "Fee unit",
+            "type": "number"
+          },
+          "gasLimit": {
+            "description": "Ethereum gas limit",
+            "type": "integer"
+          },
+          "gasPrice": {
+            "description": "Ethereum gas price in Gwai",
+            "type": "integer"
+          },
+          "dynamicValues": {
+            "description": "Name of dynamic property name (ex: gasPrice)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeePlanSolDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FeePlanCommonDto"
+          },
+          {
+            "properties": {
+              "value": {
+                "description": "Fee value",
+                "type": "number"
+              },
+              "feeUnit": {
+                "description": "Fee unit",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeePlanTonDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FeePlanCommonDto"
+          },
+          {
+            "properties": {
+              "value": {
+                "description": "Fee value",
+                "type": "number"
+              },
+              "feeUnit": {
+                "description": "Fee unit",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeePlanTrxDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FeePlanCommonDto"
+          },
+          {
+            "properties": {
+              "value": {
+                "description": "Fee value",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeePlanXmrDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FeePlanCommonDto"
+          },
+          {
+            "properties": {
+              "conf_target": {
+                "description": "Priority value of XMR"
+              },
+              "value": {
+                "description": "Fee value",
+                "type": "number"
+              },
+              "feeUnit": {
+                "description": "Fee unit",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "FeeResponseDto": {
+        "properties": {
+          "fee": {
+            "description": "Fee value",
+            "type": "string"
+          },
+          "psys_cid": {
+            "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "currency": {
+            "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "plan": {
+            "description": "normal or priority (https://plisio.net/documentation/endpoints/fee-plans)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeeSimplePlanDto": {
+        "properties": {
+          "economy": {
+            "$ref": "#/components/schemas/FeeSimplePlanItemDto"
+          },
+          "normal": {
+            "$ref": "#/components/schemas/FeeSimplePlanItemDto"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/FeeSimplePlanItemDto"
+          }
+        },
+        "type": "object"
+      },
+      "FeeSimplePlanItemDto": {
+        "properties": {
+          "name": {
+            "description": "Fee plan name",
+            "type": "string"
+          },
+          "description": {
+            "description": "Fee plan detailed description",
+            "type": "string"
+          },
+          "value": {
+            "description": "estimated fee value",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HateoasLinkDto": {
+        "properties": {
+          "href": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "type": "object"
+      },
+      "HateoasLinksDto": {
+        "properties": {
+          "self": {
+            "$ref": "#/components/schemas/HateoasLinkDto"
+          },
+          "next": {
+            "$ref": "#/components/schemas/HateoasLinkDto"
+          },
+          "last": {
+            "$ref": "#/components/schemas/HateoasLinkDto"
+          }
+        },
+        "type": "object"
+      },
+      "HateoasMetaDto": {
+        "properties": {
+          "totalCount": {
+            "description": "HATEOAS pagination items count",
+            "type": "integer"
+          },
+          "pageCount": {
+            "description": "HATEOAS pagination pages count",
+            "type": "integer"
+          },
+          "currentPage": {
+            "description": "HATEOAS pagination current page",
+            "type": "integer"
+          },
+          "perPage": {
+            "description": "HATEOAS pagination items per page",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "InvoiceResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/InvoiceSimpleResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceWhiteLabelResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/InvoiceExtendedResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "OperationApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "OperationDto": {
+        "properties": {
+          "user_id": {
+            "description": "Profile ID",
+            "type": "string"
+          },
+          "shop_id": {
+            "description": "Shop ID",
+            "type": "string"
+          },
+          "type": {
+            "description": "cash_in, cash_out, mass_cash_out, invoice",
+            "type": "string"
+          },
+          "status": {
+            "description": "pending, completed, error, new, expired, mismatch, cancelled",
+            "type": "string"
+          },
+          "pending_sum": {
+            "description": "unconfirmed amount (mempool)",
+            "type": "string"
+          },
+          "psys_cid": {
+            "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "currency": {
+            "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "source_currency": {
+            "description": "fiat currency - USD by default or source_currency was set",
+            "type": "string"
+          },
+          "source_rate": {
+            "description": "Exchange rate from the “psys_cid” to the “source_currency” at the moment of transfer",
+            "type": "string"
+          },
+          "fee": {
+            "description": "transaction fee stated in the transfer",
+            "type": "string"
+          },
+          "wallet_hash": {
+            "description": "destination hash (type=cash_out) or invoice hash",
+            "type": "string"
+          },
+          "sendmany": {
+            "description": "Pairs of hashes and values (type=mass_cash_out)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "params": {
+            "$ref": "#/components/schemas/OperationParamsDto"
+          },
+          "expire_at_utc": {
+            "description": "timestamp in UTC timezone; it may need to be divided by 1000",
+            "type": "integer"
+          },
+          "created_at_utc": {
+            "description": "timestamp in the UTC timezone; it may need to be divided by 1000",
+            "type": "integer"
+          },
+          "amount": {
+            "description": "amount received/transferred by an operation (invoice, cash-in/cash-out)",
+            "type": "string"
+          },
+          "sum": {
+            "description": "Invoice: params.amount + Plisio commission (if customer pays commission) or params.amount (if merchant pays commission)\nCash-out: transfer amount + network fee\nCash-in: received amount",
+            "type": "string"
+          },
+          "commission": {
+            "description": "Plisio commission",
+            "type": "string"
+          },
+          "tx_url": {
+            "description": "link to the cryptocurrency block explorer",
+            "type": "string"
+          },
+          "tx_id": {
+            "description": "array of transaction ids",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "description": "internal Plisio operation ID",
+            "type": "string"
+          },
+          "actual_sum": {
+            "description": "Real incoming amount",
+            "type": "string"
+          },
+          "actual_commission": {
+            "description": "Plisio commission taken",
+            "type": "string"
+          },
+          "actual_fee": {
+            "description": "Network fee (move invoice to wallet)",
+            "type": "string"
+          },
+          "actual_invoice_sum": {
+            "description": "actual_sum - actual_commis_sim - actual_fee",
+            "type": "string"
+          },
+          "tx": {
+            "description": "array of transaction payment items",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "confirmations": {
+            "description": "Number of confirmations of this transaction. We don't update confirmation after operation is confirmed",
+            "type": "integer"
+          },
+          "status_code": {
+            "description": "Status code",
+            "type": "integer"
+          },
+          "parent_id": {
+            "description": "ID of parent invoice",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OperationParamsDto": {
+        "properties": {
+          "fee": {
+            "$ref": "#/components/schemas/FeeParamsDto"
+          },
+          "order_number": {
+            "description": "Invoice order number. Must be unique number in your store for each new store`s order!!!",
+            "type": "string"
+          },
+          "order_name": {
+            "description": "Order name",
+            "type": "string"
+          },
+          "description": {
+            "description": "Order description",
+            "type": "string"
+          },
+          "source_amount": {
+            "description": "Invoice amount in fiat currency",
+            "type": "string"
+          },
+          "source_currency": {
+            "description": "Invoice fiat currency",
+            "type": "string"
+          },
+          "value": {
+            "description": "fee value",
+            "type": "string"
+          },
+          "avatar": {
+            "description": "Custom invoice avatar",
+            "type": "string"
+          },
+          "store": {
+            "description": "Custom invoice store name",
+            "type": "string"
+          },
+          "currency": {
+            "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "psys_cid": {
+            "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "amount": {
+            "description": "Invoice amount in selected cryptocurrency",
+            "type": "string"
+          },
+          "source_rate": {
+            "description": "Cryptocurrency rate",
+            "type": "string"
+          },
+          "email": {
+            "description": "Email of payer",
+            "type": "string"
+          },
+          "donate_hash": {
+            "description": "Donation hash",
+            "type": "string"
+          },
+          "payment_button_hash": {
+            "description": "Payment button hash",
+            "type": "string"
+          },
+          "memo": {
+            "description": "Memo"
+          }
+        },
+        "type": "object"
+      },
+      "OperationSimpleDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InvoiceSimpleResponseDto"
+          },
+          {
+            "properties": {
+              "shop_id": {
+                "description": "Shop ID",
+                "type": "string"
+              },
+              "type": {
+                "description": "cash_in, cash_out, mass_cash_out, invoice",
+                "type": "string"
+              },
+              "status": {
+                "description": "pending, completed, error, new, expired, mismatch, cancelled",
+                "type": "string"
+              },
+              "tx_url": {
+                "description": "link to the cryptocurrency block explorer",
+                "type": "string"
+              },
+              "id": {
+                "description": "internal Plisio operation ID",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "OperationsApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OperationsHateoasResponseDto"
+                }
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "OperationsHateoasResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "operations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OperationDto"
+                }
+              },
+              "_links": {
+                "$ref": "#/components/schemas/HateoasLinksDto"
+              },
+              "_meta": {
+                "$ref": "#/components/schemas/HateoasMetaDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "PaymentButtonDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "store_name": {
+            "description": "Store name",
+            "type": "string"
+          },
+          "hash": {
+            "description": "Hash",
+            "type": "string"
+          },
+          "amount": {
+            "description": "Amount",
+            "type": "number",
+            "format": "float"
+          },
+          "image": {
+            "description": "Image",
+            "nullable": true
+          },
+          "allowed_psys_cids": {
+            "description": "PaymentButton $allowed_psys_cids",
+            "type": "string"
+          },
+          "currency": {
+            "description": "PaymentButton $currency",
+            "type": "string"
+          },
+          "return_url": {
+            "description": "PaymentButton $return_url",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PaysysDto": {
+        "properties": {
+          "name": {
+            "description": "Cryptocurrency name",
+            "type": "string"
+          },
+          "cid": {
+            "description": "Cryptocurrency Plisio Abbr",
+            "type": "string"
+          },
+          "currency": {
+            "description": "Cryptocurrency Abbr",
+            "type": "string"
+          },
+          "icon": {
+            "description": "Cryptocurrency icon",
+            "type": "string",
+            "format": "uri"
+          },
+          "rate_usd": {
+            "description": "Cryptocurrency USD rate",
+            "type": "string"
+          },
+          "price_usd": {
+            "description": "Cryptocurrency USD price",
+            "type": "string"
+          },
+          "precision": {
+            "description": "Cryptocurrency precision",
+            "type": "string"
+          },
+          "output_precision": {
+            "description": "Cryptocurrency output precision",
+            "type": "string"
+          },
+          "fiat": {
+            "description": "Fiat abbr"
+          },
+          "fiat_rate": {
+            "description": "Cryptocurrency fiat rate (default USD)"
+          },
+          "min_sum_in": {
+            "description": "Invoice amount minimum"
+          },
+          "invoice_commission_percentage": {
+            "description": "Plisio commission percentage",
+            "type": "string"
+          },
+          "hidden": {
+            "description": "Is cryptocurrency enabled (1 - disable, 0 - enabled)",
+            "type": "integer"
+          },
+          "maintenance": {
+            "description": "Cryptocurrency node temporary on maintenance",
+            "type": "boolean"
+          },
+          "contractOf": {
+            "description": "Pay fee from another crypto"
+          },
+          "contractStandard": {
+            "description": "Standard of contract"
+          }
+        },
+        "type": "object"
+      },
+      "ShopDepositResponseDto": {
+        "properties": {
+          "uid": {
+            "description": "Unique deposit identifier",
+            "type": "string"
+          },
+          "hash": {
+            "description": "Deposit hash",
+            "type": "string",
+            "format": "uri"
+          },
+          "psys_cid": {
+            "description": "one of the cryptocurrencies supported by Plisio (ID column from supported cryptocurrencies https://plisio.net/documentation/appendices/supported-cryptocurrencies)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ShopDto": {
+        "properties": {
+          "name": {
+            "description": "Shop name",
+            "type": "string"
+          },
+          "link": {
+            "type": "string",
+            "format": "uri"
+          },
+          "logo": {
+            "description": "Shop logo url",
+            "nullable": true
+          },
+          "commission_payment": {
+            "description": "Who pays the commission: Shop or Client",
+            "type": "integer"
+          },
+          "white_label": {
+            "description": "Is white-label is enabled",
+            "type": "boolean"
+          },
+          "extra_commission": {
+            "description": "Extra white-label commission",
+            "type": "number",
+            "format": "float"
+          },
+          "verified": {
+            "description": "Is domain verified",
+            "type": "boolean"
+          },
+          "is_alternative_payment_link": {
+            "description": "Is alternative payment link enabled",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ShopPartnerDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ShopDto"
+          },
+          {
+            "properties": {
+              "api_key": {
+                "description": "Shop name",
+                "type": "string"
+              },
+              "statusUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "requestIp": {
+                "type": "string",
+                "format": "ip"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "ShopResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ShopDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "SuccessResponseDto": {
+        "properties": {
+          "status": {
+            "description": "success or error",
+            "type": "string",
+            "example": "success"
+          }
+        },
+        "type": "object"
+      },
+      "WithdrawApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/WithdrawResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "WithdrawResponseDto": {
+        "properties": {
+          "type": {
+            "description": "'cash_out' or 'mass_cash_out' depending on the request",
+            "type": "string"
+          },
+          "status": {
+            "description": "Cash-out status 'competed', 'error'",
+            "type": "string"
+          },
+          "psys_cid": {
+            "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "currency": {
+            "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+            "type": "string"
+          },
+          "source_currency": {
+            "description": "Fiat currency - only USD available for the moment",
+            "type": "string"
+          },
+          "source_rate": {
+            "description": "Exchange rate from the “psys_cid” to the “source_currency” at the moment of transfer",
+            "type": "string"
+          },
+          "fee": {
+            "description": "Transaction fee stated in the transfer",
+            "type": "string"
+          },
+          "wallet_hash": {
+            "description": "Destination hash (type=cash_out)",
+            "type": "string"
+          },
+          "sendmany": {
+            "description": "Pairs of hashes and values (type=mass_cash_out)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "params": {
+            "$ref": "#/components/schemas/FeeParamsDto"
+          },
+          "created_at_utc": {
+            "description": "timestamp in the UTC timezone; it may need to be divided by 1000",
+            "type": "integer"
+          },
+          "amount": {
+            "description": "transfer amount in cryptocurrency",
+            "type": "string"
+          },
+          "tx_url": {
+            "description": "link to the cryptocurrency block explorer",
+            "type": "string"
+          },
+          "tx_id": {
+            "description": "array of transaction ids",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "description": "internal Plisio operation ID",
+            "type": "string"
+          },
+          "txn_id": {
+            "description": "internal Plisio operation ID",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExchangeEstimateRequestDto": {
+        "properties": {
+          "from_currency": {
+            "description": "Source cryptocurrency CID, e.g. BTC, USDT_TRX.",
+            "type": "string"
+          },
+          "to_currency": {
+            "description": "Destination cryptocurrency CID.",
+            "type": "string"
+          },
+          "from_amount": {
+            "description": "Amount the merchant pays in. Provide either from_amount or to_amount, not both."
+          },
+          "to_amount": {
+            "description": "Amount the merchant wants to receive. Provide either from_amount or to_amount, not both."
+          },
+          "amount_currency": {
+            "description": "Optional fiat / crypto code to interpret amounts in (e.g. USD)."
+          }
+        },
+        "type": "object"
+      },
+      "ExchangeEstimateResponseDto": {
+        "properties": {
+          "from_currency": {
+            "type": "string"
+          },
+          "to_currency": {
+            "type": "string"
+          },
+          "from_amount": {
+            "type": "string"
+          },
+          "to_amount": {
+            "type": "string"
+          },
+          "min_amount": {
+            "description": "Minimum supported from_amount for this pair."
+          },
+          "max_amount": {
+            "description": "Maximum supported from_amount for this pair, null if unlimited."
+          }
+        },
+        "type": "object"
+      },
+      "ExchangeRequestDto": {
+        "properties": {
+          "from_currency": {
+            "type": "string"
+          },
+          "to_currency": {
+            "type": "string"
+          },
+          "from_amount": {
+
+          },
+          "to_amount": {
+
+          },
+          "to_address": {
+            "description": "External destination address — where to_amount will be sent after exchange.",
+            "type": "string"
+          },
+          "amount_currency": {
+
+          }
+        },
+        "type": "object"
+      },
+      "ExchangeResponseDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "from_currency": {
+            "type": "string"
+          },
+          "to_currency": {
+            "type": "string"
+          },
+          "from_amount": {
+            "type": "string"
+          },
+          "to_amount": {
+            "type": "string"
+          },
+          "to_address": {
+            "description": "External recipient address (echoed from the request).",
+            "type": "string"
+          },
+          "deposit_address": {
+            "description": "Where the customer must send from_amount.\nPartner deposit address for ChangeNow; our generated hash for SwapKit.",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExchangeStatusResponseDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "from_currency": {
+            "type": "string"
+          },
+          "to_currency": {
+            "type": "string"
+          },
+          "from_amount": {
+            "type": "string"
+          },
+          "to_amount": {
+            "type": "string"
+          },
+          "to_address": {
+            "type": "string"
+          },
+          "deposit_address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "from_txid": {
+            "description": "Inbound deposit txid once detected."
+          },
+          "to_txid": {
+            "description": "Outbound exchange txid once partner sends to_amount."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InvoiceCallbackExtendedResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InvoiceExtendedResponseDto"
+          },
+          {
+            "properties": {
+              "amount": {
+                "description": "Invoice amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "pending_amount": {
+                "description": "Remained amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "wallet_hash": {
+                "description": "Invoice hash",
+                "type": "string"
+              },
+              "psys_cid": {
+                "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+                "type": "string"
+              },
+              "currency": {
+                "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+                "type": "string"
+              },
+              "source_currency": {
+                "description": "Fiat currency - only USD available for the moment",
+                "type": "string"
+              },
+              "source_rate": {
+                "description": "Exchange rate from the “psys_cid” to the “source_currency” at the moment of transfer",
+                "type": "string"
+              },
+              "expected_confirmations": {
+                "description": "How many confirmations expected to mark invoice completed",
+                "type": "string"
+              },
+              "qr_code": {
+                "description": "QR code image in base64 format",
+                "type": "string"
+              },
+              "verify_hash": {
+                "description": "Hash to verify the “POST” data signed with your SHOP_API_KEY",
+                "type": "string"
+              },
+              "invoice_commission": {
+                "description": "Plisio commission",
+                "type": "string"
+              },
+              "invoice_sum": {
+                "description": "shop pays commission: invoice amount - invoice_commission\nclient pays commission: invoice amount",
+                "type": "string"
+              },
+              "invoice_total_sum": {
+                "description": "shop pays commission: invoice amount\nclient pays commission: invoice_commission + invoice_sum",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceDetailsApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/InvoiceDetailsResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceDetailsResponseDto": {
+        "properties": {
+          "invoice": {
+            "$ref": "#/components/schemas/InvoiceExtendedResponseDto"
+          },
+          "active_invoice_id": {
+            "description": "Current active invoice ID. Invoice ID with the last selected cryptocurrency",
+            "type": "string"
+          },
+          "shop": {
+            "$ref": "#/components/schemas/ShopInfoDto"
+          },
+          "paysys": {
+            "$ref": "#/components/schemas/InvoicePaysysDto"
+          },
+          "allowed_psys_cids": {
+            "description": "Allowed cryptocurrencies for select",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoicePaysysDto"
+            }
+          }
+        },
+        "type": "object"
+      },
+      "InvoiceExtendedResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InvoiceSimpleResponseDto"
+          },
+          {
+            "properties": {
+              "id": {
+                "description": "Plisio’s intertnal ID (copy of txn_id)",
+                "type": "string"
+              },
+              "amount": {
+                "description": "Invoice amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "received_amount": {
+                "description": "Received and approved amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "pending_amount": {
+                "description": "Pending (not approve) amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "remaining_amount": {
+                "description": "Remaining amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "wallet_hash": {
+                "description": "Invoice hash",
+                "type": "string"
+              },
+              "psys_cid": {
+                "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+                "type": "string"
+              },
+              "currency": {
+                "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+                "type": "string"
+              },
+              "source_currency": {
+                "description": "Fiat currency - only USD available for the moment",
+                "type": "string"
+              },
+              "source_rate": {
+                "description": "Exchange rate from the “psys_cid” to the “source_currency” at the moment of transfer",
+                "type": "string"
+              },
+              "expected_confirmations": {
+                "description": "How many confirmations expected to mark invoice completed",
+                "type": "string"
+              },
+              "invoice_commission": {
+                "description": "Plisio commission",
+                "type": "string"
+              },
+              "invoice_sum": {
+                "description": "shop pays commission: invoice amount - invoice_commission\nclient pays commission: invoice amount",
+                "type": "string"
+              },
+              "invoice_total_sum": {
+                "description": "shop pays commission: invoice amount\nclient pays commission: invoice_commission + invoice_sum",
+                "type": "string"
+              },
+              "email_already_set": {
+                "description": "If email has been set",
+                "type": "boolean"
+              },
+              "tx_url": {
+                "description": "link to the cryptocurrency block explorer",
+                "type": "string"
+              },
+              "tx_id": {
+                "description": "array of transaction ids",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "switch_id": {
+                "description": "Initial invoice ID",
+                "type": "string",
+                "nullable": true
+              },
+              "paid_id": {
+                "description": "ID of invoice that has money",
+                "type": "string",
+                "nullable": true
+              },
+              "params": {
+                "$ref": "#/components/schemas/OperationParamsDto"
+              },
+              "view_key": {
+                "description": "invoice read-only view key",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceFormResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InvoiceSimpleResponseDto"
+          },
+          {
+            "properties": {
+              "id": {
+                "description": "Plisio’s intertnal ID (copy of txn_id)",
+                "type": "string"
+              },
+              "amount": {
+                "description": "Invoice amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "received_amount": {
+                "description": "Received and approved amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "pending_amount": {
+                "description": "Pending (not approve) amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "remaining_amount": {
+                "description": "Remaining amount in the selected cryptocurrency",
+                "type": "string"
+              },
+              "wallet_hash": {
+                "description": "Invoice hash",
+                "type": "string"
+              },
+              "psys_cid": {
+                "description": "ID column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+                "type": "string"
+              },
+              "currency": {
+                "description": "Code column from https://plisio.net/documentation/appendices/supported-cryptocurrencies",
+                "type": "string"
+              },
+              "source_currency": {
+                "description": "Fiat currency - only USD available for the moment",
+                "type": "string"
+              },
+              "source_rate": {
+                "description": "Exchange rate from the “psys_cid” to the “source_currency” at the moment of transfer",
+                "type": "string"
+              },
+              "expected_confirmations": {
+                "description": "How many confirmations expected to mark invoice completed",
+                "type": "string"
+              },
+              "invoice_commission": {
+                "description": "Plisio commission",
+                "type": "string"
+              },
+              "invoice_sum": {
+                "description": "shop pays commission: invoice amount - invoice_commission\nclient pays commission: invoice amount",
+                "type": "string"
+              },
+              "invoice_total_sum": {
+                "description": "shop pays commission: invoice amount\nclient pays commission: invoice_commission + invoice_sum",
+                "type": "string"
+              },
+              "email_already_set": {
+                "description": "If email has been set",
+                "type": "boolean"
+              },
+              "tx_url": {
+                "description": "link to the cryptocurrency block explorer",
+                "type": "string"
+              },
+              "tx_id": {
+                "description": "array of transaction ids",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "switch_id": {
+                "description": "Initial invoice ID",
+                "type": "string",
+                "nullable": true
+              },
+              "paid_id": {
+                "description": "ID of invoice that has money",
+                "type": "string",
+                "nullable": true
+              },
+              "params": {
+                "$ref": "#/components/schemas/OperationParamsDto"
+              },
+              "donate_hash": {
+                "description": "Donation hash",
+                "type": "string"
+              },
+              "return_url": {
+                "description": "Invoice return url",
+                "type": "string"
+              },
+              "psys_cid_unsupported": {
+                "description": "True when psys_cid not in supported by shop",
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoicePaysysContractsGroupDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InvoicePaysysDto"
+          },
+          {
+            "properties": {
+              "contractGroupCid": {
+                "description": "Contract group cid",
+                "type": "string"
+              },
+              "contractGroupIcon": {
+                "description": "Contract group icon",
+                "type": "string"
+              },
+              "contractGroupName": {
+                "description": "Contract group name",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoicePaysysDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaysysDto"
+          },
+          {
+            "properties": {
+              "amount": {
+                "description": "Invoice amount in this crypto",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceSimpleResponseDto": {
+        "properties": {
+          "txn_id": {
+            "description": "Plisio’s intertnal ID",
+            "type": "string"
+          },
+          "invoice_url": {
+            "description": "Invoice URL",
+            "type": "string",
+            "format": "uri"
+          },
+          "invoice_total_sum": {
+            "description": "shop pays commission: invoice amount\nclient pays commission: invoice_commission + invoice_sum",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InvoiceSwitchApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/InvoiceExtendedResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceUpdateEmailApiResponseDto": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponseDto"
+          },
+          {
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/InvoiceUpdateEmailResponseDto"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "InvoiceUpdateEmailResponseDto": {
+        "properties": {
+          "email": {
+            "description": "Invoice email",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ShopInfoDto": {
+        "properties": {
+          "name": {
+            "description": "Shop name",
+            "type": "string"
+          },
+          "link": {
+            "description": "Shop URL",
+            "type": "string"
+          },
+          "logo": {
+            "description": "Shop logo",
+            "nullable": true
+          },
+          "successUrl": {
+            "description": "Success callback URL",
+            "type": "string"
+          },
+          "failedUrl": {
+            "description": "Fail callback URL",
+            "type": "string"
+          },
+          "allow_renew": {
+            "description": "Show renew button after invoice expored",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "type": "apiKey",
+        "description": "'Secret key' value from your API » Api settings page",
+        "name": "api_key",
+        "in": "query"
+      },
+      "view_key": {
+        "type": "apiKey",
+        "name": "view_key",
+        "in": "query"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "balance",
+      "description": "balance"
+    },
+    {
+      "name": "currencies",
+      "description": "currencies"
+    },
+    {
+      "name": "exchange",
+      "description": "exchange"
+    },
+    {
+      "name": "invoice",
+      "description": "invoice"
+    },
+    {
+      "name": "transaction",
+      "description": "transaction"
+    },
+    {
+      "name": "withdraw",
+      "description": "withdraw"
+    },
+    {
+      "name": "payment_button",
+      "description": "payment_button"
+    },
+    {
+      "name": "shop",
+      "description": "shop"
+    },
+    {
+      "name": "telegram_bot",
+      "description": "telegram_bot"
+    }
+  ]
+}
