@@ -247,6 +247,7 @@
   },
   "proxies": {
     "title": "Subscriptions",
+    "subtitle": "Manage users' subscriptions and run actions.",
     "username": "Username",
     "status": "Status",
     "server": "Server",
@@ -257,6 +258,7 @@
   },
   "tx": {
     "title": "Payments / Transactions",
+    "subtitle": "Users' payment & transaction history.",
     "id": "ID",
     "type": "Type",
     "status": "Status",

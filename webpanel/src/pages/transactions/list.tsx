@@ -4,6 +4,7 @@ import { useList } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { fmtDate, fmtToman } from "../../utils/format";
+import { PageHeader } from "../../components/PageHeader";
 
 const STATUS_COLORS: Record<string, string> = {
   finished: "green",
@@ -56,6 +57,7 @@ export function TransactionList() {
 
   return (
     <Card>
+      <PageHeader title={t("tx.title")} subtitle={t("tx.subtitle")} />
       <Table
         rowKey="id"
         loading={isLoading}

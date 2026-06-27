@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtDate } from "../../utils/format";
+import { PageHeader } from "../../components/PageHeader";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "green",
@@ -131,17 +132,21 @@ export function ProxyList() {
 
   return (
     <Card>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Input.Search
-          placeholder={t("proxies.search")}
-          allowClear
-          onSearch={(v) => {
-            setSearch(v);
-            setPage(1);
-          }}
-          style={{ width: 260 }}
-        />
-      </Space>
+      <PageHeader
+        title={t("proxies.title")}
+        subtitle={t("proxies.subtitle")}
+        extra={
+          <Input.Search
+            placeholder={t("proxies.search")}
+            allowClear
+            onSearch={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            style={{ width: 240 }}
+          />
+        }
+      />
       <Table
         rowKey="id"
         loading={isLoading}

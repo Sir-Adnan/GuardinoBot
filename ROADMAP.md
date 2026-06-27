@@ -149,9 +149,10 @@ service provisioning picker).
 - ✅ **Cohesion pass**: moved the shared card/chart CSS into `index.css` (`.stat-card`/`.stat-icon`
   hover-lift + theme-accent icon; `.bars`/`.chart-bar` sibling-fade). `StatCard` upgraded to that
   style; dashboard + reports now share one card + bar-chart look (reports KPIs + chart hover too).
-- [ ] Remaining: adopt `PageHeader` + the shared card style on the remaining list pages (users/
-  proxies/services/servers/transactions) for full consistency; theme presets + density; skeleton
-  loaders; table→card on mobile.
+- ✅ **List pages cohesion**: `PageHeader` (title + subtitle + search-in-extra) added to Users,
+  Subscriptions, Transactions — now consistent with Services/Servers/Discounts/Resellers/Audit/Texts.
+- [ ] Remaining: same header on the config pages (menus/buttons/settings/automation); theme presets
+  + density; skeleton loaders; table→card on mobile.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
 - [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on

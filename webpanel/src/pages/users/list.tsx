@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Button, Card, Input, Space, Table, Tag } from "antd";
+import { Button, Card, Input, Table, Tag } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
 import { useList } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ROLE_COLORS, fmtDate } from "../../utils/format";
+import { PageHeader } from "../../components/PageHeader";
 
 export function UserList() {
   const { t } = useTranslation();
@@ -71,17 +72,21 @@ export function UserList() {
 
   return (
     <Card>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Input.Search
-          placeholder={t("users.search")}
-          allowClear
-          onSearch={(v) => {
-            setSearch(v);
-            setPage(1);
-          }}
-          style={{ width: 260 }}
-        />
-      </Space>
+      <PageHeader
+        title={t("users.title")}
+        subtitle={t("users.subtitle")}
+        extra={
+          <Input.Search
+            placeholder={t("users.search")}
+            allowClear
+            onSearch={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            style={{ width: 240 }}
+          />
+        }
+      />
       <Table
         rowKey="id"
         loading={isLoading}
