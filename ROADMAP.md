@@ -134,11 +134,14 @@ service provisioning picker).
 - ✅ **Shared `StatCard`** — polished KPI card whose value uses the **inherited (configured) font**
   + tabular-nums (fixes the hard-coded-mono bug where dashboard/report numbers ignored the font
   picker).
-- ✅ **Dashboard redesign — neumorphic**: enriched `/dashboard/summary` (today/30d/all-time sales
-  + income, active users, resellers, orders today, servers enabled/total, pending payments, 14-day
-  spark); full **neumorphism** style (dual soft shadows on a same-colour surface, light/dark-aware
-  via ColorModeContext): raised hero (big today-income + inset mini-stats + inset sparkline panel)
-  + raised KPI cards with **inset icon chips**, grouped sections. Numbers use the configured font.
+- ✅ **Dashboard redesign — minimal/modern** (neumorphism dropped per owner): hover KPI cards
+  (lift + shadow, **hover colour = theme accent**, gray→accent icon chips), soft 14px corners,
+  configured-font numbers. **14-day bar chart** with hover tooltips + **sibling-fade** (others dim
+  on hover) + Jalali axis. **Switchable summary** (Today / 7d / 30d Segmented) showing income /
+  sales / orders / **GB sold** — backend `/dashboard/summary` gained `period_today/week/month`
+  (`PeriodStat`: income·sales·orders·gb via `Sum(service__data_limit)`). Fixed mislabel
+  (active subscriptions, not "active users"). Responsive (xs→xl).
+- ✅ **Global button/link polish** (index.css): smooth transitions + subtle primary-button lift.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
 - [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on

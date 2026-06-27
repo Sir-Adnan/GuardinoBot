@@ -7,17 +7,36 @@ from fastapi import APIRouter, Depends
 from tortoise.functions import Sum
 
 from app.api.deps import require_role
-from app.api.schemas import DashboardOut
+from app.api.schemas import DashboardOut, PeriodStat
 from app.models.proxy import Proxy
 from app.models.server import Server
 from app.models.user import Invoice, Transaction, User
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+_GB = 1024**3
+
 
 async def _sum(queryset, field: str = "amount") -> int:
     rows = await queryset.annotate(s=Sum(field)).values("s")
     return int((rows[0]["s"] if rows else 0) or 0)
+
+
+async def _period(since) -> PeriodStat:
+    """income / sales / orders / GB-sold since a given datetime (to now)."""
+    fin = Transaction.Status.finished
+    gb_rows = (
+        await Proxy.filter(created_at__gt=since)
+        .annotate(s=Sum("service__data_limit"))
+        .values("s")
+    )
+    gb_bytes = int((gb_rows[0]["s"] if gb_rows else 0) or 0)
+    return PeriodStat(
+        income=await _sum(Transaction.filter(status=fin, created_at__gt=since), "amount_paid"),
+        sales=await _sum(Invoice.filter(is_draft=False, created_at__gt=since)),
+        orders=await Proxy.filter(created_at__gt=since).count(),
+        gb=round(gb_bytes / _GB, 1),
+    )
 
 
 @router.get("/summary", response_model=DashboardOut)
@@ -67,4 +86,7 @@ async def summary(_: User = Depends(require_role(User.Role.admin))) -> Dashboard
         total_income=await _sum(Transaction.filter(status=fin), "amount_paid"),
         active_users=await User.filter(proxies__status="active").distinct().count(),
         resellers_total=await User.filter(role__gte=User.Role.reseller).count(),
+        period_today=await _period(day_ago),
+        period_week=await _period(now - td(days=7)),
+        period_month=await _period(month_ago),
     )

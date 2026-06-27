@@ -108,6 +108,19 @@ class DashboardOut(BaseModel):
     total_income: int = 0  # all-time Σ finished tx amount_paid
     active_users: int = 0  # users with ≥1 active subscription
     resellers_total: int = 0
+    period_today: Optional["PeriodStat"] = None
+    period_week: Optional["PeriodStat"] = None
+    period_month: Optional["PeriodStat"] = None
+
+
+class PeriodStat(BaseModel):
+    income: int = 0  # Σ finished tx amount_paid in the period
+    sales: int = 0  # Σ non-draft invoices in the period
+    orders: int = 0  # subscriptions created in the period
+    gb: float = 0  # GB of data sold (Σ service.data_limit of created subs)
+
+
+DashboardOut.model_rebuild()
 
 
 # -- servers (panels) ---------------------------------------------------------
