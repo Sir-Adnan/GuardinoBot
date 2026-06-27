@@ -21,7 +21,11 @@
   },
   "header": {
     "search": "Search users, orders, subscriptions…",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "appearance": "Appearance"
+  },
+  "footer": {
+    "tagline": "Subscription sales admin panel"
   },
   "common": {
     "logout": "Logout",

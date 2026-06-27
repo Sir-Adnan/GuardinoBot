@@ -21,7 +21,11 @@
   },
   "header": {
     "search": "جستجوی کاربر، سفارش، اشتراک…",
-    "notifications": "اعلان‌ها"
+    "notifications": "اعلان‌ها",
+    "appearance": "ظاهر و نمایش"
+  },
+  "footer": {
+    "tagline": "پنل مدیریت فروش اشتراک"
   },
   "common": {
     "logout": "خروج",

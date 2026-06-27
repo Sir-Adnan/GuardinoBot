@@ -142,6 +142,16 @@ service provisioning picker).
   (`PeriodStat`: income·sales·orders·gb via `Sum(service__data_limit)`). Fixed mislabel
   (active subscriptions, not "active users"). Responsive (xs→xl).
 - ✅ **Global button/link polish** (index.css): smooth transitions + subtle primary-button lift.
+- ✅ **Shell redesign** (Layout.tsx): **collapsible** desktop sidebar (icon-only mini mode, persisted)
+  + drawer on mobile; **consolidated "Appearance" dropdown** in the header (theme · language ·
+  calendar · accent · font — declutters the toolbar) keyed to the theme accent; added a **footer**;
+  responsive header (xs→xl). Dashboard ops KPIs now wrap to multiple rows on desktop.
+- ✅ **Cohesion pass**: moved the shared card/chart CSS into `index.css` (`.stat-card`/`.stat-icon`
+  hover-lift + theme-accent icon; `.bars`/`.chart-bar` sibling-fade). `StatCard` upgraded to that
+  style; dashboard + reports now share one card + bar-chart look (reports KPIs + chart hover too).
+- [ ] Remaining: adopt `PageHeader` + the shared card style on the remaining list pages (users/
+  proxies/services/servers/transactions) for full consistency; theme presets + density; skeleton
+  loaders; table→card on mobile.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
 - [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on

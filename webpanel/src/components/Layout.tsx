@@ -29,12 +29,15 @@ import {
   FontSizeOutlined,
   LayoutOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
   MenuOutlined,
+  MenuUnfoldOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
   SendOutlined,
   SettingOutlined,
   ShopOutlined,
+  SkinOutlined,
   TagsOutlined,
   TeamOutlined,
   TranslationOutlined,
@@ -54,11 +57,12 @@ const FONT_LABELS: Record<string, string> = {
   system: "System",
 };
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider, Content, Footer } = Layout;
 const { useBreakpoint } = Grid;
 const { Text } = Typography;
 
 const SIDER_WIDTH = 264;
+const SIDER_COLLAPSED = 76;
 
 interface Identity {
   name?: string;
@@ -96,6 +100,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { mutate: logout } = useLogout();
   const { data: identity } = useGetIdentity<Identity>();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    localStorage.getItem("sidebar_collapsed") === "1",
+  );
 
   const isMobile = !screens.lg;
   const isRtl = i18n.language !== "en";
@@ -103,8 +110,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const selectedKey =
     location.pathname === "/" ? "/" : "/" + location.pathname.split("/")[1];
 
-  // Services + Panels are admin+ (backend require_role(admin)); hide them from
-  // resellers so they don't hit 403s.
   const isAdmin = (identity?.role ?? 0) >= 2;
   const isSuper = (identity?.role ?? 0) >= 3;
   const menuItems = [
@@ -164,72 +169,92 @@ export function AppLayout({ children }: { children: ReactNode }) {
     localStorage.setItem("lang", next);
   };
 
+  const toggleCollapse = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("sidebar_collapsed", next ? "1" : "0");
+  };
+
   const initial = (identity?.name || identity?.username || "؟").trim().slice(0, 1);
+  const mini = collapsed && !isMobile;
+
+  // --- consolidated appearance menu (theme · language · calendar · accent · font) ---
+  const appearanceMenu = {
+    selectable: false,
+    onClick: ({ key, keyPath }: { key: string; keyPath: string[] }) => {
+      if (keyPath.includes("accent")) return setAccent(key);
+      if (keyPath.includes("font")) return setFont(key);
+      if (key === "theme") return toggle();
+      if (key === "lang") return toggleLang();
+      if (key === "calendar")
+        return setCalendar(calendar === "jalali" ? "gregorian" : "jalali");
+    },
+    items: [
+      { key: "theme", icon: <BulbOutlined />, label: `${t("common.theme")} · ${mode === "dark" ? "🌙" : "☀️"}` },
+      { key: "lang", icon: <TranslationOutlined />, label: `${t("common.language")} · ${i18n.language === "fa" ? "FA" : "EN"}` },
+      { key: "calendar", icon: <CalendarOutlined />, label: `${t("common.calendar")} · ${calendar === "jalali" ? t("common.calendar_jalali") : t("common.calendar_gregorian")}` },
+      { type: "divider" as const },
+      {
+        key: "accent",
+        icon: <BgColorsOutlined />,
+        label: t("common.accent"),
+        children: ACCENT_KEYS.map((k) => ({
+          key: k,
+          label: (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 6, background: accentColor(k, mode), display: "inline-block", outline: accent === k ? `2px solid ${token.colorPrimary}` : "none", outlineOffset: 1 }} />
+              {t(`common.accent_${k}`)}
+            </span>
+          ),
+        })),
+      },
+      {
+        key: "font",
+        icon: <FontSizeOutlined />,
+        label: t("common.font"),
+        children: FONT_KEYS.map((k) => ({
+          key: k,
+          label: <span style={{ fontFamily: FONTS[k], fontWeight: font === k ? 700 : 400 }}>{FONT_LABELS[k] ?? k}</span>,
+        })),
+      },
+    ],
+  };
 
   const sideContent = (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 11,
-          padding: "18px 18px 14px",
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 11,
-            background: token.colorPrimary,
-            color: "#fff",
-            display: "grid",
-            placeItems: "center",
-            flex: "none",
-            fontSize: 22,
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: mini ? "center" : "flex-start", gap: 11, padding: mini ? "18px 0 14px" : "18px 18px 14px" }}>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: token.colorPrimary, color: "#fff", display: "grid", placeItems: "center", flex: "none", fontSize: 22 }}>
           <SafetyCertificateOutlined />
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>{t("app.title")}</div>
-          <Text type="secondary" style={{ fontSize: 11.5 }}>
-            {t("app.subtitle")}
-          </Text>
-        </div>
+        {!mini && (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>{t("app.title")}</div>
+            <Text type="secondary" style={{ fontSize: 11.5 }}>{t("app.subtitle")}</Text>
+          </div>
+        )}
       </div>
 
       <Menu
         mode="inline"
+        inlineCollapsed={mini}
         theme={mode === "dark" ? "dark" : "light"}
         selectedKeys={[selectedKey]}
         items={menuItems}
         onClick={({ key }) => go(key)}
-        style={{ flex: 1, borderInlineEnd: 0, background: "transparent", padding: "0 8px" }}
+        style={{ flex: 1, borderInlineEnd: 0, background: "transparent", padding: mini ? "0 6px" : "0 8px", overflowY: "auto" }}
       />
 
       <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "8px 10px",
-            borderRadius: 11,
-            background: token.colorFillTertiary,
-          }}
-        >
-          <Avatar style={{ background: token.colorPrimary, flex: "none" }}>
-            {initial}
-          </Avatar>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {identity?.name || identity?.username || "—"}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: mini ? "center" : "flex-start", gap: 10, padding: mini ? 6 : "8px 10px", borderRadius: 11, background: mini ? "transparent" : token.colorFillTertiary }}>
+          <Avatar style={{ background: token.colorPrimary, flex: "none" }}>{initial}</Avatar>
+          {!mini && (
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {identity?.name || identity?.username || "—"}
+              </div>
+              <Text type="secondary" style={{ fontSize: 11 }}>{identity?.role_name || ""}</Text>
             </div>
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {identity?.role_name || ""}
-            </Text>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -240,14 +265,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {!isMobile && (
         <Sider
           width={SIDER_WIDTH}
+          collapsedWidth={SIDER_COLLAPSED}
+          collapsed={collapsed}
+          trigger={null}
           theme={mode === "dark" ? "dark" : "light"}
-          style={{
-            position: "sticky",
-            insetBlockStart: 0,
-            height: "100vh",
-            background: token.colorBgContainer,
-            borderInlineStart: `1px solid ${token.colorBorderSecondary}`,
-          }}
+          style={{ position: "sticky", insetBlockStart: 0, height: "100vh", background: token.colorBgContainer, borderInlineEnd: `1px solid ${token.colorBorderSecondary}` }}
         >
           {sideContent}
         </Sider>
@@ -271,97 +293,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
             zIndex: 10,
             display: "flex",
             alignItems: "center",
-            gap: 10,
-            padding: "0 16px",
+            gap: 8,
+            padding: isMobile ? "0 12px" : "0 18px",
             background: token.colorBgContainer,
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
-          {isMobile && (
-            <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
-          )}
-          <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: "nowrap" }}>
+          <Button
+            type="text"
+            icon={isMobile ? <MenuOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => (isMobile ? setDrawerOpen(true) : toggleCollapse())}
+          />
+          <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {t(TITLE_KEYS[selectedKey] || "app.title")}
           </div>
           <div style={{ flex: 1 }} />
           {!isMobile && (
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder={t("header.search")}
-              style={{ maxWidth: 280 }}
-            />
+            <Input prefix={<SearchOutlined />} placeholder={t("header.search")} style={{ maxWidth: 260 }} />
           )}
-          <Tooltip title={t("common.language")}>
-            <Button type="text" icon={<TranslationOutlined />} onClick={toggleLang}>
-              {i18n.language === "fa" ? "EN" : "FA"}
-            </Button>
-          </Tooltip>
-          <Tooltip title={t("common.calendar")}>
-            <Button
-              type="text"
-              icon={<CalendarOutlined />}
-              onClick={() =>
-                setCalendar(calendar === "jalali" ? "gregorian" : "jalali")
-              }
-            >
-              {calendar === "jalali"
-                ? t("common.calendar_jalali")
-                : t("common.calendar_gregorian")}
-            </Button>
-          </Tooltip>
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              selectable: true,
-              selectedKeys: [font],
-              onClick: ({ key }) => setFont(key),
-              items: FONT_KEYS.map((k) => ({
-                key: k,
-                label: (
-                  <span style={{ fontFamily: FONTS[k] }}>{FONT_LABELS[k] ?? k}</span>
-                ),
-              })),
-            }}
-          >
-            <Tooltip title={t("common.font")}>
-              <Button type="text" icon={<FontSizeOutlined />} />
+          <Dropdown trigger={["click"]} menu={appearanceMenu as any} placement="bottomRight">
+            <Tooltip title={t("header.appearance")}>
+              <Button type="text" icon={<SkinOutlined style={{ color: accentColor(accent, mode) }} />} />
             </Tooltip>
           </Dropdown>
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              selectable: true,
-              selectedKeys: [accent],
-              onClick: ({ key }) => setAccent(key),
-              items: ACCENT_KEYS.map((k) => ({
-                key: k,
-                label: (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: 6,
-                        background: accentColor(k, mode),
-                        display: "inline-block",
-                      }}
-                    />
-                    {t(`common.accent_${k}`)}
-                  </span>
-                ),
-              })),
-            }}
-          >
-            <Tooltip title={t("common.accent")}>
-              <Button
-                type="text"
-                icon={<BgColorsOutlined style={{ color: accentColor(accent, mode) }} />}
-              />
-            </Tooltip>
-          </Dropdown>
-          <Tooltip title={t("common.theme")}>
-            <Button type="text" icon={<BulbOutlined />} onClick={toggle} />
-          </Tooltip>
           <Tooltip title={t("header.notifications")}>
             <Button type="text" icon={<BellOutlined />} />
           </Tooltip>
@@ -370,9 +324,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Tooltip>
         </Header>
 
-        <Content style={{ padding: isMobile ? 16 : 24, overflow: "auto" }}>
-          {children}
-        </Content>
+        <Content style={{ padding: isMobile ? 16 : 24, overflow: "auto" }}>{children}</Content>
+
+        <Footer style={{ textAlign: "center", background: token.colorBgLayout, borderTop: `1px solid ${token.colorBorderSecondary}`, color: token.colorTextTertiary, fontSize: 12, padding: "14px 24px" }}>
+          {t("app.title")} · {t("footer.tagline")}
+        </Footer>
       </Layout>
     </Layout>
   );

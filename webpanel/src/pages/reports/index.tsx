@@ -150,7 +150,6 @@ export function ReportsPage() {
                   label={t(`reports.${c.k}`)}
                   value={c.money ? fmtToman(d?.[c.k]) : fmtNum(d?.[c.k])}
                   icon={c.icon}
-                  color={c.color}
                 />
               </Col>
             ))}
@@ -161,17 +160,16 @@ export function ReportsPage() {
               <Empty />
             ) : (
               <>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 180, overflowX: "auto" }}>
+                <div className="bars" style={{ height: 180, overflowX: "auto" }}>
                   {series.map((p, i) => (
                     <Tooltip key={i} title={`${formatDay(p.date)} — ${fmtToman(p.amount)}`}>
-                      <div style={{ flex: "1 0 8px", minWidth: 8, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}>
+                      <div className="barcol">
                         <div
+                          className="chart-bar"
                           style={{
                             height: `${Math.round((p.amount / maxAmount) * 100)}%`,
                             minHeight: p.amount > 0 ? 3 : 0,
                             background: `linear-gradient(180deg, ${token.colorPrimary}, ${token.colorPrimary}99)`,
-                            borderRadius: "4px 4px 0 0",
-                            transition: "height .2s",
                           }}
                         />
                       </div>
