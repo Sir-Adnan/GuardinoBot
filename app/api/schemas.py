@@ -500,7 +500,6 @@ class SettingsOut(BaseModel):
     reset_password_button: bool
     show_connect_links_button: bool
     show_test_service_in_menu: bool
-    purchase_show_tariffs: bool
     phone_number_verify: bool
     delete_expired_users_after_days: int
     remind_invoices_each_n_days: int
@@ -539,7 +538,6 @@ class SettingsUpdateIn(BaseModel):
     reset_password_button: Optional[bool] = None
     show_connect_links_button: Optional[bool] = None
     show_test_service_in_menu: Optional[bool] = None
-    purchase_show_tariffs: Optional[bool] = None
     phone_number_verify: Optional[bool] = None
     delete_expired_users_after_days: Optional[int] = None
     remind_invoices_each_n_days: Optional[int] = None

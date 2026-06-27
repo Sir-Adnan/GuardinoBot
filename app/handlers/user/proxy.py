@@ -543,19 +543,38 @@ async def show_proxy(
         proxy.status = sv_proxy.status.value
         await proxy.save()
         await proxy.refresh_from_db()
-    _bar = helpers.usage_bar(sv_proxy.used_traffic, sv_proxy.data_limit)
-    text = f"""
-⭐️ شناسه: <code>{sv_proxy.username}</code> {f'({proxy.custom_name})' if proxy.custom_name else ''}
-{f'📱 پلن فعال: <b>{proxy.service.display_name}</b>' if proxy.service_id else ''}
-🌀 وضعیت: <b>{PROXY_STATUS.get(sv_proxy.status)}</b>
-⏳ تاریخ انقضا: <b>{helpers.hr_date(sv_proxy.expire) if sv_proxy.expire else '♾'}</b> {f'<i>({helpers.hr_time(sv_proxy.expire - dt.now().timestamp(), lang="fa")})</i>' if sv_proxy.expire and sv_proxy.status != PanelUserStatus.expired else ''}
-{f'<code>{_bar}</code>' if _bar else ''}
-📊 حجم مصرف شده: <b>{helpers.hr_size(sv_proxy.used_traffic, lang='fa')}</b>{f' / {helpers.hr_size(sv_proxy.data_limit, lang="fa")}' if sv_proxy.data_limit else ' (نامحدود ♾)'}
-{f'🔋 حجم باقی‌مانده: <b>{helpers.hr_size(max(0, sv_proxy.data_limit - sv_proxy.used_traffic), lang="fa")}</b>' if sv_proxy.data_limit else ''}
-
-📊 حجم مصرفی تمام دوره‌ها: {helpers.hr_size(sv_proxy.lifetime_used_traffic, lang='fa')}
-
-"""
+    _used = helpers.hr_size(sv_proxy.used_traffic, lang="fa")
+    if sv_proxy.data_limit:
+        _bar = helpers.usage_bar(sv_proxy.used_traffic, sv_proxy.data_limit)
+        _remaining = helpers.hr_size(
+            max(0, sv_proxy.data_limit - sv_proxy.used_traffic), lang="fa"
+        )
+        _usage_lines = [
+            f"<code>{_bar}</code>" if _bar else None,
+            f"📊 حجم مصرف شده: <b>{_used}</b> / {helpers.hr_size(sv_proxy.data_limit, lang='fa')}",
+            f"🔋 حجم باقی‌مانده: <b>{_remaining}</b>",
+        ]
+    else:
+        _usage_lines = [f"📊 حجم مصرف شده: <b>{_used}</b> (نامحدود ♾)"]
+    _usage_block = "\n".join(line for line in _usage_lines if line)
+    _header_lines = [
+        f"⭐️ شناسه: <code>{sv_proxy.username}</code>"
+        + (f" ({proxy.custom_name})" if proxy.custom_name else ""),
+        f"📱 پلن فعال: <b>{proxy.service.display_name}</b>" if proxy.service_id else None,
+        f"🌀 وضعیت: <b>{PROXY_STATUS.get(sv_proxy.status)}</b>",
+        f"⏳ تاریخ انقضا: <b>{helpers.hr_date(sv_proxy.expire) if sv_proxy.expire else '♾'}</b>"
+        + (
+            f' <i>({helpers.hr_time(sv_proxy.expire - dt.now().timestamp(), lang="fa")})</i>'
+            if sv_proxy.expire and sv_proxy.status != PanelUserStatus.expired
+            else ""
+        ),
+    ]
+    text = (
+        "\n".join(line for line in _header_lines if line)
+        + "\n"
+        + _usage_block
+        + f"\n\n📊 حجم مصرفی تمام دوره‌ها: {helpers.hr_size(sv_proxy.lifetime_used_traffic, lang='fa')}\n\n"
+    )
     if sv_proxy.data_limit_reset_strategy != "no_reset":
         text += f"♻️ بازنشانی خودکار حجم: {USAGE_RESET_STRATEGY.get(sv_proxy.data_limit_reset_strategy)}\n\n"
     text += texts.Texts.format(

@@ -24,7 +24,6 @@ const SWITCHES = [
   "reset_password_button",
   "show_connect_links_button",
   "show_test_service_in_menu",
-  "purchase_show_tariffs",
   "phone_number_verify",
 ];
 const NUMBERS = [

@@ -192,9 +192,11 @@ Goal: the customer-facing bot looks premium and converts better (customers brows
 - ✅ **Subscription view — usage bar**: the proxy detail card gained a text data-usage bar
   (`▰▰▰▱▱ ۶۳٪`, Persian digits, in `<code>` for alignment) + "used / total" line (or "نامحدود ♾") +
   `max(0, …)` remaining. New `helpers.usage_bar()` / `helpers.fa_num()` (empty bar for unlimited).
-- ✅ **Tariffs overview**: the purchase list now shows a compact price·data·duration list above the
-  plan buttons (capped at 12, "+more" hint beyond), gated by the new `purchase_show_tariffs` toggle
-  (default on; in the bot Settings model + web Settings → General + settings API `_BOOL`/schema).
+  Header/usage are now built via list-join so **no stray blank lines** on unlimited plans.
+- ~~Tariffs overview in the purchase list~~ — **reverted** at owner's request: the plan buttons
+  already convey name·price·data·duration, so the extra text block was redundant + cluttered. The
+  `purchase_show_tariffs` setting was removed cleanly (model/API/schema/web/locale; row auto-pruned
+  on startup, no migration).
 - ✅ **Empty-state CTA**: "my subscriptions" with no subs now shows a friendly message + an inline
   **🛒 خرید اشتراک** button (packs `Services.Callback(action=show)` → straight into the buy flow)
   instead of a dead-end toast. Admins viewing an empty child list keep the plain notice. Also fixed
@@ -207,8 +209,11 @@ Goal: the customer-facing bot looks premium and converts better (customers brows
 - ✅ **New-user onboarding**: `/start` for a user with **0 subscriptions** now follows the menu with
   a concise welcome + inline **🛒 خرید اشتراک** CTA (packs the buy callback). Cheap count, skipped on
   `start_only` deep links, no new copy/migration.
-- [ ] Purchase/renew: clearer steps, summary confirmation, success screen; more empty states + hints;
-  consistent iconography; HTML/premium-emoji copy polish.
+- ✅ **Insufficient-balance clarity**: the purchase confirmation now states the exact **shortfall**
+  (`💳 مبلغ قابل پرداخت: price − balance`) so the customer sees precisely what to pay (it was only
+  passed to the pay button before). One line, no clutter.
+- [ ] Purchase/renew: clearer steps, success screen; more empty states + hints; consistent
+  iconography; HTML/premium-emoji copy polish.
 - All copy editable via the Texts editor (P10).
 
 ### P13 — Smart alerts v2: timing + pro control

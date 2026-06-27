@@ -566,7 +566,6 @@
     "reset_password_button": "\"Change password\" button",
     "show_connect_links_button": "\"Connection links\" button",
     "show_test_service_in_menu": "Show test service in menu",
-    "purchase_show_tariffs": "Show tariffs table in purchase list",
     "phone_number_verify": "Phone number verification",
     "delete_expired_users_after_days": "Delete expired users after (days)",
     "remind_invoices_each_n_days": "Debt reminder every (days)",

@@ -69,9 +69,6 @@ class Settings(BaseModel):
     reset_password_button: bool = True
     show_connect_links_button: bool = True
     show_test_service_in_menu: bool = True
-    # show a formatted price·data·duration overview above the plan buttons in the
-    # purchase list (handlers/user/purchase.py).
-    purchase_show_tariffs: bool = True
     disable_users_role: user.User.Role = user.User.Role.reseller
 
     phone_number_verify: bool = False
