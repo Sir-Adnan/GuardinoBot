@@ -22,20 +22,24 @@ async def _sum(queryset, field: str = "amount") -> int:
     return int((rows[0]["s"] if rows else 0) or 0)
 
 
+async def _gb_sold(queryset) -> float:
+    """GB provisioned by the matched subscriptions (Σ service.data_limit).
+
+    Summed in Python from the joined values: a DB ``Sum`` over the ``service``
+    FK join can be split by the implicit GROUP BY and undercount.
+    """
+    vals = await queryset.values_list("service__data_limit", flat=True)
+    return round(sum(int(v) for v in vals if v) / _GB, 1)
+
+
 async def _period(since) -> PeriodStat:
     """income / sales / orders / GB-sold since a given datetime (to now)."""
     fin = Transaction.Status.finished
-    gb_rows = (
-        await Proxy.filter(created_at__gt=since)
-        .annotate(s=Sum("service__data_limit"))
-        .values("s")
-    )
-    gb_bytes = int((gb_rows[0]["s"] if gb_rows else 0) or 0)
     return PeriodStat(
         income=await _sum(Transaction.filter(status=fin, created_at__gt=since), "amount_paid"),
         sales=await _sum(Invoice.filter(is_draft=False, created_at__gt=since)),
         orders=await Proxy.filter(created_at__gt=since).count(),
-        gb=round(gb_bytes / _GB, 1),
+        gb=await _gb_sold(Proxy.filter(created_at__gt=since)),
     )
 
 

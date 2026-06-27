@@ -44,8 +44,14 @@ async def _sum(queryset, field: str = "amount") -> int:
 
 
 async def _gb(queryset) -> float:
-    """GB provisioned by the matched subscriptions (Σ of their service.data_limit)."""
-    bytes_total = await _sum(queryset, "service__data_limit")
+    """GB provisioned by the matched subscriptions (Σ of their service.data_limit).
+
+    Summed in Python from the joined values — a DB ``Sum`` over the ``service``
+    FK join can be split into partial rows by the implicit GROUP BY and silently
+    undercount, so we pull the per-proxy values and add them up exactly.
+    """
+    vals = await queryset.values_list("service__data_limit", flat=True)
+    bytes_total = sum(int(v) for v in vals if v)
     return round(bytes_total / _GB, 2)
 
 
