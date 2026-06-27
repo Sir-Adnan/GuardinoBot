@@ -40,15 +40,30 @@ export function accentColor(accent: string, mode: ColorMode): string {
   return (a ?? ACCENTS.emerald)[mode];
 }
 
+// UI density — "compact" layers AntD's compactAlgorithm for tighter tables/forms.
+export type Density = "default" | "compact";
+
+// One-click look presets (accent + mode bundled). Shown in the Appearance menu.
+export const PRESETS: { key: string; accent: AccentKey; mode: ColorMode }[] = [
+  { key: "emerald_dark", accent: "emerald", mode: "dark" },
+  { key: "emerald_light", accent: "emerald", mode: "light" },
+  { key: "ocean_dark", accent: "blue", mode: "dark" },
+  { key: "violet_dark", accent: "violet", mode: "dark" },
+  { key: "rose_light", accent: "rose", mode: "light" },
+  { key: "amber_light", accent: "amber", mode: "light" },
+];
+
 export function makeTheme(
   accent: string,
   mode: ColorMode,
   font: string = "vazirmatn",
+  density: Density = "default",
 ): ThemeConfig {
   const primary = accentColor(accent, mode);
+  const base =
+    mode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm;
   return {
-    algorithm:
-      mode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    algorithm: density === "compact" ? [base, antdTheme.compactAlgorithm] : base,
     token: {
       ...shared,
       fontFamily: fontFamily(font),

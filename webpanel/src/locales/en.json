@@ -44,7 +44,17 @@
     "calendar": "Calendar (Jalali/Gregorian)",
     "calendar_jalali": "Jalali",
     "calendar_gregorian": "Gregorian",
-    "font": "Font"
+    "font": "Font",
+    "preset": "Preset",
+    "preset_emerald_dark": "Emerald Dark",
+    "preset_emerald_light": "Emerald Light",
+    "preset_ocean_dark": "Ocean Dark",
+    "preset_violet_dark": "Violet Dark",
+    "preset_rose_light": "Rose Light",
+    "preset_amber_light": "Amber Light",
+    "density": "Density",
+    "density_default": "Default",
+    "density_compact": "Compact"
   },
   "login": {
     "title": "Sign in to the panel",

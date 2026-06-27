@@ -10,10 +10,9 @@ import {
   Modal,
   Segmented,
   Select,
+  Skeleton,
   Space,
-  Spin,
   Switch,
-  Table,
   Tabs,
   Tag,
 } from "antd";
@@ -30,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { ROLE_COLORS, fmtDate, fmtNum, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 export function ResellerShow() {
   const { t, i18n } = useTranslation();
@@ -73,9 +73,10 @@ export function ResellerShow() {
 
   if (loading || !r || !u) {
     return (
-      <div style={{ display: "grid", placeItems: "center", minHeight: 300 }}>
-        <Spin />
-      </div>
+      <Card>
+        <Skeleton active avatar paragraph={{ rows: 1 }} />
+        <Skeleton active paragraph={{ rows: 6 }} style={{ marginTop: 24 }} />
+      </Card>
     );
   }
 
@@ -182,12 +183,12 @@ export function ResellerShow() {
     {
       key: "children",
       label: `${t("resellers.children")} (${children.length})`,
-      children: <Table rowKey="id" size="small" dataSource={children} columns={childCols} scroll={{ x: 560 }} pagination={false} />,
+      children: <ResponsiveTable rowKey="id" size="small" dataSource={children} columns={childCols} scroll={{ x: 560 }} pagination={false} />,
     },
     {
       key: "subs",
       label: `${t("users.tab_subs")} (${proxies.length})`,
-      children: <Table rowKey="id" size="small" dataSource={proxies} columns={proxyCols} scroll={{ x: 520 }} pagination={false} />,
+      children: <ResponsiveTable rowKey="id" size="small" dataSource={proxies} columns={proxyCols} scroll={{ x: 520 }} pagination={false} />,
     },
   ];
 

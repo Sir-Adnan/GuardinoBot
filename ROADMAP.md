@@ -161,11 +161,16 @@ service provisioning picker).
   from the existing `columns`, label=title/value=render; action columns → card footer) + `useIsMobile`
   hook (AntD `< md`). Adopted on Users, Subscriptions, Transactions, Services, Servers, Discounts,
   Resellers, Audit, Menus. Includes skeleton + empty states on mobile.
-- [ ] Remaining: theme presets + density toggle; micro-interactions.
+- ✅ **Detail pages polish** (users/resellers `show`): already tabbed (Overview / Subs / Payments /
+  Logs / Children) + `PageHeader` with back button; now full-page `Spin` → **Skeleton** and inner
+  tab tables → `ResponsiveTable` (mobile card view in tabs too).
+- ✅ **Theme presets + density**: Appearance menu gained **one-click presets** (Emerald Dark/Light,
+  Ocean Dark, Violet Dark, Rose/Amber Light — each sets accent + mode together) and a **density**
+  toggle (Default / Compact via AntD `compactAlgorithm`). Both persisted (localStorage `density`);
+  context gained `setMode`/`density`/`setDensity`; `makeTheme(accent, mode, font, density)`.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
-- [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on
-  mobile), skeleton loaders, low-balance/panel-health widgets, micro-interactions.
+- [ ] Remaining: low-balance/panel-health dashboard widgets, micro-interactions, broader audit.
 
 ### P12 — Bot (Telegram) UX overhaul
 Goal: the customer-facing bot looks premium and converts better (customers browse/buy here).

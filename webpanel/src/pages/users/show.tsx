@@ -11,10 +11,9 @@ import {
   Popconfirm,
   Segmented,
   Select,
+  Skeleton,
   Space,
-  Spin,
   Switch,
-  Table,
   Tabs,
   Tag,
 } from "antd";
@@ -31,6 +30,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { ROLE_COLORS, fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 const PROXY_STATUS_COLOR: Record<string, string> = {
   active: "green",
@@ -83,9 +83,10 @@ export function UserShow() {
 
   if (loading || !u) {
     return (
-      <div style={{ display: "grid", placeItems: "center", minHeight: 300 }}>
-        <Spin />
-      </div>
+      <Card>
+        <Skeleton active avatar paragraph={{ rows: 1 }} />
+        <Skeleton active paragraph={{ rows: 6 }} style={{ marginTop: 24 }} />
+      </Card>
     );
   }
 
@@ -281,18 +282,18 @@ export function UserShow() {
     {
       key: "subs",
       label: `${t("users.tab_subs")} (${proxies.length})`,
-      children: <Table rowKey="id" size="small" dataSource={proxies} columns={subsCols} scroll={{ x: 720 }} pagination={false} />,
+      children: <ResponsiveTable rowKey="id" size="small" dataSource={proxies} columns={subsCols} scroll={{ x: 720 }} pagination={false} />,
     },
     {
       key: "payments",
       label: `${t("users.tab_payments")} (${txs.length})`,
-      children: <Table rowKey="id" size="small" dataSource={txs} columns={txCols} scroll={{ x: 560 }} pagination={false} />,
+      children: <ResponsiveTable rowKey="id" size="small" dataSource={txs} columns={txCols} scroll={{ x: 560 }} pagination={false} />,
     },
     ...(isSuper
       ? [{
           key: "logs",
           label: `${t("users.tab_logs")} (${logs.length})`,
-          children: <Table rowKey="id" size="small" dataSource={logs} columns={logCols} scroll={{ x: 560 }} pagination={false} />,
+          children: <ResponsiveTable rowKey="id" size="small" dataSource={logs} columns={logCols} scroll={{ x: 560 }} pagination={false} />,
         }]
       : []),
   ];

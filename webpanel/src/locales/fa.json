@@ -44,7 +44,17 @@
     "calendar": "تقویم (شمسی/میلادی)",
     "calendar_jalali": "شمسی",
     "calendar_gregorian": "میلادی",
-    "font": "فونت"
+    "font": "فونت",
+    "preset": "قالب آماده",
+    "preset_emerald_dark": "زمردی تیره",
+    "preset_emerald_light": "زمردی روشن",
+    "preset_ocean_dark": "اقیانوسی تیره",
+    "preset_violet_dark": "بنفش تیره",
+    "preset_rose_light": "گلی روشن",
+    "preset_amber_light": "کهربایی روشن",
+    "density": "تراکم",
+    "density_default": "معمولی",
+    "density_compact": "فشرده"
   },
   "login": {
     "title": "ورود به پنل مدیریت",

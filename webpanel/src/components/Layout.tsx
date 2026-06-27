@@ -23,10 +23,12 @@ import {
   CalendarOutlined,
   CloudServerOutlined,
   ClusterOutlined,
+  ColumnHeightOutlined,
   CreditCardOutlined,
   DashboardOutlined,
   FileTextOutlined,
   FontSizeOutlined,
+  FormatPainterOutlined,
   LayoutOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -46,8 +48,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useGetIdentity, useLogout } from "@refinedev/core";
 
-import { ColorModeContext } from "../contexts/color-mode";
-import { ACCENT_KEYS, accentColor, FONT_KEYS, FONTS } from "../theme";
+import { ColorModeContext, type Density } from "../contexts/color-mode";
+import { ACCENT_KEYS, accentColor, FONT_KEYS, FONTS, PRESETS } from "../theme";
 
 const FONT_LABELS: Record<string, string> = {
   vazirmatn: "Vazirmatn",
@@ -91,8 +93,19 @@ const TITLE_KEYS: Record<string, string> = {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
-  const { mode, toggle, accent, setAccent, calendar, setCalendar, font, setFont } =
-    useContext(ColorModeContext);
+  const {
+    mode,
+    toggle,
+    setMode,
+    accent,
+    setAccent,
+    calendar,
+    setCalendar,
+    font,
+    setFont,
+    density,
+    setDensity,
+  } = useContext(ColorModeContext);
   const { token } = theme.useToken();
   const screens = useBreakpoint();
   const navigate = useNavigate();
@@ -184,6 +197,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
     onClick: ({ key, keyPath }: { key: string; keyPath: string[] }) => {
       if (keyPath.includes("accent")) return setAccent(key);
       if (keyPath.includes("font")) return setFont(key);
+      if (keyPath.includes("preset")) {
+        const p = PRESETS.find((x) => x.key === key);
+        if (p) {
+          setAccent(p.accent);
+          setMode(p.mode);
+        }
+        return;
+      }
+      if (keyPath.includes("density")) return setDensity(key as Density);
       if (key === "theme") return toggle();
       if (key === "lang") return toggleLang();
       if (key === "calendar")
@@ -215,6 +237,31 @@ export function AppLayout({ children }: { children: ReactNode }) {
         children: FONT_KEYS.map((k) => ({
           key: k,
           label: <span style={{ fontFamily: FONTS[k], fontWeight: font === k ? 700 : 400 }}>{FONT_LABELS[k] ?? k}</span>,
+        })),
+      },
+      { type: "divider" as const },
+      {
+        key: "preset",
+        icon: <FormatPainterOutlined />,
+        label: t("common.preset"),
+        children: PRESETS.map((p) => ({
+          key: p.key,
+          label: (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 6, background: accentColor(p.accent, p.mode), display: "inline-block" }} />
+              {t(`common.preset_${p.key}`)}
+              <span style={{ marginInlineStart: "auto", opacity: 0.6 }}>{p.mode === "dark" ? "🌙" : "☀️"}</span>
+            </span>
+          ),
+        })),
+      },
+      {
+        key: "density",
+        icon: <ColumnHeightOutlined />,
+        label: t("common.density"),
+        children: (["default", "compact"] as Density[]).map((d) => ({
+          key: d,
+          label: <span style={{ fontWeight: density === d ? 700 : 400 }}>{t(`common.density_${d}`)}</span>,
         })),
       },
     ],

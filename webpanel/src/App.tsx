@@ -15,6 +15,7 @@ import {
   ColorModeContext,
   type ColorMode,
   type Calendar,
+  type Density,
 } from "./contexts/color-mode";
 import { setCalendarPref } from "./utils/datetime";
 import { AppLayout } from "./components/Layout";
@@ -38,7 +39,7 @@ import { MenusPage } from "./pages/menus";
 import { ButtonsPage } from "./pages/buttons";
 
 export default function App() {
-  const [mode, setMode] = useState<ColorMode>(
+  const [mode, setModeState] = useState<ColorMode>(
     (localStorage.getItem("theme") as ColorMode) || "dark",
   );
   const [accent, setAccentState] = useState<string>(
@@ -50,18 +51,27 @@ export default function App() {
   const [font, setFontState] = useState<string>(
     localStorage.getItem("font") || "vazirmatn",
   );
+  const [density, setDensityState] = useState<Density>(
+    (localStorage.getItem("density") as Density) || "default",
+  );
   const { i18n } = useTranslation();
   const direction: "rtl" | "ltr" = i18n.language === "en" ? "ltr" : "rtl";
 
-  const toggle = () => {
-    const next = mode === "dark" ? "light" : "dark";
-    setMode(next);
+  const setMode = (next: ColorMode) => {
+    setModeState(next);
     localStorage.setItem("theme", next);
   };
+
+  const toggle = () => setMode(mode === "dark" ? "light" : "dark");
 
   const setAccent = (a: string) => {
     setAccentState(a);
     localStorage.setItem("accent", a);
+  };
+
+  const setDensity = (d: Density) => {
+    setDensityState(d);
+    localStorage.setItem("density", d);
   };
 
   const setCalendar = (c: Calendar) => {
@@ -90,18 +100,21 @@ export default function App() {
         value={{
           mode,
           toggle,
+          setMode,
           accent,
           setAccent,
           calendar,
           setCalendar,
           font,
           setFont,
+          density,
+          setDensity,
         }}
       >
         <ConfigProvider
           direction={direction}
           locale={direction === "rtl" ? faIR : enUS}
-          theme={makeTheme(accent, mode, font)}
+          theme={makeTheme(accent, mode, font, density)}
         >
           <AntdApp>
             <Refine
