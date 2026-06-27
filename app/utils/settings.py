@@ -135,6 +135,15 @@ class Settings(BaseModel):
     notify_unused_enabled: bool = True
     notify_unused_days: int = 3  # bought & never connected after this many days
     notify_ended_enabled: bool = True  # expired / data-finished
+    # pro: multi-step expiry reminders, in HOURS before expiry (e.g. [72, 24, 12]
+    # = 3d / 1d / 12h). Each step alerts once. Empty → single step derived from
+    # notify_expiry_days. See jobs/proxy_alerts.py.
+    notify_expiry_steps_hours: list[int] = []
+    # quiet hours (Iran local time, UTC+3:30): sends in this window are deferred
+    # to the next active hour so users aren't pinged overnight. start==end → off.
+    alerts_quiet_enabled: bool = True
+    alerts_quiet_start_hour: int = 23
+    alerts_quiet_end_hour: int = 8
 
     # payment auto_select
     payment_auto_select: auto_select.Settings = auto_select.Settings()
@@ -171,6 +180,17 @@ class Settings(BaseModel):
     def _validate_ch_orlist(cls, v: Any, info: ValidationInfo) -> list[int]:
         if v is None:
             return config.DEFAULT_CHARGE_ORDERS
+        if isinstance(v, str):
+            try:
+                return list_of_int_adapter.validate_json(v)
+            except ValidationError:
+                return []
+        return v
+
+    @field_validator("notify_expiry_steps_hours", mode="before")
+    def _validate_expiry_steps(cls, v: Any, info: ValidationInfo) -> list[int]:
+        if v is None:
+            return []
         if isinstance(v, str):
             try:
                 return list_of_int_adapter.validate_json(v)

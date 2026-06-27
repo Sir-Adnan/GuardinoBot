@@ -563,7 +563,12 @@
     "notify_data_remaining_gb": "…یا باقیماندهٔ ≤ (گیگ)",
     "notify_unused_enabled": "آلارم عدم استفاده",
     "notify_unused_days": "عدم استفاده بعد از (روز)",
-    "notify_ended_enabled": "آلارم پایان (انقضا/اتمام حجم)"
+    "notify_ended_enabled": "آلارم پایان (انقضا/اتمام حجم)",
+    "notify_expiry_steps_hours": "مراحل یادآوری انقضا (ساعت)",
+    "expiry_steps_hint": "چند ساعت مانده به انقضا یادآوری شود؛ مثلاً 72، 24، 12. خالی = همان «چند روز قبل از انقضا».",
+    "alerts_quiet_enabled": "ساعاتِ سکوت (تعویق شبانه)",
+    "alerts_quiet_start_hour": "شروعِ سکوت (ساعت، به‌وقت ایران)",
+    "alerts_quiet_end_hour": "پایانِ سکوت (ساعت، به‌وقت ایران)"
   },
   "actions": {
     "done": "انجام شد",

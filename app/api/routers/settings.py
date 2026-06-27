@@ -32,6 +32,7 @@ _BOOL = (
     "notify_low_data_enabled",
     "notify_unused_enabled",
     "notify_ended_enabled",
+    "alerts_quiet_enabled",
 )
 _INT = (
     "delete_expired_users_after_days",
@@ -48,6 +49,8 @@ _INT = (
     "notify_traffic_percent",
     "notify_data_remaining_gb",
     "notify_unused_days",
+    "alerts_quiet_start_hour",
+    "alerts_quiet_end_hour",
 )
 # Plain strings + the username_generator enum (stored as its value string).
 _STR = (
@@ -61,6 +64,7 @@ _STR = (
 _LIST = (
     "charge_amount_list",
     "charge_amount_orders",
+    "notify_expiry_steps_hours",
 )
 _ALL = _BOOL + _INT + _STR + _LIST
 _DIRTY = "settings:dirty"

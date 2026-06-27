@@ -192,13 +192,22 @@ Goal: the customer-facing bot looks premium and converts better (customers brows
 - All copy editable via the Texts editor (P10).
 
 ### P13 — Smart alerts v2: timing + pro control
-Today: cron `hour="6,16"` only → an "ended" alert can lag ~10h (the owner's complaint).
-- Run the alert job **hourly** (or a configurable cadence) so "ended/limited" fires within ~1h.
-- **Quiet hours** (defer night sends to morning) + per-type cadence + "best time" default.
-- Pro per-indicator controls: multiple expiry steps (e.g. 3d/1d/12h), data % AND absolute GB,
-  unused, ended — extend the existing 9 alert settings.
-- Manual **send-now / preview** from the web Automation page.
-- Editable in web Settings (+ deferred bot settings-FSM mirror).
+Was: cron `hour="6,16"` only → an "ended" alert could lag ~10h (the owner's complaint).
+- ✅ **Hourly cadence** — `proxy_alerts` now runs `cron minute=0` (top of every hour), so
+  ended/limited/expiry fire within ~1h (was twice-daily). Sender stays non-blocking: batched
+  `get_users`, ~20 msg/s throttle, `TelegramRetryAfter` sleep-retry, blocked-recipient handling.
+- ✅ **Quiet hours** — `_in_quiet()` defers sends during a configurable Iran-local window
+  (`alerts_quiet_enabled` / `alerts_quiet_start_hour` / `alerts_quiet_end_hour`, default 23→8,
+  UTC+3:30). Self-healing dedup means a deferred alert simply fires the next active hour.
+- ✅ **Multi-step expiry** — opt-in `notify_expiry_steps_hours` (e.g. `[72,24,12]` = 3d/1d/12h),
+  per-step dedup via `Proxy.notified` keys `expiry:{h}`; the loop sends only the tightest new step
+  and marks looser already-passed steps as seen (no stale "3 days left" after "12 hours left").
+  Empty list → legacy single step from `notify_expiry_days` (**no behaviour change by default**).
+- ✅ **Web-editable** — new settings surfaced in web **Settings → Alerts** (quiet switch + start/end
+  hours + expiry-steps tags); API `_BOOL/_INT/_LIST` + `SettingsOut/UpdateIn` extended; bot
+  `Settings` model + validator added (rows auto-created on startup, no migration).
+- [ ] Deferred: manual **send-now / preview** from web Automation (needs a cross-process trigger),
+  per-type cadence, and the bot settings-FSM mirror.
 
 ---
 

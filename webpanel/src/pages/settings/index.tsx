@@ -45,12 +45,15 @@ const ALERT_SWITCHES = [
   "notify_low_data_enabled",
   "notify_unused_enabled",
   "notify_ended_enabled",
+  "alerts_quiet_enabled",
 ];
 const ALERT_NUMBERS = [
   "notify_expiry_days",
   "notify_traffic_percent",
   "notify_data_remaining_gb",
   "notify_unused_days",
+  "alerts_quiet_start_hour",
+  "alerts_quiet_end_hour",
 ];
 
 const toNumbers = (arr: any): number[] =>
@@ -81,6 +84,7 @@ export function SettingsPage() {
         ...values,
         charge_amount_list: toNumbers(values.charge_amount_list),
         charge_amount_orders: toNumbers(values.charge_amount_orders),
+        notify_expiry_steps_hours: toNumbers(values.notify_expiry_steps_hours),
       };
       const r = await api.patch("/settings", payload);
       form.setFieldsValue(r.data);
@@ -206,6 +210,20 @@ export function SettingsPage() {
         <Row gutter={16}>
           {ALERT_SWITCHES.map(switchItem)}
           {ALERT_NUMBERS.map(numberItem)}
+          <Col xs={24} sm={12}>
+            <Form.Item
+              name="notify_expiry_steps_hours"
+              label={t("settings.notify_expiry_steps_hours")}
+              tooltip={t("settings.expiry_steps_hint")}
+            >
+              <Select
+                mode="tags"
+                tokenSeparators={[",", " "]}
+                suffixIcon={null}
+                placeholder="72, 24, 12"
+              />
+            </Form.Item>
+          </Col>
         </Row>
       ),
     },

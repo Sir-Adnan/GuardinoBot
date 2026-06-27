@@ -463,6 +463,10 @@ class SettingsOut(BaseModel):
     notify_unused_enabled: bool
     notify_unused_days: int
     notify_ended_enabled: bool
+    notify_expiry_steps_hours: list[int]
+    alerts_quiet_enabled: bool
+    alerts_quiet_start_hour: int
+    alerts_quiet_end_hour: int
 
 
 class SettingsUpdateIn(BaseModel):
@@ -497,6 +501,10 @@ class SettingsUpdateIn(BaseModel):
     notify_unused_enabled: Optional[bool] = None
     notify_unused_days: Optional[int] = None
     notify_ended_enabled: Optional[bool] = None
+    notify_expiry_steps_hours: Optional[list[int]] = None
+    alerts_quiet_enabled: Optional[bool] = None
+    alerts_quiet_start_hour: Optional[int] = None
+    alerts_quiet_end_hour: Optional[int] = None
 
 
 # -- audit log ----------------------------------------------------------------

@@ -563,7 +563,12 @@
     "notify_data_remaining_gb": "…or remaining ≤ (GB)",
     "notify_unused_enabled": "Unused-subscription alert",
     "notify_unused_days": "Unused after (days)",
-    "notify_ended_enabled": "Ended alert (expired/finished)"
+    "notify_ended_enabled": "Ended alert (expired/finished)",
+    "notify_expiry_steps_hours": "Expiry reminder steps (hours)",
+    "expiry_steps_hint": "Hours before expiry to remind, e.g. 72, 24, 12. Empty = use the single 'days before expiry'.",
+    "alerts_quiet_enabled": "Quiet hours (defer overnight)",
+    "alerts_quiet_start_hour": "Quiet start (hour, Iran time)",
+    "alerts_quiet_end_hour": "Quiet end (hour, Iran time)"
   },
   "actions": {
     "done": "Done",

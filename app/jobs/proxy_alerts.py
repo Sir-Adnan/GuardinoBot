@@ -32,15 +32,48 @@ _GB = 1024**3
 _PAGE = 50  # proxies fetched per panel batch (mirrors refresh_proxies)
 _SEND_DELAY = 0.05  # ~20 msg/s global throttle
 _UNUSED_BYTES = 50 * 1024**2  # < 50 MB counts as "never really used"
-
-# Alert type -> (text attribute on Texts, keyboard builder). Priority order below.
-_PRIORITY = ("ended", "expiry", "low_data", "unused")
+_IRAN_OFFSET = 3.5  # UTC+3:30 (Iran dropped DST in 2022) — for quiet-hours
 
 
 def _fmt_data(num_bytes: int) -> str:
     if num_bytes >= _GB:
         return f"{num_bytes / _GB:.1f} گیگابایت"
     return f"{max(0, num_bytes) / (1024 ** 2):.0f} مگابایت"
+
+
+def _expiry_steps(s) -> list[int]:
+    """Expiry reminder thresholds in hours, loose→tight. Falls back to the
+    single legacy ``notify_expiry_days`` when no pro steps are configured."""
+    steps = sorted({int(h) for h in (s.notify_expiry_steps_hours or []) if int(h) > 0})
+    if not steps:
+        steps = [max(1, s.notify_expiry_days) * 24]
+    return steps
+
+
+def _pick(pending: set[str]) -> str | None:
+    """Highest-priority pending alert: ended > tightest expiry step > low_data > unused."""
+    if "ended" in pending:
+        return "ended"
+    exp = [k for k in pending if k.startswith("expiry:")]
+    if exp:  # the most urgent (fewest hours) step
+        return min(exp, key=lambda k: int(k.split(":", 1)[1]))
+    if "low_data" in pending:
+        return "low_data"
+    if "unused" in pending:
+        return "unused"
+    return None
+
+
+def _in_quiet(s, now_utc) -> bool:
+    """True if Iran-local time is inside the configured quiet window."""
+    if not s.alerts_quiet_enabled:
+        return False
+    start = s.alerts_quiet_start_hour % 24
+    end = s.alerts_quiet_end_hour % 24
+    if start == end:
+        return False
+    h = (now_utc.hour + now_utc.minute / 60 + _IRAN_OFFSET) % 24
+    return start <= h < end if start < end else (h >= start or h < end)
 
 
 def _evaluate(proxy: Proxy, user, now_ts: int, s) -> set[str]:
@@ -65,8 +98,12 @@ def _evaluate(proxy: Proxy, user, now_ts: int, s) -> set[str]:
 
     if s.notify_expiry_enabled and expire:
         secs_left = expire - now_ts
-        if 0 < secs_left <= s.notify_expiry_days * 86400:
-            out.add("expiry")
+        if secs_left > 0:
+            # add every crossed step; the loop sends only the tightest new one
+            # and marks the looser (already-passed) ones as seen.
+            for h in _expiry_steps(s):
+                if secs_left <= h * 3600:
+                    out.add(f"expiry:{h}")
 
     if s.notify_low_data_enabled and data_limit:
         remaining = data_limit - used
@@ -89,9 +126,9 @@ def _render(alert_type: str, proxy: Proxy, user, now_ts: int):
     """Build (text, keyboard) for the chosen alert type."""
     t = texts.get_texts()
     name = proxy.display_name
-    if alert_type == "expiry":
+    if alert_type.startswith("expiry"):
         secs_left = (user.expire or now_ts) - now_ts
-        days = max(1, -(-secs_left // 86400))  # ceil
+        days = max(1, -(-secs_left // 86400))  # ceil, min 1 day
         return (
             texts.Texts.format(t.alert_expiry, NAME=name, DAYS_LEFT=str(days)),
             alert_renew_keyboard(proxy.id),
@@ -140,8 +177,12 @@ async def proxy_alerts() -> None:
     s = settings.get_settings()
     if not s.alerts_enabled:
         return
+    now_utc = dt.now(UTC)
+    if _in_quiet(s, now_utc):
+        logger.info("proxy_alerts: quiet hours — deferring sends")
+        return
     logger.info("proxy_alerts job started")
-    now_ts = int(dt.now(UTC).timestamp())
+    now_ts = int(now_utc.timestamp())
     sent_total = 0
 
     servers = await Server.filter(is_enabled=True)
@@ -180,12 +221,16 @@ async def proxy_alerts() -> None:
                 # Self-heal: keep flags still true; send one highest-priority new one.
                 new_flags = {t for t in already if t in current}
                 pending = current - already
-                if pending:
-                    chosen = next(t for t in _PRIORITY if t in pending)
+                chosen = _pick(pending) if pending else None
+                if chosen:
                     text, kb = _render(chosen, proxy, pu, now_ts)
                     if await _send(owner.id, text, kb):
                         new_flags.add(chosen)
                         sent_total += 1
+                        # suppress looser, already-passed expiry steps so a
+                        # tighter step doesn't get followed by a stale "3 days left".
+                        if chosen.startswith("expiry:"):
+                            new_flags |= {k for k in current if k.startswith("expiry:")}
                         await asyncio.sleep(_SEND_DELAY)
 
                 if new_flags != already:
@@ -200,5 +245,6 @@ scheduler.add_job(
     "cron",
     id="proxy_alerts",
     replace_existing=True,
-    hour="6,16",  # twice daily (UTC) ≈ 9:30 & 19:30 Iran — daytime visibility
+    minute=0,  # hourly — "ended/limited/expiry" fires within ~1h (quiet hours
+    # defer overnight sends, see _in_quiet); was twice-daily (≤10h lag).
 )
