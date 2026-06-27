@@ -151,8 +151,17 @@ service provisioning picker).
   style; dashboard + reports now share one card + bar-chart look (reports KPIs + chart hover too).
 - ✅ **List pages cohesion**: `PageHeader` (title + subtitle + search-in-extra) added to Users,
   Subscriptions, Transactions — now consistent with Services/Servers/Discounts/Resellers/Audit/Texts.
-- [ ] Remaining: same header on the config pages (menus/buttons/settings/automation); theme presets
-  + density; skeleton loaders; table→card on mobile.
+- ✅ **Config pages cohesion**: `PageHeader` added to **menus / buttons / settings / automation**
+  (replacing ad-hoc `Title`/`Paragraph` headers). Buttons/Settings full-page `Spin` → **Skeleton**;
+  automation `Spin` → Skeleton.
+- ✅ **Font fix (IDs/numbers)**: `.mono` no longer hard-pins IBM Plex Mono — it now inherits the
+  configured UI font with `tabular-nums` (fixes Users-page IDs etc. ignoring the font picker);
+  automation stat numbers de-hardcoded the same way.
+- ✅ **Responsive table→card on mobile**: new `ResponsiveTable` (auto-builds a stacked card per row
+  from the existing `columns`, label=title/value=render; action columns → card footer) + `useIsMobile`
+  hook (AntD `< md`). Adopted on Users, Subscriptions, Transactions, Services, Servers, Discounts,
+  Resellers, Audit, Menus. Includes skeleton + empty states on mobile.
+- [ ] Remaining: theme presets + density toggle; micro-interactions.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
 - [ ] Remaining: more theme presets + density toggle, full responsive audit (table→card on

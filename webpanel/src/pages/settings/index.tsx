@@ -9,16 +9,14 @@ import {
   InputNumber,
   Row,
   Select,
-  Spin,
+  Skeleton,
   Switch,
   Tabs,
-  Typography,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-
-const { Title, Text } = Typography;
+import { PageHeader } from "../../components/PageHeader";
 
 const SWITCHES = [
   "access_only",
@@ -96,9 +94,10 @@ export function SettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "grid", placeItems: "center", minHeight: 300 }}>
-        <Spin />
-      </div>
+      <Card>
+        <Skeleton active paragraph={{ rows: 2 }} />
+        <Skeleton active paragraph={{ rows: 6 }} style={{ marginTop: 24 }} />
+      </Card>
     );
   }
 
@@ -214,10 +213,7 @@ export function SettingsPage() {
 
   return (
     <Card>
-      <Title level={4} style={{ marginTop: 0 }}>
-        {t("settings.title")}
-      </Title>
-      <Text type="secondary">{t("settings.subtitle")}</Text>
+      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
       <Form form={form} layout="vertical" onFinish={save} style={{ marginTop: 16 }}>
         <Tabs defaultActiveKey="general" items={tabItems} />

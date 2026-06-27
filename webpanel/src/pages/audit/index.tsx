@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { App as AntdApp, Button, Card, DatePicker, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { App as AntdApp, Button, Card, DatePicker, Input, Select, Space, Tag, Typography } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -180,7 +181,7 @@ export function AuditPage() {
           </Space>
         }
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={loading}
         dataSource={rows}

@@ -12,7 +12,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -28,6 +27,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 const { Text } = Typography;
 const GBYTE = 1073741824;
@@ -272,7 +272,7 @@ export function ServiceList() {
   return (
     <Card>
       <PageHeader title={t("services.title")} subtitle={t("services.subtitle")} />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={loading}
         dataSource={rows}

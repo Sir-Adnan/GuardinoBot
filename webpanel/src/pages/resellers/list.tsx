@@ -7,7 +7,6 @@ import {
   Input,
   Modal,
   Space,
-  Table,
   Tag,
 } from "antd";
 import { EyeOutlined, UserAddOutlined } from "@ant-design/icons";
@@ -17,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { ROLE_COLORS, fmtNum, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 export function ResellerList() {
   const { t } = useTranslation();
@@ -122,7 +122,7 @@ export function ResellerList() {
           </Space>
         }
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isLoading}
         dataSource={data?.data ?? []}

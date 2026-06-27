@@ -11,7 +11,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
 } from "antd";
@@ -26,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtNum } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 const PANEL_COLORS: Record<string, string> = {
   marzban: "blue",
@@ -234,7 +234,7 @@ export function ServerList() {
           )
         }
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={loading}
         dataSource={rows}

@@ -10,9 +10,7 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
-  Typography,
 } from "antd";
 import {
   DeleteOutlined,
@@ -21,8 +19,8 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-
-const { Title, Text } = Typography;
+import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 interface Menu {
   id: number;
@@ -194,26 +192,17 @@ export function MenusPage() {
 
   return (
     <Card>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          marginBottom: 16,
-          gap: 12,
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          <Title level={4} style={{ margin: 0 }}>
-            {t("menus.title")}
-          </Title>
-          <Text type="secondary">{t("menus.subtitle")}</Text>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          {t("menus.new")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("menus.title")}
+        subtitle={t("menus.subtitle")}
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            {t("menus.new")}
+          </Button>
+        }
+      />
 
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={loading}
         dataSource={menus}

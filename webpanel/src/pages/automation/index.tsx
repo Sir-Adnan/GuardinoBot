@@ -6,7 +6,7 @@ import {
   Popconfirm,
   Progress,
   Row,
-  Spin,
+  Skeleton,
   Statistic,
   Tag,
   Typography,
@@ -16,8 +16,11 @@ import { useCustom } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtNum } from "../../utils/format";
+import { PageHeader } from "../../components/PageHeader";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
+
+const NUM_STYLE = { fontVariantNumeric: "tabular-nums" } as const;
 
 const STATUS_COLORS: Record<string, string> = {
   running: "processing",
@@ -51,12 +54,7 @@ export function AutomationPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          {t("automation.title")}
-        </Title>
-        <Text type="secondary">{t("automation.subtitle")}</Text>
-      </div>
+      <PageHeader title={t("automation.title")} subtitle={t("automation.subtitle")} />
 
       <Card
         title={t("automation.broadcast")}
@@ -75,9 +73,7 @@ export function AutomationPage() {
         }
       >
         {isLoading && !d ? (
-          <div style={{ display: "grid", placeItems: "center", minHeight: 120 }}>
-            <Spin />
-          </div>
+          <Skeleton active paragraph={{ rows: 3 }} />
         ) : (
           <>
             <div style={{ marginBottom: 16 }}>
@@ -98,21 +94,21 @@ export function AutomationPage() {
                 <Statistic
                   title={t("automation.success")}
                   value={fmtNum(d?.success)}
-                  valueStyle={{ fontFamily: "'IBM Plex Mono', monospace", color: "#10b981" }}
+                  valueStyle={{ ...NUM_STYLE, color: "#10b981" }}
                 />
               </Col>
               <Col xs={8}>
                 <Statistic
                   title={t("automation.fails")}
                   value={fmtNum(d?.fails)}
-                  valueStyle={{ fontFamily: "'IBM Plex Mono', monospace", color: "#ef4444" }}
+                  valueStyle={{ ...NUM_STYLE, color: "#ef4444" }}
                 />
               </Col>
               <Col xs={8}>
                 <Statistic
                   title={t("automation.total")}
                   value={fmtNum(d?.total)}
-                  valueStyle={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                  valueStyle={NUM_STYLE}
                 />
               </Col>
             </Row>

@@ -28,8 +28,12 @@ body {
   -webkit-font-smoothing: antialiased;
   vertical-align: middle;
 }
+/* Numeric/ID cells: keep the configured UI font but align digits (tabular).
+   (Previously hard-pinned to IBM Plex Mono, which ignored the font setting.) */
 .mono {
-  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: 0;
 }
 
 /* Minimal / modern buttons + links: smooth transitions + a subtle primary lift */

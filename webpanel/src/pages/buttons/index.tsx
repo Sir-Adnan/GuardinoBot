@@ -9,8 +9,8 @@ import {
   Input,
   Row,
   Select,
+  Skeleton,
   Space,
-  Spin,
   Switch,
   Tabs,
   Tag,
@@ -26,8 +26,9 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
+import { PageHeader } from "../../components/PageHeader";
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface BtnItem {
   key: string;
@@ -168,9 +169,10 @@ export function ButtonsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "grid", placeItems: "center", minHeight: 300 }}>
-        <Spin />
-      </div>
+      <Card>
+        <Skeleton active paragraph={{ rows: 2 }} />
+        <Skeleton active paragraph={{ rows: 6 }} style={{ marginTop: 24 }} />
+      </Card>
     );
   }
 
@@ -415,10 +417,7 @@ export function ButtonsPage() {
 
   return (
     <Card>
-      <Title level={4} style={{ marginTop: 0 }}>
-        {t("buttons.title")}
-      </Title>
-      <Paragraph type="secondary">{t("buttons.subtitle")}</Paragraph>
+      <PageHeader title={t("buttons.title")} subtitle={t("buttons.subtitle")} />
       <Tabs defaultActiveKey="menu" items={tabItems} />
       <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>
         {t("buttons.save")}

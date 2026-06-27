@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Button, Card, Input, Table, Tag } from "antd";
+import { Button, Card, Input, Tag } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
 import { useList } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ROLE_COLORS, fmtDate } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 export function UserList() {
   const { t } = useTranslation();
@@ -87,7 +88,7 @@ export function UserList() {
           />
         }
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isLoading}
         dataSource={data?.data ?? []}

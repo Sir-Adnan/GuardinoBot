@@ -7,7 +7,6 @@ import {
   Input,
   Popconfirm,
   Space,
-  Table,
   Tag,
 } from "antd";
 import {
@@ -24,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { fmtDate } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "green",
@@ -147,7 +147,7 @@ export function ProxyList() {
           />
         }
       />
-      <Table
+      <ResponsiveTable
         rowKey="id"
         loading={isLoading}
         dataSource={data?.data ?? []}
