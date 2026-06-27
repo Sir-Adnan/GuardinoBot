@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntdApp,
   Button,
   Card,
   Input,
-  Space,
   Spin,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
-import { SaveOutlined } from "@ant-design/icons";
+import {
+  EyeInvisibleOutlined,
+  EyeOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { PageHeader } from "../../components/PageHeader";
@@ -34,6 +38,36 @@ export function TextsPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [previewKeys, setPreviewKeys] = useState<Set<string>>(new Set());
+  const taRefs = useRef<Record<string, any>>({});
+
+  const togglePreview = (key: string) =>
+    setPreviewKeys((s) => {
+      const next = new Set(s);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  // insert {VAR} at the textarea cursor (falls back to appending)
+  const insertVar = (key: string, v: string) => {
+    const token = `{${v}}`;
+    const ta = taRefs.current[key]?.resizableTextArea?.textArea as
+      | HTMLTextAreaElement
+      | undefined;
+    setDrafts((d) => {
+      const cur = d[key] ?? "";
+      if (ta && typeof ta.selectionStart === "number") {
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        requestAnimationFrame(() => {
+          ta.focus();
+          ta.setSelectionRange(start + token.length, start + token.length);
+        });
+        return { ...d, [key]: cur.slice(0, start) + token + cur.slice(end) };
+      }
+      return { ...d, [key]: cur + token };
+    });
+  };
 
   useEffect(() => {
     api
@@ -83,7 +117,9 @@ export function TextsPage() {
   }
 
   const renderCard = (it: TextItem) => {
-    const dirty = (drafts[it.key] ?? "") !== it.value;
+    const val = drafts[it.key] ?? "";
+    const dirty = val !== it.value;
+    const showPreview = previewKeys.has(it.key);
     return (
       <Card
         key={it.key}
@@ -91,34 +127,81 @@ export function TextsPage() {
         size="small"
         style={{ marginBottom: 16 }}
         extra={
-          <Button
-            type="primary"
-            size="small"
-            icon={<SaveOutlined />}
-            loading={savingKey === it.key}
-            disabled={!dirty}
-            onClick={() => save(it.key)}
-          >
-            {t("texts.save")}
-          </Button>
+          <span style={{ display: "inline-flex", gap: 8 }}>
+            <Tooltip title={t("texts.preview")}>
+              <Button
+                size="small"
+                icon={showPreview ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                onClick={() => togglePreview(it.key)}
+              />
+            </Tooltip>
+            <Button
+              type="primary"
+              size="small"
+              icon={<SaveOutlined />}
+              loading={savingKey === it.key}
+              disabled={!dirty}
+              onClick={() => save(it.key)}
+            >
+              {t("texts.save")}
+            </Button>
+          </span>
         }
       >
         {it.variables.length > 0 && (
           <div style={{ marginBottom: 8 }}>
-            <Text type="secondary" style={{ marginInlineEnd: 6 }}>
+            <Text type="secondary" style={{ marginInlineEnd: 6, fontSize: 12 }}>
               {t("texts.variables")}:
             </Text>
             {it.variables.map((v) => (
-              <Tag key={v} className="mono">{`{${v}}`}</Tag>
+              <Tag
+                key={v}
+                className="mono"
+                color="processing"
+                style={{ cursor: "pointer" }}
+                onClick={() => insertVar(it.key, v)}
+              >{`{${v}}`}</Tag>
             ))}
+            <Text type="secondary" style={{ fontSize: 11, marginInlineStart: 4 }}>
+              ({t("texts.clickToInsert")})
+            </Text>
           </div>
         )}
         <Input.TextArea
-          value={drafts[it.key] ?? ""}
+          ref={(el) => {
+            taRefs.current[it.key] = el;
+          }}
+          value={val}
           onChange={(e) => setDrafts((d) => ({ ...d, [it.key]: e.target.value }))}
           autoSize={{ minRows: 3, maxRows: 14 }}
           dir="auto"
         />
+        <div style={{ textAlign: "end", marginTop: 4 }}>
+          <Text type="secondary" style={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+            {val.length} {t("texts.chars")}
+          </Text>
+        </div>
+        {showPreview && (
+          <div style={{ marginTop: 8 }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {t("texts.previewTitle")}
+            </Text>
+            <div
+              style={{
+                marginTop: 6,
+                background: "rgba(16,185,129,0.10)",
+                border: "1px solid rgba(16,185,129,0.25)",
+                borderRadius: 12,
+                padding: "10px 14px",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                lineHeight: 1.7,
+                fontSize: 14,
+              }}
+              dangerouslySetInnerHTML={{ __html: val || "—" }}
+            />
+          </div>
+        )}
       </Card>
     );
   };

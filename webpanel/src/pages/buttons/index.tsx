@@ -65,6 +65,35 @@ const EDIT_KEYS = [
   "test_services",
 ];
 
+// Inline-button category grouping (derived from the key prefix) so the long list
+// stays navigable in the editor.
+const CAT_ORDER = [
+  "proxy",
+  "account",
+  "purchase",
+  "payment",
+  "renew",
+  "links",
+  "reset",
+  "reserve",
+  "alerts",
+  "common",
+  "other",
+];
+const catOf = (key: string): string => {
+  if (key.startsWith("pay_") || key === "purchase_pay") return "payment";
+  if (key.startsWith("proxy_")) return "proxy";
+  if (key.startsWith("account_")) return "account";
+  if (key.startsWith("purchase_")) return "purchase";
+  if (key.startsWith("renew_")) return "renew";
+  if (key.startsWith("links_")) return "links";
+  if (key.startsWith("reset_")) return "reset";
+  if (key.startsWith("reserve_") || key === "show_reserve") return "reserve";
+  if (key.startsWith("alert_")) return "alerts";
+  if (key.startsWith("common_") || key === "confirm_action") return "common";
+  return "other";
+};
+
 const flatFromRows = (rows: string[][]): FlatBtn[] => {
   const f: FlatBtn[] = [];
   (rows || []).forEach((row) => {
@@ -100,6 +129,7 @@ export function ButtonsPage() {
   const [premium, setPremium] = useState(false);
   const [replyPremium, setReplyPremium] = useState(false);
   const [flat, setFlat] = useState<FlatBtn[]>([]);
+  const [search, setSearch] = useState("");
 
   const apply = (d: any) => {
     const li: BtnItem[] = d.items ?? [];
@@ -188,6 +218,46 @@ export function ButtonsPage() {
     { value: "success", label: t("buttons.style_success") },
     { value: "danger", label: t("buttons.style_danger") },
   ];
+
+  const renderInlineCard = (it: InlineItem) => (
+    <Col xs={24} lg={12} key={it.key}>
+      <Card size="small" title={label(it.key)}>
+        <div style={{ marginBottom: 4 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t("buttons.text_label")} ({t("buttons.default")}: {it.label})
+          </Text>
+        </div>
+        <Input
+          allowClear
+          placeholder={it.label}
+          value={texts[it.key] ?? ""}
+          onChange={(e) => setTexts((s) => ({ ...s, [it.key]: e.target.value }))}
+          style={{ marginBottom: 10 }}
+        />
+        <Row gutter={8}>
+          <Col xs={14}>
+            <Input
+              allowClear
+              placeholder={t("buttons.emoji_id_ph")}
+              value={icons[it.key] ?? ""}
+              onChange={(e) => setIcons((s) => ({ ...s, [it.key]: e.target.value }))}
+              disabled={!premium}
+            />
+          </Col>
+          <Col xs={10}>
+            <Select
+              style={{ width: "100%" }}
+              options={styleOpts}
+              value={styles[it.key] ?? ""}
+              onChange={(v) => setStyles((s) => ({ ...s, [it.key]: v }))}
+              disabled={!premium}
+              placeholder={it.default_style || t("buttons.style_none")}
+            />
+          </Col>
+        </Row>
+      </Card>
+    </Col>
+  );
 
   const tabItems = [
     {
@@ -358,58 +428,49 @@ export function ButtonsPage() {
             message={t("buttons.premium_hint")}
           />
           <div
-            style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 16,
+              flexWrap: "wrap",
+            }}
           >
             <Switch checked={premium} onChange={setPremium} />
             <Text strong>{t("buttons.premium_enabled")}</Text>
+            <Input.Search
+              allowClear
+              placeholder={t("buttons.search_ph")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ marginInlineStart: "auto", maxWidth: 260 }}
+            />
           </div>
-          <Row gutter={[16, 16]}>
-            {inlineItems.map((it) => (
-              <Col xs={24} lg={12} key={it.key}>
-                <Card size="small" title={label(it.key)}>
-                  <div style={{ marginBottom: 4 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {t("buttons.text_label")} ({t("buttons.default")}: {it.label})
-                    </Text>
-                  </div>
-                  <Input
-                    allowClear
-                    placeholder={it.label}
-                    value={texts[it.key] ?? ""}
-                    onChange={(e) =>
-                      setTexts((s) => ({ ...s, [it.key]: e.target.value }))
-                    }
-                    style={{ marginBottom: 10 }}
-                  />
-                  <Row gutter={8}>
-                    <Col xs={14}>
-                      <Input
-                        allowClear
-                        placeholder={t("buttons.emoji_id_ph")}
-                        value={icons[it.key] ?? ""}
-                        onChange={(e) =>
-                          setIcons((s) => ({ ...s, [it.key]: e.target.value }))
-                        }
-                        disabled={!premium}
-                      />
-                    </Col>
-                    <Col xs={10}>
-                      <Select
-                        style={{ width: "100%" }}
-                        options={styleOpts}
-                        value={styles[it.key] ?? ""}
-                        onChange={(v) =>
-                          setStyles((s) => ({ ...s, [it.key]: v }))
-                        }
-                        disabled={!premium}
-                        placeholder={it.default_style || t("buttons.style_none")}
-                      />
-                    </Col>
-                  </Row>
-                </Card>
-              </Col>
-            ))}
-          </Row>
+          {(() => {
+            const q = search.trim().toLowerCase();
+            const filtered = inlineItems.filter(
+              (it) =>
+                !q ||
+                it.key.toLowerCase().includes(q) ||
+                String(it.label || "").toLowerCase().includes(q) ||
+                label(it.key).toLowerCase().includes(q),
+            );
+            if (!filtered.length)
+              return <Text type="secondary">{t("buttons.noMatch")}</Text>;
+            const cats = CAT_ORDER.filter((c) =>
+              filtered.some((it) => catOf(it.key) === c),
+            );
+            return cats.map((c) => (
+              <div key={c} style={{ marginBottom: 18 }}>
+                <Text strong style={{ display: "block", marginBottom: 10, fontSize: 13 }}>
+                  {t(`buttons.cat_${c}`, c)}
+                </Text>
+                <Row gutter={[16, 16]}>
+                  {filtered.filter((it) => catOf(it.key) === c).map(renderInlineCard)}
+                </Row>
+              </div>
+            ));
+          })()}
         </>
       ),
     },

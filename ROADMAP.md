@@ -288,6 +288,16 @@ architectural → build per stage, confirm each before starting.
 - **4a — Cover inline buttons** ✅ (customer-facing): `INLINE_BUTTONS` now covers account /
   purchase / payment / renew / proxy-panel (rename + emoji + colour). Admin keyboards **out of
   scope** (owner decision). Remaining customer back/confirm/reserve buttons → 4a (cont.) above.
+- **4a (payment methods)** ✅: the charge-menu gateway buttons (card-to-card / crypto / perfect-money
+  / zarinpal / zibal / payping / aqaye-pardakht / swapino / tron) are now keyed
+  (`pay_method_key(plugin._name)` → `pay_*` registry entries) and routed through `premium_button` in
+  `keyboards/user/payment.ChargePanel`, so each gets colour + premium emoji (+ optional rename) in the
+  web Buttons editor. Web labels added; the inline tab gained a **search filter** for the longer list.
+- **Editor UX redesign** ✅: **Texts editor** — variable tags are now **clickable to insert** `{VAR}`
+  at the cursor, a **live HTML preview** toggle per text (Telegram-style bubble), + a char counter.
+  **Buttons editor** — the inline list is **grouped by category** (proxy / account / purchase /
+  payment / renew / links / reset / reserve / alerts / common) with the search filtering across
+  groups, so the now ~40-button list stays navigable.
 - **4b — Main reply-menu builder** ✅: `main_menu_layout` setting (ordered rows of keys, empty =
   default) drives `keyboards/base.MainMenu`. Web editor (Buttons → Main-menu tab): enable/disable
   (remove = hide), reorder (↑↓), row grouping (↵ new-row), + the existing per-button label/emoji.

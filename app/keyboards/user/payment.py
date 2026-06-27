@@ -11,6 +11,7 @@ from tortoise.functions import Count, Sum
 from app.keyboards.premium import premium_button
 from app.keyboards.user import account
 from app.models.user import RialGatewayPayment, Transaction
+from app.utils import buttons as _b
 
 if TYPE_CHECKING:
     from app.utils import settings
@@ -156,27 +157,33 @@ class ChargePanel(InlineKeyboardBuilder):
                         if (not plugin.free_after) or (amount < plugin.free_after)
                         else amount * (plugin.free_after_percent / 100)
                     )
-                    self.button(
-                        text=menu_title
-                        if not free
-                        else f"{menu_title} 🔥 + {free:,} تومان",
-                        callback_data=SelectPayAmount.Callback(
-                            amount=amount,
-                            free=free,
-                            method=plugin._name,
-                            service_id=service_id,
-                            menu_id=menu_id,
-                            proxy_id=proxy_id,
-                            direct_mode=direct_mode,
-                        ),
+                    self.add(
+                        premium_button(
+                            text=menu_title
+                            if not free
+                            else f"{menu_title} 🔥 + {free:,} تومان",
+                            key=_b.pay_method_key(plugin._name),
+                            callback_data=SelectPayAmount.Callback(
+                                amount=amount,
+                                free=free,
+                                method=plugin._name,
+                                service_id=service_id,
+                                menu_id=menu_id,
+                                proxy_id=proxy_id,
+                                direct_mode=direct_mode,
+                            ),
+                        )
                     )
                     any_added = True
                 else:
-                    self.button(
-                        text=menu_title,
-                        callback_data=self.Callback(
-                            method=plugin._name,
-                        ),
+                    self.add(
+                        premium_button(
+                            text=menu_title,
+                            key=_b.pay_method_key(plugin._name),
+                            callback_data=self.Callback(
+                                method=plugin._name,
+                            ),
+                        )
                     )
                     any_added = True
         if not any_added and min_amount is not None:

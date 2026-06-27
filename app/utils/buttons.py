@@ -123,11 +123,28 @@ INLINE_BUTTONS: dict[str, str] = {
     "reserve_activate": "✅ فعالسازی پلن پشتیبان",
     "reserve_cancel": "⚠️ لغو پلن پشتیبان",
     "show_reserve": "📁 پلن پشتیبان",
+    # -- payment methods (payment.ChargePanel — one per enabled gateway/plugin) --
+    "pay_card_to_card": "💳 کارت به کارت",
+    "pay_perfect_money": "💲 پرفکت‌مانی",
+    "pay_nowpayments_io": "🪙 ارز دیجیتال",
+    "pay_swapino": "🪙 سواپینو",
+    "pay_tronado": "🪙 ترون",
+    "pay_zarinpal": "🏦 زرین‌پال",
+    "pay_zibal": "🏦 زیبال",
+    "pay_payping": "🏦 پی‌پینگ",
+    "pay_aqaye_pardakht": "🏦 آقای پرداخت",
     # -- generic confirm/cancel/back (shared across customer keyboards) --
     "confirm_action": "⚠️ تأیید",
     "common_back": "🔙 برگشت",
     "common_cancel": "🔙 لغو",
 }
+
+
+def pay_method_key(plugin_name: str) -> str:
+    """Stable inline-button key for a payment plugin (``plugin._name``), so its
+    charge-menu button can carry a premium emoji + colour from the web panel.
+    Dots/dashes → underscores (e.g. ``nowpayments.io`` → ``pay_nowpayments_io``)."""
+    return "pay_" + plugin_name.replace(".", "_").replace("-", "_")
 
 STYLES = ("primary", "success", "danger")
 # A style value of "none" (vs an empty/missing value) means the admin explicitly
