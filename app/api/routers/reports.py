@@ -19,9 +19,11 @@ from app.api.schemas import (
     ReportsOut,
     TopServiceItem,
 )
-from app.models.proxy import Proxy
+from app.models.proxy import Proxy, ProxyStatus
 from app.models.service import Service
 from app.models.user import Invoice, Transaction, User
+
+_GB = 1024**3
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -39,6 +41,12 @@ TYPE_NAMES = {
 async def _sum(queryset, field: str = "amount") -> int:
     rows = await queryset.annotate(s=Sum(field)).values("s")
     return int((rows[0]["s"] if rows else 0) or 0)
+
+
+async def _gb(queryset) -> float:
+    """GB provisioned by the matched subscriptions (Σ of their service.data_limit)."""
+    bytes_total = await _sum(queryset, "service__data_limit")
+    return round(bytes_total / _GB, 2)
 
 
 def _parse_date(s: Optional[str]):
@@ -83,6 +91,22 @@ async def summary(
         Transaction.filter(status=Transaction.Status.finished)
     ).count()
     failed_payments = max(0, total_tx - finished_tx)
+    gb_sold = await _gb(_rng(Proxy.all()))
+
+    # all-time (lifetime) totals — ignore the selected range
+    all_sales_total = await _sum(Invoice.filter(is_draft=False))
+    all_income_total = await _sum(
+        Transaction.filter(status=Transaction.Status.finished), "amount_paid"
+    )
+    all_users = await User.all().count()
+    all_gb_sold = await _gb(Proxy.all())
+
+    # subscription (proxy) stats — current state
+    proxies_by_status: dict[str, int] = {}
+    for st in ProxyStatus:
+        proxies_by_status[st.value] = await Proxy.filter(status=st).count()
+    proxies_total = sum(proxies_by_status.values())
+    proxies_active = proxies_by_status.get(ProxyStatus.active.value, 0)
 
     # per-day revenue series (capped at 60 points), bucketed in Python
     series_days = min(days, 60)
@@ -144,6 +168,15 @@ async def summary(
         orders=orders,
         new_users=new_users,
         failed_payments=failed_payments,
+        gb_sold=gb_sold,
+        all_sales_total=all_sales_total,
+        all_income_total=all_income_total,
+        all_orders=proxies_total,
+        all_users=all_users,
+        all_gb_sold=all_gb_sold,
+        proxies_total=proxies_total,
+        proxies_active=proxies_active,
+        proxies_by_status=proxies_by_status,
         revenue_series=series,
         payment_breakdown=breakdown,
         top_services=top_services,

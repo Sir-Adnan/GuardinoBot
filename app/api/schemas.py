@@ -330,6 +330,17 @@ class ReportsOut(BaseModel):
     orders: int  # subscriptions created in range
     new_users: int
     failed_payments: int  # non-finished transactions created in range
+    gb_sold: float = 0  # GB provisioned by subs created in range (Σ service.data_limit)
+    # all-time totals (ignore the range — lifetime figures)
+    all_sales_total: int = 0
+    all_income_total: int = 0
+    all_orders: int = 0  # total subscriptions ever created
+    all_users: int = 0
+    all_gb_sold: float = 0
+    # subscription (proxy) stats — current state, not range-bound
+    proxies_total: int = 0
+    proxies_active: int = 0
+    proxies_by_status: dict[str, int] = {}
     revenue_series: list[ReportPoint]
     payment_breakdown: list[PaymentBreakdownItem]
     top_services: list[TopServiceItem]

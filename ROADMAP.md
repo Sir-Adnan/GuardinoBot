@@ -170,6 +170,15 @@ service provisioning picker).
   context gained `setMode`/`density`/`setDensity`; `makeTheme(accent, mode, font, density)`.
 - ✅ **Reports redesign**: `StatCard` KPI row, gradient bar chart + **Jalali x-axis labels**,
   payment-breakdown with **% share bars**, empty states; date range + presets + CSV export kept.
+- ✅ **Reports — richer stats**: added **GB sold** (range), an **All-time totals** block (total
+  sales / income / orders / users / GB) and a **Subscription (proxy) stats** block (total + per
+  status: active / on_hold / disabled / limited / expired with % share). Backend `/reports/summary`
+  gained `gb_sold`, `all_*`, `proxies_total/active`, `proxies_by_status` (`_gb` helper via
+  `Sum(service__data_limit)`; status counts loop `ProxyStatus`). CSV export includes them.
+- ✅ **Jalali date-range picker**: when the calendar pref is **Shamsi**, the reports range picker
+  switches to a **dependency-free** `JalaliRangePicker` (year/month/day Selects, Shamsi months) that
+  emits Gregorian Dayjs — query stays Gregorian ISO. Conversion in new `utils/jalali.ts` (inlined
+  jalaali-js, no new npm dep, consistent with the Intl-based `utils/datetime.ts`).
 - [ ] Remaining: low-balance/panel-health dashboard widgets, micro-interactions, broader audit.
 
 ### P12 — Bot (Telegram) UX overhaul

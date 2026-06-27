@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState, type ReactNode } from "react";
 import {
   Button,
   Card,
@@ -15,11 +15,17 @@ import {
   theme,
 } from "antd";
 import {
+  CheckCircleOutlined,
   CloseCircleOutlined,
+  CloudUploadOutlined,
+  ClusterOutlined,
   DollarOutlined,
   DownloadOutlined,
+  PauseCircleOutlined,
   ShoppingOutlined,
+  StopOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
@@ -29,13 +35,26 @@ import { fmtNum, fmtToman } from "../../utils/format";
 import { formatDay } from "../../utils/datetime";
 import { PageHeader } from "../../components/PageHeader";
 import { StatCard } from "../../components/StatCard";
+import { JalaliRangePicker } from "../../components/JalaliRangePicker";
+import { ColorModeContext } from "../../contexts/color-mode";
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
+const fmtGb = (v?: number) => `${fmtNum(Math.round(v ?? 0))} GB`;
+
+const PROXY_STATUS_META: Record<string, { icon: ReactNode; color: string }> = {
+  active: { icon: <CheckCircleOutlined />, color: "#10b981" },
+  on_hold: { icon: <ThunderboltOutlined />, color: "#3b82f6" },
+  disabled: { icon: <PauseCircleOutlined />, color: "#9ca3af" },
+  limited: { icon: <StopOutlined />, color: "#f59e0b" },
+  expired: { icon: <CloseCircleOutlined />, color: "#ef4444" },
+};
+
 export function ReportsPage() {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+  const { calendar } = useContext(ColorModeContext);
   const [days, setDays] = useState(30);
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
 
@@ -47,12 +66,26 @@ export function ReportsPage() {
   const d = data?.data;
 
   const cards = [
-    { k: "sales_total", icon: <DollarOutlined />, color: token.colorPrimary, money: true },
-    { k: "income_total", icon: <WalletOutlined />, color: "#3b82f6", money: true },
-    { k: "orders", icon: <ShoppingOutlined />, color: "#8b5cf6", money: false },
-    { k: "new_users", icon: <TeamOutlined />, color: "#06b6d4", money: false },
-    { k: "failed_payments", icon: <CloseCircleOutlined />, color: "#ef4444", money: false },
+    { k: "sales_total", icon: <DollarOutlined />, fmt: "money" },
+    { k: "income_total", icon: <WalletOutlined />, fmt: "money" },
+    { k: "orders", icon: <ShoppingOutlined />, fmt: "num" },
+    { k: "gb_sold", icon: <CloudUploadOutlined />, fmt: "gb" },
+    { k: "new_users", icon: <TeamOutlined />, fmt: "num" },
+    { k: "failed_payments", icon: <CloseCircleOutlined />, fmt: "num" },
   ];
+  const fmtVal = (kind: string, v: any) =>
+    kind === "money" ? fmtToman(v) : kind === "gb" ? fmtGb(v) : fmtNum(v);
+
+  const allTimeCards = [
+    { k: "all_sales_total", icon: <DollarOutlined />, fmt: "money" },
+    { k: "all_income_total", icon: <WalletOutlined />, fmt: "money" },
+    { k: "all_orders", icon: <ShoppingOutlined />, fmt: "num" },
+    { k: "all_users", icon: <TeamOutlined />, fmt: "num" },
+    { k: "all_gb_sold", icon: <CloudUploadOutlined />, fmt: "gb" },
+  ];
+
+  const byStatus: Record<string, number> = d?.proxies_by_status ?? {};
+  const STATUS_ORDER = ["active", "on_hold", "disabled", "limited", "expired"];
 
   const series: any[] = d?.revenue_series ?? [];
   const maxAmount = Math.max(1, ...series.map((p) => p.amount));
@@ -63,6 +96,11 @@ export function ReportsPage() {
     if (!d) return;
     const lines: string[] = [`range,${d.start ?? ""},${d.end ?? ""}`];
     cards.forEach((c) => lines.push(`${c.k},${d[c.k] ?? 0}`));
+    lines.push("", "all_time_metric,value");
+    allTimeCards.forEach((c) => lines.push(`${c.k},${d[c.k] ?? 0}`));
+    lines.push("", "proxy_status,count");
+    lines.push(`total,${d.proxies_total ?? 0}`);
+    STATUS_ORDER.forEach((st) => lines.push(`${st},${byStatus[st] ?? 0}`));
     lines.push("", "payment_method,count,amount");
     breakdown.forEach((r) => lines.push(`${r.type_name},${r.count},${r.amount}`));
     lines.push("", "date,amount");
@@ -124,12 +162,16 @@ export function ReportsPage() {
                 { label: t("reports.d90"), value: 90 },
               ]}
             />
-            <RangePicker
-              value={range as any}
-              onChange={(v) => setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)}
-              allowClear
-              maxDate={dayjs()}
-            />
+            {calendar === "jalali" ? (
+              <JalaliRangePicker value={range} onChange={setRange} maxDate={dayjs()} />
+            ) : (
+              <RangePicker
+                value={range as any}
+                onChange={(v) => setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)}
+                allowClear
+                maxDate={dayjs()}
+              />
+            )}
             <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={!d}>
               {t("reports.export")}
             </Button>
@@ -148,7 +190,7 @@ export function ReportsPage() {
               <Col xs={12} sm={8} md={8} lg={4} key={c.k} flex="1">
                 <StatCard
                   label={t(`reports.${c.k}`)}
-                  value={c.money ? fmtToman(d?.[c.k]) : fmtNum(d?.[c.k])}
+                  value={fmtVal(c.fmt, d?.[c.k])}
                   icon={c.icon}
                 />
               </Col>
@@ -186,6 +228,40 @@ export function ReportsPage() {
               </>
             )}
           </Card>
+
+          <Text strong style={{ display: "block", marginTop: 22, marginBottom: 10, fontSize: 13 }}>
+            {t("reports.allTime")}
+          </Text>
+          <Row gutter={[16, 16]}>
+            {allTimeCards.map((c) => (
+              <Col xs={12} sm={8} md={8} lg={4} xl={4} key={c.k} flex="1">
+                <StatCard
+                  label={t(`reports.${c.k}`)}
+                  value={fmtVal(c.fmt, d?.[c.k])}
+                  icon={c.icon}
+                />
+              </Col>
+            ))}
+          </Row>
+
+          <Text strong style={{ display: "block", marginTop: 22, marginBottom: 10, fontSize: 13 }}>
+            {t("reports.subsStats")}
+          </Text>
+          <Row gutter={[16, 16]}>
+            <Col xs={12} sm={8} md={8} lg={4} flex="1">
+              <StatCard label={t("reports.proxies_total")} value={fmtNum(d?.proxies_total)} icon={<ClusterOutlined />} />
+            </Col>
+            {STATUS_ORDER.map((st) => (
+              <Col xs={12} sm={8} md={8} lg={4} key={st} flex="1">
+                <StatCard
+                  label={t(`reports.st_${st}`)}
+                  value={fmtNum(byStatus[st] ?? 0)}
+                  icon={<span style={{ color: PROXY_STATUS_META[st]?.color }}>{PROXY_STATUS_META[st]?.icon}</span>}
+                  sub={d?.proxies_total ? `${Math.round(((byStatus[st] ?? 0) / d.proxies_total) * 100)}%` : undefined}
+                />
+              </Col>
+            ))}
+          </Row>
 
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={24} lg={14}>
