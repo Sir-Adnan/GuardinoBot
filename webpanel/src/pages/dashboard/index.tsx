@@ -17,6 +17,7 @@ import { fmtNum, fmtToman } from "../../utils/format";
 import { formatDay } from "../../utils/datetime";
 import { PageHeader } from "../../components/PageHeader";
 import { StatCard } from "../../components/StatCard";
+import { PanelHealth } from "./PanelHealth";
 
 const { Text } = Typography;
 
@@ -149,6 +150,9 @@ export function DashboardPage() {
           </Col>
         ))}
       </Row>
+
+      <Section title={t("dashboard.secHealth")} />
+      <PanelHealth />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 """Dashboard summary (admin+). Mirrors the bot's stats panel as JSON."""
 
+import asyncio
+from datetime import UTC
 from datetime import datetime as dt
 from datetime import timedelta as td
 
@@ -7,14 +9,24 @@ from fastapi import APIRouter, Depends
 from tortoise.functions import Sum
 
 from app.api.deps import require_role
-from app.api.schemas import DashboardOut, PeriodStat
+from app.api.schemas import (
+    DashboardOut,
+    PanelHealthItem,
+    PanelHealthOut,
+    PeriodStat,
+)
 from app.models.proxy import Proxy
 from app.models.server import Server
+from app.models.setting import BotSetting
 from app.models.user import Invoice, Transaction, User
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 _GB = 1024**3
+# fallbacks mirror app/utils/settings.py defaults (the bot owns the real values)
+_WARN_DEFAULT = 1_000_000
+_CRITICAL_DEFAULT = 500_000
+_PING_TIMEOUT = 8  # seconds per panel call
 
 
 async def _sum(queryset, field: str = "amount") -> int:
@@ -93,4 +105,70 @@ async def summary(_: User = Depends(require_role(User.Role.admin))) -> Dashboard
         period_today=await _period(day_ago),
         period_week=await _period(now - td(days=7)),
         period_month=await _period(month_ago),
+    )
+
+
+async def _read_int(key: str, default: int) -> int:
+    rows = await BotSetting.filter(_key=key).values("_value")
+    try:
+        v = int((rows[0]["_value"] if rows else default) or default)
+        return v
+    except (ValueError, TypeError):
+        return default
+
+
+async def _check_panel(server: Server, warn: int, critical: int) -> PanelHealthItem:
+    """Live-ping one panel (admin + Guardino balance) with a timeout. Errors are
+    reduced to non-sensitive codes so no panel credentials/URLs leak."""
+    ptype = str(getattr(server.panel_type, "value", server.panel_type or "marzban"))
+    base = {"id": server.id, "name": server.identifier, "panel_type": ptype}
+    # local import (mirrors proxies.py) — app.panels never imports app.main
+    from app.panels.base import PanelAuthError, PanelError
+    from app.panels.registry import build_panel
+
+    try:
+        panel = build_panel(server)
+    except Exception:  # noqa: BLE001 - bad/incomplete server row
+        return PanelHealthItem(**base, ok=False, error="error")
+
+    try:
+        admin = await asyncio.wait_for(panel.get_admin(), timeout=_PING_TIMEOUT)
+    except PanelAuthError:
+        return PanelHealthItem(**base, ok=False, error="auth")
+    except (PanelError, asyncio.TimeoutError):
+        return PanelHealthItem(**base, ok=False, error="unreachable")
+    except Exception:  # noqa: BLE001
+        return PanelHealthItem(**base, ok=False, error="error")
+
+    balance = level = None
+    if getattr(panel, "panel_managed_billing", False):
+        try:
+            balance = await asyncio.wait_for(panel.get_balance(), timeout=_PING_TIMEOUT)
+            level = (
+                "critical" if balance < critical
+                else ("warn" if balance < warn else "ok")
+            )
+        except Exception:  # noqa: BLE001 - balance is best-effort
+            balance = level = None
+
+    return PanelHealthItem(
+        **base, ok=True, admin=admin.username, balance=balance, balance_level=level
+    )
+
+
+@router.get("/panel-health", response_model=PanelHealthOut)
+async def panel_health(
+    _: User = Depends(require_role(User.Role.admin)),
+) -> PanelHealthOut:
+    """Live reachability + Guardino balance per enabled panel. Lazy (the widget
+    calls it on demand) since it makes one network call per panel."""
+    warn = await _read_int("guardino_balance_warn", _WARN_DEFAULT)
+    critical = await _read_int("guardino_balance_critical", _CRITICAL_DEFAULT)
+    servers = await Server.filter(is_enabled=True).all()
+    items = await asyncio.gather(*(_check_panel(s, warn, critical) for s in servers))
+    return PanelHealthOut(
+        items=list(items),
+        checked_at=dt.now(UTC).isoformat(timespec="seconds"),
+        warn=warn,
+        critical=critical,
     )

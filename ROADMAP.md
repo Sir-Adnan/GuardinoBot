@@ -179,16 +179,36 @@ service provisioning picker).
   switches to a **dependency-free** `JalaliRangePicker` (year/month/day Selects, Shamsi months) that
   emits Gregorian Dayjs — query stays Gregorian ISO. Conversion in new `utils/jalali.ts` (inlined
   jalaali-js, no new npm dep, consistent with the Intl-based `utils/datetime.ts`).
-- [ ] Remaining: low-balance/panel-health dashboard widgets, micro-interactions, broader audit.
+- ✅ **Panel-health + low-balance dashboard widget**: lazy, self-contained `PanelHealth` card
+  (own skeleton + manual refresh) → `GET /dashboard/panel-health` live-pings each **enabled** panel
+  (`build_panel().get_admin()` with an 8s timeout, concurrent via `asyncio.gather`) and reads the
+  **Guardino reseller balance** (`get_balance`), colour-coded vs the warn/critical thresholds (read
+  from `BotSetting`, defaults mirrored). Errors reduced to non-sensitive codes (auth/unreachable/
+  error) — no panel URL/creds leak. Kept off `/dashboard/summary` so the summary stays fast.
+- [ ] Remaining: micro-interactions, broader audit.
 
 ### P12 — Bot (Telegram) UX overhaul
 Goal: the customer-facing bot looks premium and converts better (customers browse/buy here).
-- Plan/tariff list: distinct buttons (premium emoji per service/category — done), clear
-  price·data·duration, category grouping, a formatted **"tariffs" overview** message.
-- Account page: dashboard-style (balance · active subs · nearest expiry · quick actions).
-- Subscription view: status badge + **text usage bar** (▰▰▰▱▱ %) · days left · data left · renew CTA.
-- Purchase/renew: clearer steps, summary confirmation, success screen; onboarding for new users;
-  better empty states + hints; consistent iconography; HTML/premium-emoji copy polish.
+- ✅ **Subscription view — usage bar**: the proxy detail card gained a text data-usage bar
+  (`▰▰▰▱▱ ۶۳٪`, Persian digits, in `<code>` for alignment) + "used / total" line (or "نامحدود ♾") +
+  `max(0, …)` remaining. New `helpers.usage_bar()` / `helpers.fa_num()` (empty bar for unlimited).
+- ✅ **Tariffs overview**: the purchase list now shows a compact price·data·duration list above the
+  plan buttons (capped at 12, "+more" hint beyond), gated by the new `purchase_show_tariffs` toggle
+  (default on; in the bot Settings model + web Settings → General + settings API `_BOOL`/schema).
+- ✅ **Empty-state CTA**: "my subscriptions" with no subs now shows a friendly message + an inline
+  **🛒 خرید اشتراک** button (packs `Services.Callback(action=show)` → straight into the buy flow)
+  instead of a dead-end toast. Admins viewing an empty child list keep the plain notice. Also fixed
+  the old un-awaited `qmsg.answer(...)` returns here.
+- ✅ **Account page — dashboard-style**: restructured into identity / financial / postpaid sections
+  with clear separators; shows **active / total subscriptions** from the **local** `Proxy.status`
+  (fixed the old "active services" label that actually counted *all* proxies) — cheap, no panel
+  calls. Quick actions stay (the `UserPanel` keyboard). *Nearest expiry deferred — expiry isn't
+  stored locally (panel-only), so it'd need per-panel calls.*
+- ✅ **New-user onboarding**: `/start` for a user with **0 subscriptions** now follows the menu with
+  a concise welcome + inline **🛒 خرید اشتراک** CTA (packs the buy callback). Cheap count, skipped on
+  `start_only` deep links, no new copy/migration.
+- [ ] Purchase/renew: clearer steps, summary confirmation, success screen; more empty states + hints;
+  consistent iconography; HTML/premium-emoji copy polish.
 - All copy editable via the Texts editor (P10).
 
 ### P13 — Smart alerts v2: timing + pro control

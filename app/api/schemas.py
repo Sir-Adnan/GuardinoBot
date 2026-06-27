@@ -123,6 +123,24 @@ class PeriodStat(BaseModel):
 DashboardOut.model_rebuild()
 
 
+class PanelHealthItem(BaseModel):
+    id: int
+    name: str
+    panel_type: str
+    ok: bool
+    error: Optional[str] = None  # generic code (auth | unreachable | error)
+    admin: Optional[str] = None  # admin username when reachable
+    balance: Optional[int] = None  # Guardino reseller wallet (toman)
+    balance_level: Optional[str] = None  # ok | warn | critical
+
+
+class PanelHealthOut(BaseModel):
+    items: list[PanelHealthItem]
+    checked_at: str
+    warn: int = 0
+    critical: int = 0
+
+
 # -- servers (panels) ---------------------------------------------------------
 class ServerListItem(BaseModel):
     id: int
@@ -482,6 +500,7 @@ class SettingsOut(BaseModel):
     reset_password_button: bool
     show_connect_links_button: bool
     show_test_service_in_menu: bool
+    purchase_show_tariffs: bool
     phone_number_verify: bool
     delete_expired_users_after_days: int
     remind_invoices_each_n_days: int
@@ -520,6 +539,7 @@ class SettingsUpdateIn(BaseModel):
     reset_password_button: Optional[bool] = None
     show_connect_links_button: Optional[bool] = None
     show_test_service_in_menu: Optional[bool] = None
+    purchase_show_tariffs: Optional[bool] = None
     phone_number_verify: Optional[bool] = None
     delete_expired_users_after_days: Optional[int] = None
     remind_invoices_each_n_days: Optional[int] = None

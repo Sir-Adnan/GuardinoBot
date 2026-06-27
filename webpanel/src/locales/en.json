@@ -100,7 +100,15 @@
     "p_week": "7 days",
     "p_month": "30 days",
     "secSales": "Sales & revenue",
-    "secOps": "Users, subscriptions & system"
+    "secOps": "Users, subscriptions & system",
+    "secHealth": "Panel health & balance",
+    "panelHealth": "Panel status",
+    "refresh": "Refresh",
+    "ph_ok": "Healthy",
+    "ph_auth": "Auth error",
+    "ph_unreachable": "Unreachable",
+    "ph_error": "Error",
+    "ph_balance": "Guardino reseller balance"
   },
   "users": {
     "title": "Users",
@@ -558,6 +566,7 @@
     "reset_password_button": "\"Change password\" button",
     "show_connect_links_button": "\"Connection links\" button",
     "show_test_service_in_menu": "Show test service in menu",
+    "purchase_show_tariffs": "Show tariffs table in purchase list",
     "phone_number_verify": "Phone number verification",
     "delete_expired_users_after_days": "Delete expired users after (days)",
     "remind_invoices_each_n_days": "Debt reminder every (days)",

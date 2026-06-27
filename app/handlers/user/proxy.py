@@ -13,6 +13,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     BufferedInputFile,
     CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     InputMediaPhoto,
     Message,
     ReplyKeyboardRemove,
@@ -25,6 +27,7 @@ from tortoise.transactions import in_transaction
 from app.jobs.check_reserves import activate_reserve
 from app.keyboards.base import CancelUserForm, MainMenu
 from app.keyboards.user.account import UserPanel, UserPanelAction
+from app.keyboards.user.purchase import Services, ServicesActions
 from app.keyboards.user.proxy import (
     FILTER_PROXY,
     SORT_PROXY,
@@ -144,11 +147,37 @@ async def proxies(
     total_count = await q.count()
     q = q.limit(11).offset(0 if page == 0 else page * 10)
     count = await q.count()
+    if (
+        total_count < 1
+        and filter_by == "all"
+        and (search_text is None)
+        and user_id == user.id
+    ):
+        text = (
+            "🛍 <b>هنوز اشتراکی ندارید</b>\n\n"
+            "برای شروع، یک پلن مناسب انتخاب کنید و همین حالا فعالش کنید 👇"
+        )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🛒 خرید اشتراک",
+                        callback_data=Services.Callback(
+                            action=ServicesActions.show
+                        ).pack(),
+                    )
+                ]
+            ]
+        )
+        if isinstance(qmsg, CallbackQuery):
+            return await qmsg.message.edit_text(text, reply_markup=kb)
+        return await qmsg.answer(text, reply_markup=kb)
     if total_count < 1 and filter_by == "all" and (search_text is None):
+        # admin viewing an empty child list — keep the simple notice
         text = "در حال حاضر هیچ پروکسی فعالی ندارید😬"
         if isinstance(qmsg, CallbackQuery):
-            return qmsg.answer(text, show_alert=True)
-        return qmsg.answer(text)
+            return await qmsg.answer(text, show_alert=True)
+        return await qmsg.answer(text)
 
     sort_by = (
         user.setting.proxy_list_sort_by.value
@@ -514,13 +543,15 @@ async def show_proxy(
         proxy.status = sv_proxy.status.value
         await proxy.save()
         await proxy.refresh_from_db()
+    _bar = helpers.usage_bar(sv_proxy.used_traffic, sv_proxy.data_limit)
     text = f"""
 ⭐️ شناسه: <code>{sv_proxy.username}</code> {f'({proxy.custom_name})' if proxy.custom_name else ''}
 {f'📱 پلن فعال: <b>{proxy.service.display_name}</b>' if proxy.service_id else ''}
 🌀 وضعیت: <b>{PROXY_STATUS.get(sv_proxy.status)}</b>
 ⏳ تاریخ انقضا: <b>{helpers.hr_date(sv_proxy.expire) if sv_proxy.expire else '♾'}</b> {f'<i>({helpers.hr_time(sv_proxy.expire - dt.now().timestamp(), lang="fa")})</i>' if sv_proxy.expire and sv_proxy.status != PanelUserStatus.expired else ''}
-📊 حجم مصرف شده: <b>{helpers.hr_size(sv_proxy.used_traffic, lang='fa')}</b>
-{f'🔋 حجم باقی‌مانده: <b>{helpers.hr_size(sv_proxy.data_limit - sv_proxy.used_traffic ,lang="fa")}</b>' if sv_proxy.data_limit else ''}
+{f'<code>{_bar}</code>' if _bar else ''}
+📊 حجم مصرف شده: <b>{helpers.hr_size(sv_proxy.used_traffic, lang='fa')}</b>{f' / {helpers.hr_size(sv_proxy.data_limit, lang="fa")}' if sv_proxy.data_limit else ' (نامحدود ♾)'}
+{f'🔋 حجم باقی‌مانده: <b>{helpers.hr_size(max(0, sv_proxy.data_limit - sv_proxy.used_traffic), lang="fa")}</b>' if sv_proxy.data_limit else ''}
 
 📊 حجم مصرفی تمام دوره‌ها: {helpers.hr_size(sv_proxy.lifetime_used_traffic, lang='fa')}
 

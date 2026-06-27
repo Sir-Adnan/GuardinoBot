@@ -126,25 +126,26 @@ async def account(qmsg: Message | CallbackQuery, user: User, state: FSMContext):
         # await qmsg.answer("", reply_markup=ReplyKeyboardRemove())
     _settings = settings.get_settings()
     balance = await user.get_balance()
+    available = await user.get_available_credit(balance)
+    total_subs = await user.proxies.all().count()
+    active_subs = await user.proxies.filter(status="active").count()
     text = f"""
-✅ اطلاعات حساب شما:
-
+👤 <b>حساب کاربری شما</b>
+━━━━━━━━━━━━━━
 💬 نام کاربری: {f'@{user.username}' if user.username else '➖'}
-📲 شناسه کاربری: <code>{user.id}</code>
-💲 اعتبار در دسترس: <b>{(await user.get_available_credit(balance)):,}</b> تومان
-🔋 سرویس‌های فعال: <b>{await user.proxies.all().count()}</b>
+🆔 شناسه کاربری: <code>{user.id}</code>
+🏷 نوع اکانت: {ACCOUNT_TYPE.get(user.role.name)}{' / پس‌پرداخت' if user.is_postpaid else ''}
+━━━━━━━━━━━━━━
+💰 اعتبار در دسترس: <b>{available:,}</b> تومان
+🔋 اشتراک‌ها: <b>{active_subs}</b> فعال از <b>{total_subs}</b>
 """
     if _settings.referral_system:
-        text += f"""~~~~~~~~~~~~~~~~~~~~~~~~
-💎 زیرمجموعه‌های من: <b>{await user.referred.all().count()}</b>
-"""
-    text += f"""~~~~~~~~~~~~~~~~~~~~~~~~
-👤 نوع اکانت: {ACCOUNT_TYPE.get(user.role.name)}"""
+        text += f"💎 زیرمجموعه‌های من: <b>{await user.referred.all().count()}</b>\n"
     if user.is_postpaid:
-        text += f""" / پس پرداخت
-💳سقف اعتبار شما: {user.max_post_paid_credit:,} تومان
-💲بدهکاری: {(balance * -1 if balance < 0 else 0):,} تومان
-💸 بستانکاری: {(balance if balance > 0 else 0):,} تومان
+        text += f"""━━━━━━━━━━━━━━
+💳 سقف اعتبار شما: {user.max_post_paid_credit:,} تومان
+🔴 بدهکاری: {(balance * -1 if balance < 0 else 0):,} تومان
+🟢 بستانکاری: {(balance if balance > 0 else 0):,} تومان
 """
     if isinstance(qmsg, CallbackQuery):
         return await qmsg.message.edit_text(

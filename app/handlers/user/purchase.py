@@ -131,6 +131,7 @@ async def purchase(
     else:
         text = menu.description or _texts.purchase.value
 
+    service_objs = await services.all()
     mns = [
         (sm.id, sm.title, sm.button_icon, sm.button_style)
         for sm in await sub_menues.all()
@@ -142,8 +143,28 @@ async def purchase(
             service.button_icon,
             service.button_style,
         )
-        for service in await services.all()
+        for service in service_objs
     ]
+
+    # tariffs overview: a compact price·data·duration list above the buttons so
+    # customers can compare at a glance (capped to keep the message in limits).
+    _settings = settings.get_settings()
+    if getattr(_settings, "purchase_show_tariffs", True) and service_objs:
+        rows = []
+        for s in service_objs[:12]:
+            vol = helpers.hr_size(s.data_limit, lang="fa") if s.data_limit else "نامحدود ♾"
+            dur = (
+                helpers.hr_time(s.expire_duration, lang="fa")
+                if s.expire_duration
+                else "نامحدود ♾"
+            )
+            price = await s.get_price()
+            price_s = f"{price:,} تومان" if price else "رایگان"
+            rows.append(f"• <b>{s.name}</b>\n   🖥 {vol} · 🕐 {dur} · 💰 {price_s}")
+        if rows:
+            text += "\n\n━━━━━━━━━━━━\n📋 <b>تعرفه‌ها</b>\n\n" + "\n".join(rows)
+            if len(service_objs) > 12:
+                text += "\n\n➕ موارد بیشتر در دکمه‌های زیر 👇"
     markup = Services(
         sub_menues=mns,
         services=svs,

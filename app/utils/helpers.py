@@ -113,6 +113,26 @@ def hr_size(size_bytes: int, lang: Literal["en", "fa"] = "fa"):
     return f"{size:g} {size_names[size_index]}"
 
 
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def fa_num(value) -> str:
+    """Latin digits → Persian digits (display only)."""
+    return str(value).translate(_FA_DIGITS)
+
+
+def usage_bar(used: int, limit: int, width: int = 10, lang: str = "fa") -> str:
+    """Text data-usage bar, e.g. ``▰▰▰▱▱▱▱▱▱▱ ۳۲٪``. Returns '' for unlimited
+    plans (no limit) so callers can simply append it."""
+    if not limit or limit <= 0:
+        return ""
+    pct = max(0, min(100, int(round((used or 0) / limit * 100))))
+    filled = int(round(pct / 100 * width))
+    bar = "▰" * filled + "▱" * (width - filled)
+    pct_s = fa_num(pct) if lang == "fa" else str(pct)
+    return f"{bar} {pct_s}٪"
+
+
 async def check_username_exists(username: str) -> bool:
     return await User.filter(username=username).exists()
 

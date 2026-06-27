@@ -1,11 +1,17 @@
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from app import __version__
 from app.handlers.user import account
 from app.keyboards.base import MainMenu
+from app.keyboards.user.purchase import Services, ServicesActions
 from app.models.service import Discount, Service
 from app.models.user import User
 from app.utils import settings, texts
@@ -124,6 +130,27 @@ async def start_handler(
     await message.answer(texts.get_texts().start.value)
     if not start_only:
         await main_menu_handler(message, user, state)
+        # first-touch onboarding: nudge users who have no subscription yet
+        # straight to the buy flow (the reply menu has it too, but an explicit
+        # inline CTA converts better). Cheap single count, no new copy/migration.
+        if await user.proxies.all().count() == 0:
+            await message.answer(
+                "🚀 <b>به جمع ما خوش اومدی!</b>\n\n"
+                "برای شروع، یک پلن انتخاب کن و در چند ثانیه اشتراکت رو فعال کن. "
+                "اگر سوالی داشتی، پشتیبانی همیشه کنارته 💬",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="🛒 خرید اشتراک",
+                                callback_data=Services.Callback(
+                                    action=ServicesActions.show
+                                ).pack(),
+                            )
+                        ]
+                    ]
+                ),
+            )
 
 
 @router.message(F.text == MainMenu.main_menu)
