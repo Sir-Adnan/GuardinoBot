@@ -60,6 +60,16 @@ def _expiry_steps(s) -> list[int]:
     return steps
 
 
+def _base_of(flag: str) -> str:
+    """Map a notified flag to its base alert type (``expiry:72`` → ``expiry``)."""
+    return "expiry" if flag.startswith("expiry:") else flag
+
+
+def _cadence(s, base: str) -> int:
+    """Re-send interval (hours) for a base type. 0 = send once (no repeat)."""
+    return max(0, int(getattr(s, f"alerts_cadence_{base}_hours", 0) or 0))
+
+
 def _pick(pending: set[str]) -> str | None:
     """Highest-priority pending alert: ended > tightest expiry step > low_data > unused."""
     if "ended" in pending:
@@ -231,25 +241,46 @@ async def proxy_alerts(force: bool = False) -> None:
                     continue
 
                 current = _evaluate(proxy, pu, now_ts, s)
-                already = {k for k, v in (proxy.notified or {}).items() if v}
+                notified = proxy.notified or {}
 
-                # Self-heal: keep flags still true; send one highest-priority new one.
-                new_flags = {t for t in already if t in current}
-                pending = current - already
+                # Self-heal: keep last-sent timestamps only for flags whose
+                # condition still holds; drop the rest so a re-occurrence alerts
+                # fresh. Legacy bool values (old {flag: true}) → epoch 1 = stale.
+                kept: dict[str, int] = {}
+                for f in current:
+                    ts = notified.get(f)
+                    if isinstance(ts, bool):
+                        ts = 1 if ts else None
+                    if ts is not None:
+                        try:
+                            kept[f] = int(ts)
+                        except (TypeError, ValueError):
+                            pass
+
+                def _suppressed(f: str) -> bool:
+                    ts = kept.get(f)
+                    if ts is None:  # not sent in this run of the condition
+                        return False
+                    cad = _cadence(s, _base_of(f))
+                    return True if cad == 0 else (now_ts - ts) < cad * 3600
+
+                pending = {f for f in current if not _suppressed(f)}
                 chosen = _pick(pending) if pending else None
                 if chosen:
                     text, kb = _render(chosen, proxy, pu, now_ts)
                     if await _send(owner.id, text, kb):
-                        new_flags.add(chosen)
+                        kept[chosen] = now_ts
                         sent_total += 1
-                        # suppress looser, already-passed expiry steps so a
-                        # tighter step doesn't get followed by a stale "3 days left".
+                        # stamp looser, already-passed expiry steps so a tighter
+                        # step isn't followed by a stale "3 days left".
                         if chosen.startswith("expiry:"):
-                            new_flags |= {k for k in current if k.startswith("expiry:")}
+                            for f in current:
+                                if f.startswith("expiry:"):
+                                    kept[f] = now_ts
                         await asyncio.sleep(_SEND_DELAY)
 
-                if new_flags != already:
-                    proxy.notified = {t: True for t in new_flags}
+                if kept != notified:
+                    proxy.notified = kept
                     await proxy.save(update_fields=["notified"])
 
     logger.info("proxy_alerts job finished, sent=%d", sent_total)

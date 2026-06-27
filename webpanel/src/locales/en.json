@@ -395,7 +395,15 @@
     "al_expiry": "Expiry reminder",
     "al_low_data": "Low data",
     "al_unused": "Unused",
-    "al_ended": "Ended"
+    "al_ended": "Ended",
+    "cfgTitle": "Alert settings (text, buttons, repeat)",
+    "cfgSaved": "Alert settings saved",
+    "cfgTexts": "Alert texts",
+    "cfgTextPh": "Empty = use the bot's built-in default",
+    "cfgPremium": "Glass-button premium emoji (master switch)",
+    "cfgCadence": "Alert repeat interval",
+    "cfgCadenceHint": "How many hours before the same alert is re-sent (while its condition holds); 0 = once only.",
+    "hours": "hours"
   },
   "audit": {
     "title": "Audit Log",

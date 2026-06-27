@@ -144,6 +144,14 @@ class Settings(BaseModel):
     alerts_quiet_enabled: bool = True
     alerts_quiet_start_hour: int = 23
     alerts_quiet_end_hour: int = 8
+    # per-type re-send interval (hours): how often the SAME alert is repeated
+    # while its condition still holds. 0 = send once (default, legacy behaviour);
+    # e.g. 24 → re-remind every 24h until renewed. Tracked per-proxy via the
+    # timestamps in Proxy.notified. See jobs/proxy_alerts.py.
+    alerts_cadence_expiry_hours: int = 0
+    alerts_cadence_low_data_hours: int = 0
+    alerts_cadence_unused_hours: int = 0
+    alerts_cadence_ended_hours: int = 0
 
     # payment auto_select
     payment_auto_select: auto_select.Settings = auto_select.Settings()

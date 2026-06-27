@@ -215,7 +215,15 @@ Was: cron `hour="6,16"` only → an "ended" alert could lag ~10h (the owner's co
   templates (`alert_expiry/low_data/unused/ended`) rendered with sample placeholder values in a
   Telegram-style bubble. `GET /automation/alerts/preview` reads `BotText` directly (no bot import),
   substitutes `{NAME}/{DAYS_LEFT}/{DATA_LEFT}`, flags empty rows as "uses bot default".
-- [ ] Deferred (low value): per-type cadence + the bot settings-FSM mirror. **P13 otherwise done.**
+- ✅ **Per-type re-send cadence** — `alerts_cadence_{expiry,low_data,unused,ended}_hours` (0 = once,
+  default; N = re-remind every N h while the condition holds). Enforced per-proxy via timestamps in
+  `Proxy.notified` (`{flag: last_sent_ts}`, legacy bool tolerated); `_cadence`/`_base_of` helpers.
+- ✅ **Automation alert-config hub** (super-admin) — `GET/PATCH /automation/alerts/config`: edit the
+  4 alert **texts** (→ BotText), the 2 alert glass-button **colour + premium emoji** (→ merged into
+  `button_icons`/`button_styles`, never clobbering other buttons) + the inline-premium master switch,
+  and the per-type **cadence**. Sets both `texts:dirty`+`settings:dirty`. Web: collapsible
+  `AlertConfig` card on the Automation page (lazy-loads on expand, super-admin only).
+- [ ] Deferred (low value): the bot settings-FSM mirror. **P13 done.**
 
 ---
 

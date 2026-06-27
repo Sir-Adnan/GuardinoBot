@@ -446,6 +446,35 @@ class AlertPreviewOut(BaseModel):
     items: list[AlertPreviewItem]
 
 
+class AlertConfigTextItem(BaseModel):
+    key: str
+    value: str
+    variables: list[str] = []
+
+
+class AlertConfigButtonItem(BaseModel):
+    key: str
+    label: str  # default button label (for display)
+    icon: str = ""  # custom/premium emoji id
+    style: str = ""  # "" | none | primary | success | danger
+    default_style: str = ""
+
+
+class AlertConfigOut(BaseModel):
+    texts: list[AlertConfigTextItem]
+    buttons: list[AlertConfigButtonItem]
+    premium_enabled: bool = False  # inline premium master switch
+    cadence: dict[str, int] = {}  # base type -> re-send hours (0 = once)
+
+
+class AlertConfigUpdateIn(BaseModel):
+    texts: Optional[dict[str, str]] = None  # alert text key -> value
+    icons: Optional[dict[str, str]] = None  # alert button key -> emoji id
+    styles: Optional[dict[str, str]] = None  # alert button key -> style
+    premium_enabled: Optional[bool] = None
+    cadence: Optional[dict[str, int]] = None  # base type -> hours
+
+
 # -- settings (curated, safe subset) ------------------------------------------
 class SettingsOut(BaseModel):
     access_only: bool
