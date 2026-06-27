@@ -253,6 +253,38 @@ class ServiceUpdateIn(BaseModel):
     button_style: Optional[str] = None
 
 
+class ServiceCreateIn(BaseModel):
+    name: str
+    server_id: int
+    data_limit: int = 0  # bytes (0 = unlimited)
+    expire_duration: int = 0  # seconds (0 = unlimited)
+    price: int = 0  # toman
+    purchaseable: bool = True
+    renewable: bool = True
+    is_test_service: bool = False
+    one_time_only: bool = False
+    resellers_only: bool = False
+    users_only: bool = False
+    create_on_hold_users: bool = False
+    append_available_data_renew: bool = False
+    usage_reset_strategy: str = "no_reset"
+    flow: Optional[str] = None  # "" / "none" → no flow; "xtls-rprx-vision"
+    button_icon: Optional[str] = None
+    button_style: Optional[str] = None
+    # provisioning (panel-aware; the web picker builds the right shape):
+    all_inbounds: bool = False  # Marzban: send all inbounds
+    inbounds: Optional[dict] = None  # Marzban: {protocol: [tags]}
+    panel_config: Optional[dict] = None  # PasarGuard {group_ids,...} / Guardino {node_ids,...}
+
+
+class ProvisioningCatalogOut(BaseModel):
+    server_id: int
+    panel_type: str
+    ok: bool
+    error: Optional[str] = None  # generic code (auth | unreachable | error)
+    catalog: dict = {}  # raw get_inbounds() output (inbounds / groups / nodes)
+
+
 class ServiceReorderIn(BaseModel):
     ids: list[int]  # full ordered list of service ids → priority = index
 

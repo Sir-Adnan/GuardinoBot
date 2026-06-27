@@ -3,11 +3,15 @@ duplicate, delete. Provisioning fields (inbounds / panel_config / server) are
 read-only here — create-from-scratch with a panel-aware picker is P5b; for now
 "duplicate" clones an existing plan's provisioning and the admin edits the rest."""
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import require_role
 from app.api.schemas import (
+    ProvisioningCatalogOut,
     ServiceButtonUpdateIn,
+    ServiceCreateIn,
     ServiceDetail,
     ServiceListItem,
     ServiceReorderIn,
@@ -15,11 +19,13 @@ from app.api.schemas import (
     ServiceUpdateIn,
 )
 from app.models.proxy import Proxy, Reserve
+from app.models.server import Server
 from app.models.service import Service
 from app.models.user import User
 from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/services", tags=["services"])
+_PING_TIMEOUT = 8  # seconds for a live panel catalog fetch
 
 _VALID_STYLES = ("primary", "success", "danger")
 _RESET_STRATEGIES = {s.value for s in Service.UsageResetStrategy}
@@ -81,6 +87,97 @@ async def list_services(
     total = await q.count()
     rows = await q.offset((page - 1) * per_page).limit(per_page)
     return ServicesPage(items=[_item(s) for s in rows], total=total)
+
+
+@router.get("/provisioning", response_model=ProvisioningCatalogOut)
+async def provisioning_catalog(
+    server_id: int = Query(...),
+    _: User = Depends(require_role(User.Role.admin)),
+) -> ProvisioningCatalogOut:
+    """Live provisioning catalog for a server's panel (Marzban inbounds /
+    PasarGuard groups / Guardino nodes) to feed the create-plan picker. Errors
+    reduced to non-sensitive codes (no panel URL/creds leak)."""
+    server = await Server.filter(id=server_id).first()
+    if server is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Server not found")
+    ptype = str(getattr(server.panel_type, "value", server.panel_type or "marzban"))
+    from app.panels.base import PanelAuthError, PanelError
+    from app.panels.registry import build_panel
+
+    out = {"server_id": server_id, "panel_type": ptype}
+    try:
+        panel = build_panel(server)
+        catalog = await asyncio.wait_for(panel.get_inbounds(), timeout=_PING_TIMEOUT)
+    except PanelAuthError:
+        return ProvisioningCatalogOut(**out, ok=False, error="auth")
+    except (PanelError, asyncio.TimeoutError):
+        return ProvisioningCatalogOut(**out, ok=False, error="unreachable")
+    except Exception:  # noqa: BLE001
+        return ProvisioningCatalogOut(**out, ok=False, error="error")
+    return ProvisioningCatalogOut(**out, ok=True, catalog=catalog or {})
+
+
+@router.post("", response_model=ServiceDetail, status_code=status.HTTP_201_CREATED)
+async def create_service(
+    body: ServiceCreateIn,
+    actor: User = Depends(require_role(User.Role.admin)),
+) -> ServiceDetail:
+    """Create a plan from scratch. Provisioning is panel-shaped (the web picker
+    builds `inbounds`/`all_inbounds` for Marzban or `panel_config` for
+    PasarGuard groups / Guardino nodes); stored as-is."""
+    if not (body.name or "").strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "name is required")
+    server = await Server.filter(id=body.server_id).first()
+    if server is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Server not found")
+    for fld in ("data_limit", "expire_duration", "price"):
+        if getattr(body, fld) < 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{fld} must be ≥ 0")
+    if body.usage_reset_strategy not in _RESET_STRATEGIES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid usage_reset_strategy")
+    flow = (body.flow or "").strip()
+    if flow in ("", "none", "None"):
+        flow_val = Service.ServiceProxyFlow.none
+    elif flow == _FLOW_VISION:
+        flow_val = Service.ServiceProxyFlow.xtls_rprx_vision
+    else:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid flow")
+    style = (body.button_style or "").strip()
+
+    s = Service(
+        name=body.name.strip()[:64],
+        server_id=server.id,
+        data_limit=body.data_limit,
+        expire_duration=body.expire_duration,
+        price=body.price,
+        purchaseable=body.purchaseable,
+        renewable=body.renewable,
+        is_test_service=body.is_test_service,
+        one_time_only=body.one_time_only,
+        resellers_only=body.resellers_only,
+        users_only=body.users_only,
+        create_on_hold_users=body.create_on_hold_users,
+        append_available_data_renew=body.append_available_data_renew,
+        usage_reset_strategy=Service.UsageResetStrategy(body.usage_reset_strategy),
+        flow=flow_val,
+        button_icon=(body.button_icon or "").strip() or None,
+        button_style=style if style in _VALID_STYLES else None,
+        all_inbounds=body.all_inbounds,
+        inbounds=body.inbounds or {},
+        panel_config=body.panel_config,
+        # priority defaults to a large number → row goes to the end; reorder re-indexes.
+    )
+    await s.save()
+    await s.fetch_related("server")
+    await record_audit(
+        action="service.create",
+        actor=actor,
+        target_type="service",
+        target_id=str(s.id),
+        target_label=s.name,
+        detail={"server_id": server.id, "panel_type": str(getattr(server.panel_type, "value", server.panel_type))},
+    )
+    return await _detail(s)
 
 
 @router.get("/{service_id}", response_model=ServiceDetail)

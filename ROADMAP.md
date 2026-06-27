@@ -29,11 +29,16 @@ gaps (plans, panels, users); then reporting; then polish.
 Immediate / carry-over (do anytime):
 - [ ] Verify Phase 3/4 premium rendering on a real deploy (Premium owner); if the fields are
       dropped → raw-payload sender (httpx → Bot API) or aiogram bump.
-- [ ] Bug-fix plan `delightful-crafting-micali.md` (PasarGuard add-server `is_sudo`,
-      edit-service "no protocol", Guardino sub-day expiry, FSM clear, month=31d) — when owner asks.
+- ✅ Bug-fix plan `delightful-crafting-micali.md` — **all done & verified on deploy**: PasarGuard
+      add-server `is_sudo` (panel_type branch → `pg_validate_token`), edit-service "no protocol"
+      (Marzban-only inbounds check), Guardino sub-day expiry (block <1d + ceil/min-1 net), FSM clear
+      + `ReplyKeyboardRemove` on confirm, month=31d, panel-aware admin service/panel menus.
 
 ## Carry-over backlog (folded into the phases below)
-- [ ] **Broadcast → non-blocking worker [critical, §17.1]** → in **P10** (Automation) + bot worker.
+- ✅ **Broadcast → non-blocking worker [§17.1]**: `app/utils/broadcast.py` (throttled, `TelegramRetryAfter`
+  sleep-retry, marks `blocked_bot`, Redis progress + `resume_pending`). Web has read-only monitor/cancel.
+  **Web compose/start dropped (owner decision)** — `/broadcast` + `/forward` in the bot (reply → command)
+  are simpler and let the owner use Telegram's native premium-emoji editor. Not adding it to the panel.
 - [ ] Guardino **reserves** + efficient paginated sync + `on_hold` create (§6 deferred).
 - [ ] Brand migration `marzbot`/`Marzdemo` → Guardino (gradual; migration for DB-facing strings).
 - [ ] PasarGuard native `reset_proxy_credentials` (currently raises; "smart reconnect" works).
@@ -55,9 +60,14 @@ reserves reference it — Proxy=SET_NULL, Reserve=RESTRICT), **duplicate** (`POS
 clones provisioning as a non-purchaseable draft → edit; M2M not copied). `services` router gained
 `GET /{id}` (ServiceDetail) + PATCH/DELETE/duplicate/reorder, all audited; web Services page = full
 edit modal (GB/days inputs) + PageHeader. data_limit↔GB, expire↔days handled in the form.
-**P5b — remaining:** create-from-scratch with the **panel-aware provisioning picker** (Marzban
-inbounds · PasarGuard groups · Guardino nodes — needs adapter `get_inbounds`/groups/nodes
-endpoints) + discount/menu attach UI + true drag-and-drop reorder. (Duplicate covers "new plan" for now.)
+**P5b — ✅ create-from-scratch:** `POST /services` (validates server + fields; provisioning stored
+as-shaped) + `GET /services/provisioning?server_id=` — a **live** panel-catalog fetch (`build_panel().
+get_inbounds()` with an 8s timeout; errors → non-sensitive codes). Web Services page: **New service**
+button → create modal with a **server picker** that lazy-loads the catalog and a **panel-aware
+provisioning picker** — Marzban inbounds (+ "all inbounds" switch) · PasarGuard **groups** ·
+Guardino **nodes** (+ pricing mode) → assembles `inbounds`/`all_inbounds` or `panel_config`; audited
+`service.create`. Reuses the edit modal for all other fields.
+**P5b — remaining (minor):** discount/menu attach UI + true drag-and-drop reorder. (↑↓ reorder works.)
 
 ### P6 — Panels & Nodes: full CRUD (web)
 **P6 core — ✅ done:** add panel (validates the connection via §6 `fetch_token`/`login` +
@@ -110,16 +120,15 @@ service provisioning picker).
 - ✅ **Discounts**: full CRUD — `discounts` router POST/PATCH/DELETE (percentage 0..100 guard,
   auto-generated code, unique-code 409, M2M-safe delete, audited create/update/delete); web page
   = add/edit modal (code·%·max-uses·expiry·flags) + delete + PageHeader. (was list + toggle.)
-- **Automation**: broadcast compose (text/media + target filters) + schedule + reminders config
-  + low-balance config + job monitor + logs. (Actual broadcast send = the §17.1 bot worker;
-  add the cross-process trigger.)
+- ✅ **Automation**: read-only **broadcast monitor/cancel** + **alert run-now/preview/config**
+  (texts·colours·cadence). **Broadcast compose/start intentionally NOT in the web** — stays bot-only
+  via `/broadcast` + `/forward` (reply → command), which is simpler and keeps Telegram's native
+  premium-emoji editor (owner decision).
 - ✅ **Texts**: tabbed by area (general/sales/support/access/alerts) + search; per-card save +
   variables + premium-emoji helper. Backend adds `group` to each curated key.
 - ✅ **Audit**: added **date-range** filter (`start`/`end`) + **CSV export** (current filters,
   up to 1000 rows) + PageHeader; detail drawer + source/search filters already existed.
-- **Remaining:** **Automation** (broadcast compose + schedule + reminders/low-balance config +
-  job monitor — needs the §17.1 bot worker + a cross-process trigger); Force-join editor;
-  payment-gateway config (sensitive, guarded, secrets masked).
+- **Remaining:** **Force-join editor**; **payment-gateway config** (sensitive, guarded, secrets masked).
 
 ### P11 — UI/UX overhaul (web) — split foundation vs polish
 **P11a (foundation) — ⏳ in progress:**

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Alert,
   App as AntdApp,
   Button,
   Card,
@@ -11,6 +12,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Spin,
   Switch,
   Tag,
   Tooltip,
@@ -22,6 +24,7 @@ import {
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
@@ -43,6 +46,19 @@ export function ServiceList() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"edit" | "create">("edit");
+  const [servers, setServers] = useState<any[]>([]);
+  const [serverId, setServerId] = useState<number | undefined>(undefined);
+  const [catalog, setCatalog] = useState<any | null>(null);
+  const [catLoading, setCatLoading] = useState(false);
+  const emptyProv = {
+    all_inbounds: false,
+    inbound_sel: [] as string[],
+    group_ids: [] as number[],
+    node_ids: [] as number[],
+    pricing_mode: "",
+  };
+  const [prov, setProv] = useState<any>(emptyProv);
 
   const load = () =>
     api
@@ -55,8 +71,60 @@ export function ServiceList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openCreate = async () => {
+    setMode("create");
+    setEditing(null);
+    setServerId(undefined);
+    setCatalog(null);
+    setProv({ ...emptyProv });
+    form.resetFields();
+    form.setFieldsValue({
+      name: "",
+      price: 0,
+      data_gb: 0,
+      expire_days: 0,
+      purchaseable: true,
+      renewable: true,
+      is_test_service: false,
+      one_time_only: false,
+      resellers_only: false,
+      users_only: false,
+      create_on_hold_users: false,
+      append_available_data_renew: false,
+      usage_reset_strategy: "no_reset",
+      flow: "",
+      button_icon: "",
+      button_style: "",
+    });
+    if (!servers.length) {
+      try {
+        const r = await api.get("/servers", { params: { per_page: 200 } });
+        setServers(r.data.items ?? []);
+      } catch {
+        /* ignore — picker just stays empty */
+      }
+    }
+    setOpen(true);
+  };
+
+  const onServerChange = async (sid: number) => {
+    setServerId(sid);
+    setCatalog(null);
+    setProv({ ...emptyProv });
+    setCatLoading(true);
+    try {
+      const r = await api.get("/services/provisioning", { params: { server_id: sid } });
+      setCatalog(r.data);
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+    } finally {
+      setCatLoading(false);
+    }
+  };
+
   const openEdit = async (id: number) => {
     try {
+      setMode("edit");
       const r = await api.get(`/services/${id}`);
       const d = r.data;
       setEditing(d);
@@ -86,28 +154,59 @@ export function ServiceList() {
   };
 
   const submit = async (v: any) => {
-    if (!editing) return;
+    const common = {
+      name: v.name,
+      price: v.price ?? 0,
+      data_limit: toBytes(v.data_gb),
+      expire_duration: Math.round((v.expire_days || 0) * 86400),
+      purchaseable: !!v.purchaseable,
+      renewable: !!v.renewable,
+      is_test_service: !!v.is_test_service,
+      one_time_only: !!v.one_time_only,
+      resellers_only: !!v.resellers_only,
+      users_only: !!v.users_only,
+      create_on_hold_users: !!v.create_on_hold_users,
+      append_available_data_renew: !!v.append_available_data_renew,
+      usage_reset_strategy: v.usage_reset_strategy,
+      flow: v.flow || "",
+      button_icon: v.button_icon || "",
+      button_style: v.button_style || "",
+    };
     setSaving(true);
     try {
-      await api.patch(`/services/${editing.id}`, {
-        name: v.name,
-        price: v.price ?? 0,
-        data_limit: toBytes(v.data_gb),
-        expire_duration: Math.round((v.expire_days || 0) * 86400),
-        purchaseable: !!v.purchaseable,
-        renewable: !!v.renewable,
-        is_test_service: !!v.is_test_service,
-        one_time_only: !!v.one_time_only,
-        resellers_only: !!v.resellers_only,
-        users_only: !!v.users_only,
-        create_on_hold_users: !!v.create_on_hold_users,
-        append_available_data_renew: !!v.append_available_data_renew,
-        usage_reset_strategy: v.usage_reset_strategy,
-        flow: v.flow || "",
-        button_icon: v.button_icon || "",
-        button_style: v.button_style || "",
-      });
-      message.success(t("services.saved"));
+      if (mode === "create") {
+        if (!serverId) {
+          message.error(t("services.pickServer"));
+          setSaving(false);
+          return;
+        }
+        const pt = catalog?.panel_type;
+        const payload: any = { ...common, server_id: serverId };
+        if (pt === "marzban") {
+          const inbounds: Record<string, string[]> = {};
+          (prov.inbound_sel || []).forEach((s: string) => {
+            const i = s.indexOf("::");
+            const proto = s.slice(0, i);
+            const tag = s.slice(i + 2);
+            (inbounds[proto] = inbounds[proto] || []).push(tag);
+          });
+          payload.all_inbounds = !!prov.all_inbounds;
+          payload.inbounds = inbounds;
+        } else if (pt === "pasarguard") {
+          payload.panel_config = { group_ids: prov.group_ids || [] };
+        } else if (pt === "guardino") {
+          payload.panel_config = {
+            node_ids: prov.node_ids || [],
+            pricing_mode: prov.pricing_mode || "",
+          };
+        }
+        await api.post("/services", payload);
+        message.success(t("services.created"));
+      } else {
+        if (!editing) return;
+        await api.patch(`/services/${editing.id}`, common);
+        message.success(t("services.saved"));
+      }
       setOpen(false);
       await load();
     } catch (e: any) {
@@ -269,9 +368,101 @@ export function ServiceList() {
     { value: "danger", label: t("buttons.style_danger") },
   ];
 
+  const renderProvisioning = () => {
+    const c = catalog?.catalog ?? {};
+    const pt = catalog?.panel_type;
+    if (pt === "marzban") {
+      const opts: any[] = [];
+      Object.entries(c).forEach(([proto, tags]: any) => {
+        if (Array.isArray(tags))
+          tags.forEach((tag: string) =>
+            opts.push({ value: `${proto}::${tag}`, label: `${tag} · ${proto}` }),
+          );
+      });
+      return (
+        <>
+          <Divider orientation="left" plain>
+            {t("services.sec_provisioning")} · Marzban
+          </Divider>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Switch
+              checked={prov.all_inbounds}
+              onChange={(val) => setProv((p: any) => ({ ...p, all_inbounds: val }))}
+            />
+            <Text>{t("services.allInbounds")}</Text>
+          </div>
+          {!prov.all_inbounds && (
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ width: "100%" }}
+              placeholder={t("services.pickInbounds")}
+              value={prov.inbound_sel}
+              onChange={(val) => setProv((p: any) => ({ ...p, inbound_sel: val }))}
+              options={opts}
+            />
+          )}
+        </>
+      );
+    }
+    if (pt === "pasarguard") {
+      const groups = c.groups ?? [];
+      return (
+        <>
+          <Divider orientation="left" plain>
+            {t("services.sec_provisioning")} · PasarGuard
+          </Divider>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ width: "100%" }}
+            placeholder={t("services.pickGroups")}
+            value={prov.group_ids}
+            onChange={(val) => setProv((p: any) => ({ ...p, group_ids: val }))}
+            options={groups.map((g: any) => ({ value: g.id, label: g.name ?? g.id }))}
+          />
+        </>
+      );
+    }
+    if (pt === "guardino") {
+      const nodes = c.nodes ?? [];
+      return (
+        <>
+          <Divider orientation="left" plain>
+            {t("services.sec_provisioning")} · Guardino
+          </Divider>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ width: "100%", marginBottom: 10 }}
+            placeholder={t("services.pickNodes")}
+            value={prov.node_ids}
+            onChange={(val) => setProv((p: any) => ({ ...p, node_ids: val }))}
+            options={nodes.map((n: any) => ({ value: n.id, label: n.name ?? n.id }))}
+          />
+          <Input
+            allowClear
+            placeholder={t("services.pricingMode")}
+            value={prov.pricing_mode}
+            onChange={(e) => setProv((p: any) => ({ ...p, pricing_mode: e.target.value }))}
+          />
+        </>
+      );
+    }
+    return null;
+  };
+
   return (
     <Card>
-      <PageHeader title={t("services.title")} subtitle={t("services.subtitle")} />
+      <PageHeader
+        title={t("services.title")}
+        subtitle={t("services.subtitle")}
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            {t("services.new")}
+          </Button>
+        }
+      />
       <ResponsiveTable
         rowKey="id"
         loading={loading}
@@ -283,11 +474,15 @@ export function ServiceList() {
 
       <Modal
         open={open}
-        title={`${t("services.btn_edit_full")} — ${editing?.name ?? ""}`}
+        title={
+          mode === "create"
+            ? t("services.new")
+            : `${t("services.btn_edit_full")} — ${editing?.name ?? ""}`
+        }
         onCancel={() => setOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={saving}
-        okText={t("buttons.save")}
+        okText={mode === "create" ? t("services.create") : t("buttons.save")}
         width={640}
         destroyOnClose
       >
@@ -300,6 +495,26 @@ export function ServiceList() {
           </Text>
         )}
         <Form form={form} layout="vertical" onFinish={submit} preserve={false}>
+          {mode === "create" && (
+            <>
+              <Divider orientation="left" plain>
+                {t("services.sec_server")}
+              </Divider>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder={t("services.pickServer")}
+                style={{ width: "100%", maxWidth: 380 }}
+                value={serverId}
+                onChange={onServerChange}
+                options={servers.map((s) => ({
+                  value: s.id,
+                  label: `${s.name || s.host}${s.panel_type ? ` · ${s.panel_type}` : ""}`,
+                }))}
+              />
+            </>
+          )}
+
           <Divider orientation="left" plain>
             {t("services.sec_basic")}
           </Divider>
@@ -368,7 +583,26 @@ export function ServiceList() {
             </Form.Item>
           </Space>
 
-          {editing?.panel_type !== "marzban" && editing?.panel_config && (
+          {mode === "create" && (
+            <>
+              {catLoading && (
+                <div style={{ marginTop: 12 }}>
+                  <Spin size="small" />
+                </div>
+              )}
+              {catalog && !catalog.ok && (
+                <Alert
+                  style={{ marginTop: 12 }}
+                  type="warning"
+                  showIcon
+                  message={t(`services.prov_${catalog.error || "error"}`)}
+                />
+              )}
+              {catalog && catalog.ok && renderProvisioning()}
+            </>
+          )}
+
+          {mode === "edit" && editing?.panel_type !== "marzban" && editing?.panel_config && (
             <>
               <Divider orientation="left" plain>
                 {t("services.sec_provisioning")} ({editing?.panel_type})
