@@ -22,11 +22,21 @@ from aiogram import exceptions
 
 from app.jobs import logger
 from app.keyboards.user.proxy import alert_links_keyboard, alert_renew_keyboard
-from app.main import bot, scheduler
+from app.main import bot, redis, scheduler
 from app.models.proxy import Proxy
 from app.models.user import User
 from app.panels import PanelError, get_panel
 from app.utils import settings, texts
+
+# Last-run status, mirrored to the web Automation page (run-now button).
+_STATUS_KEY = "alerts:status"
+
+
+async def _set_status(**fields) -> None:
+    try:
+        await redis.hset(_STATUS_KEY, mapping={k: str(v) for k, v in fields.items()})
+    except Exception:  # noqa: BLE001 — status is best-effort, never break the run
+        pass
 
 _GB = 1024**3
 _PAGE = 50  # proxies fetched per panel batch (mirrors refresh_proxies)
@@ -171,17 +181,22 @@ async def _send(user_id: int, text: str, kb) -> bool:
         return False
 
 
-async def proxy_alerts() -> None:
+async def proxy_alerts(force: bool = False) -> None:
     from app.models.server import Server  # local import: avoids load-order issues
 
     s = settings.get_settings()
-    if not s.alerts_enabled:
-        return
     now_utc = dt.now(UTC)
-    if _in_quiet(s, now_utc):
-        logger.info("proxy_alerts: quiet hours — deferring sends")
+    now_iso = now_utc.isoformat(timespec="seconds")
+    if not s.alerts_enabled:
+        await _set_status(state="disabled", last_run=now_iso, sent=0)
         return
-    logger.info("proxy_alerts job started")
+    # quiet hours never block a manual "run now" (force=True from the web panel)
+    if not force and _in_quiet(s, now_utc):
+        logger.info("proxy_alerts: quiet hours — deferring sends")
+        await _set_status(state="deferred", last_run=now_iso, sent=0)
+        return
+    logger.info("proxy_alerts job started (force=%s)", force)
+    await _set_status(state="running", last_run=now_iso, sent=0)
     now_ts = int(now_utc.timestamp())
     sent_total = 0
 
@@ -238,6 +253,11 @@ async def proxy_alerts() -> None:
                     await proxy.save(update_fields=["notified"])
 
     logger.info("proxy_alerts job finished, sent=%d", sent_total)
+    await _set_status(
+        state="done",
+        last_run=dt.now(UTC).isoformat(timespec="seconds"),
+        sent=sent_total,
+    )
 
 
 scheduler.add_job(

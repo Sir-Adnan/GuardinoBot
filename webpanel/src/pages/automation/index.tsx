@@ -1,21 +1,30 @@
+import { useState } from "react";
 import {
   App as AntdApp,
   Button,
   Card,
   Col,
+  Empty,
+  Modal,
   Popconfirm,
   Progress,
   Row,
   Skeleton,
+  Spin,
   Statistic,
   Tag,
   Typography,
 } from "antd";
-import { StopOutlined } from "@ant-design/icons";
+import {
+  BellOutlined,
+  EyeOutlined,
+  StopOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import { useCustom } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { fmtNum } from "../../utils/format";
+import { fmtDate, fmtNum } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 
 const { Text } = Typography;
@@ -27,6 +36,14 @@ const STATUS_COLORS: Record<string, string> = {
   done: "success",
   canceled: "default",
   crashed: "error",
+  idle: "default",
+};
+
+const ALERT_STATUS_COLORS: Record<string, string> = {
+  running: "processing",
+  done: "success",
+  deferred: "gold",
+  disabled: "default",
   idle: "default",
 };
 
@@ -42,6 +59,15 @@ export function AutomationPage() {
   const st = d?.status ?? "idle";
   const running = st === "running";
 
+  const { data: alertsData, refetch: refetchAlerts } = useCustom<any>({
+    url: "/automation/alerts",
+    method: "get",
+    queryOptions: { refetchInterval: 5000 },
+  });
+  const a = alertsData?.data;
+  const alertState = a?.state ?? "idle";
+  const alertRunning = alertState === "running";
+
   const cancel = async () => {
     try {
       await api.post("/automation/broadcast/cancel");
@@ -49,6 +75,31 @@ export function AutomationPage() {
       refetch();
     } catch (e: any) {
       message.error(e?.response?.data?.detail || t("actions.failed"));
+    }
+  };
+
+  const runAlerts = async () => {
+    try {
+      await api.post("/automation/alerts/run");
+      message.success(t("automation.alertsQueued"));
+      setTimeout(refetchAlerts, 1000);
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+    }
+  };
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewItems, setPreviewItems] = useState<any[] | null>(null);
+
+  const openPreview = async () => {
+    setPreviewOpen(true);
+    setPreviewItems(null);
+    try {
+      const r = await api.get("/automation/alerts/preview");
+      setPreviewItems(r.data.items ?? []);
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t("actions.failed"));
+      setPreviewItems([]);
     }
   };
 
@@ -119,6 +170,91 @@ export function AutomationPage() {
           </>
         )}
       </Card>
+
+      <Card
+        title={
+          <span>
+            <BellOutlined style={{ marginInlineEnd: 8 }} />
+            {t("automation.alerts")}
+          </span>
+        }
+        style={{ marginTop: 16 }}
+        extra={
+          <span style={{ display: "inline-flex", gap: 8 }}>
+            <Button icon={<EyeOutlined />} onClick={openPreview}>
+              {t("automation.preview")}
+            </Button>
+            <Button
+              type="primary"
+              icon={<ThunderboltOutlined />}
+              loading={alertRunning}
+              onClick={runAlerts}
+            >
+              {t("automation.runNow")}
+            </Button>
+          </span>
+        }
+      >
+        <Text type="secondary">{t("automation.alertsHint")}</Text>
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Text>{t("automation.status")}: </Text>
+          <Tag color={ALERT_STATUS_COLORS[alertState] || "default"}>
+            {t(`automation.as_${alertState}`)}
+          </Tag>
+          {a?.last_run ? (
+            <Text type="secondary">
+              {t("automation.lastRun")}: {fmtDate(a.last_run)}
+            </Text>
+          ) : null}
+          {a?.last_run ? (
+            <Text type="secondary">
+              · {t("automation.sentCount")}: <span style={NUM_STYLE}>{fmtNum(a?.sent)}</span>
+            </Text>
+          ) : null}
+        </div>
+      </Card>
+
+      <Modal
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        title={t("automation.previewTitle")}
+        footer={null}
+        width={560}
+      >
+        {previewItems === null ? (
+          <div style={{ display: "grid", placeItems: "center", minHeight: 160 }}>
+            <Spin />
+          </div>
+        ) : previewItems.length === 0 ? (
+          <Empty />
+        ) : (
+          <div style={{ display: "grid", gap: 14 }}>
+            {previewItems.map((it) => (
+              <div key={it.type}>
+                <div style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Text strong>{t(`automation.${it.type.replace("alert_", "al_")}`)}</Text>
+                  {it.is_default ? (
+                    <Tag color="default">{t("automation.usingDefault")}</Tag>
+                  ) : null}
+                </div>
+                <div
+                  style={{
+                    background: "rgba(16,185,129,0.10)",
+                    border: "1px solid rgba(16,185,129,0.25)",
+                    borderRadius: 12,
+                    padding: "10px 14px",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    lineHeight: 1.7,
+                    fontSize: 14,
+                  }}
+                  dangerouslySetInnerHTML={{ __html: it.text || "—" }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -206,8 +206,16 @@ Was: cron `hour="6,16"` only → an "ended" alert could lag ~10h (the owner's co
 - ✅ **Web-editable** — new settings surfaced in web **Settings → Alerts** (quiet switch + start/end
   hours + expiry-steps tags); API `_BOOL/_INT/_LIST` + `SettingsOut/UpdateIn` extended; bot
   `Settings` model + validator added (rows auto-created on startup, no migration).
-- [ ] Deferred: manual **send-now / preview** from web Automation (needs a cross-process trigger),
-  per-type cadence, and the bot settings-FSM mirror.
+- ✅ **Send-now from web** — Automation page got an **Alerts** card: "Run now" (`POST
+  /automation/alerts/run` sets Redis `alerts:run_now`; the bot's 15s `sync_settings` poll picks it
+  up and fires `proxy_alerts(force=True)` in the background, **bypassing quiet hours**) + live
+  last-run status (`GET /automation/alerts` reads the `alerts:status` hash the job writes:
+  state/last_run/sent). 409 guard while a scan is running. API never imports the bot.
+- ✅ **Alert preview** — Automation Alerts card "Preview" button opens a modal showing each of the 4
+  templates (`alert_expiry/low_data/unused/ended`) rendered with sample placeholder values in a
+  Telegram-style bubble. `GET /automation/alerts/preview` reads `BotText` directly (no bot import),
+  substitutes `{NAME}/{DAYS_LEFT}/{DATA_LEFT}`, flags empty rows as "uses bot default".
+- [ ] Deferred (low value): per-type cadence + the bot settings-FSM mirror. **P13 otherwise done.**
 
 ---
 

@@ -430,6 +430,22 @@ class BroadcastStatusOut(BaseModel):
     started_by: Optional[int] = None
 
 
+class AlertsStatusOut(BaseModel):
+    state: str = "idle"  # idle | running | done | deferred | disabled
+    last_run: Optional[str] = None  # ISO datetime of the last scan
+    sent: int = 0  # alerts sent on the last finished scan
+
+
+class AlertPreviewItem(BaseModel):
+    type: str  # alert_expiry | alert_low_data | alert_unused | alert_ended
+    text: str  # rendered HTML (sample values filled in)
+    is_default: bool = False  # True when the row is empty → bot uses its built-in
+
+
+class AlertPreviewOut(BaseModel):
+    items: list[AlertPreviewItem]
+
+
 # -- settings (curated, safe subset) ------------------------------------------
 class SettingsOut(BaseModel):
     access_only: bool
