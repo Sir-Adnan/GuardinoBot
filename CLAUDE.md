@@ -135,8 +135,8 @@ app/
   keyboards/         # mirrors handlers (admin/* and user/*) + premium.py (inline emoji/colour)
   models/            # Tortoise: user, server, service, proxy, setting
   plugins/
-    payment/         # crypto/{nowpayments,plisio,swapino,clients,views}, card_to_card,
-                     # perfect_money, rial_gateway (zarinpal/zibal/payping/aqaye_pardakht), tronseller
+    payment/         # crypto/{nowpayments(+_service),plisio(+_payment,_service),rates,swapino,clients,views},
+                     # offline/, card_to_card, perfect_money, rial_gateway (zarinpal/zibal/payping/aqaye_pardakht), tronseller
     referral/
   jobs/              # check_reserves, del_unpaid_payments, refresh_proxies, remind_invoices,
                      # proxy_alerts, check_hub_balance, sync_settings

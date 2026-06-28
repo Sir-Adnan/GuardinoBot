@@ -40,9 +40,21 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    asks for confirmation then **reverses the credit + removes the subscription** via the shared
    `revoke_activated_transaction` (handlers split into approve / reject / reject_cancel; web-queue path
    keeps the `apply_offline_review` wrapper). Balance nets back correctly (no double-credit / negative).
-1. ⏳ **Plisio v2 fix** — move from fiat `source_amount/source_currency` invoices to
-   crypto `currency+amount`, Nobitex USDT/Toman rate conversion, manual check, and
-   web currency picker (`USDT_BSC` default).
+1. ✅ **Crypto v2 (Plisio + NowPayments) — reworked by owner, now live.** Both gateways moved to a
+   shared **rate service** `crypto/rates.py` (Nobitex USDT/Toman, **Redis-cached** TTL
+   `rate_cache_seconds`, `Decimal`, ROUND_UP, `usdt_margin_percent`, `manual_usdt_toman_rate` fallback;
+   `get_usdt_toman_rate` / `calculate_payable_usdt` / `PaymentRateError`). Plisio now creates **crypto
+   `currency+amount`** invoices (`default_currency`, `currency_codes()`/`invoice_currency()`,
+   `expire_min`), shows the payable USDT + rate, has **🔄 check / ❌ cancel** buttons (premium-styled),
+   and an idempotent finalizer `crypto/plisio_service.py` (`finalize_plisio_payment` +
+   `manual_approve_plisio_payment`, shared by the `/plisio` IPN and the manual-check button; mismatch
+   never auto-credits). NowPayments got the same rate service + `crypto/nowpayments_service.py` + premium
+   buttons + tracking code + success/cancel URLs. New env: `PUBLIC_BASE_URL`, `PLISIO_DEFAULT_CURRENCY`,
+   `PLISIO_EXPIRE_MIN`, `PAYMENT_RATE_PROVIDER`, `PAYMENT_RATE_CACHE_SECONDS`, `PAYMENT_USDT_MARGIN_PERCENT`,
+   `MANUAL_USDT_TOMAN_RATE`.
+   ✅ **Bugfix (this session): NowPayments invoice crashed** with `ValueError: Cannot specify ',' with 's'`
+   — `ShowInvoiceText._allowed_variables["AMOUNT_DOLLARS"]` was `format_number` but the value is a
+   pre-formatted string from `_format_decimal`; changed the formatter to `str` (nowpayments.py).
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
    never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited
@@ -64,25 +76,21 @@ Immediate / carry-over (do anytime):
       + `ReplyKeyboardRemove` on confirm, month=31d, panel-aware admin service/panel menus.
 
 ## Carry-over backlog (folded into the phases below)
-- ⏳ **Crypto gateways** (payment-critical, security-first):
+- ✅ **Crypto gateways** (payment-critical, security-first) — Plisio + NowPayments v2 live (see Now #1):
   - ✅ **NowPayments IPN security fix** — signature is now **mandatory** (no secret → reject; closes a
     forgery/self-credit hole), constant-time compare, proper HTTP responses, less logging
     (`crypto/views.py`). **Owner action: set the NowPayments *IPN secret* in the bot** or crypto
     crediting (correctly) won't run. Endpoints verified unchanged vs the live v1 API — any create-side
     failure needs the exact `NowPaymentsError` body from logs.
-  - ⏳ **Plisio gateway v2** — verified against the official OpenAPI (`Plisio-API.json`): server
-    `https://plisio.net/api/v1`, `GET /invoices/new` (hosted invoice via crypto
-    `currency`+`amount`+`allowed_psys_cids`). Done/refreshing: `crypto/plisio.py` client + `Settings`
-    (`payment_plisio`, web-configured) + `verify_callback` (HMAC-SHA1 over PHP-`serialize()`,
-    **byte-exact self-tested**); `Provider.plisio` registered (fits VARCHAR(11) → **no migration**);
-    `payment_plisio` wired into bot Settings (auto charge-menu button when enabled).
-    ✅ **Create handler** `plisio_payment.py` (router, filter `method=="plisio"`, separate module —
-    no settings↔plisio cycle; registered in the plugin handlers list) builds a Transaction + hosted
-    Plisio invoice + shows the pay link. ✅ **IPN route** `/plisio` in `crypto/views.py`: read via
-    `request.post()` (form/PHP-`$_POST`), **mandatory** api-key + `verify_hash`, credit only on
-    `completed` (sets `status=finished` → balance counts `transaction.amount`); **`mismatch` never
-    auto-credits** — alerts super-users for manual review; `confirming/pending` → status update.
-    All compiles. **Configurable from the web** (gateway-config below).
+  - ✅ **Plisio gateway v2 (done)** — crypto `currency+amount` invoices (`GET /invoices/new`,
+    `https://plisio.net/api/v1`). `crypto/plisio.py` client + `Settings` (`payment_plisio`,
+    `default_currency`/`currency_codes()`/`invoice_currency()`/`expire_min` + rate fields) +
+    `verify_callback` (HMAC-SHA1 over PHP-`serialize()`, byte-exact self-tested); `Provider.plisio`
+    (VARCHAR(11) → **no migration**). Create handler `plisio_payment.py` (premium **pay/check/cancel**
+    buttons) uses `rates.py` to price in USDT and shows the payable amount. Idempotent finalizer
+    `crypto/plisio_service.py` shared by the `/plisio` IPN (mandatory api-key + `verify_hash`, credit
+    only on `completed`, **mismatch never auto-credits** → super-user alert) **and** the manual-check
+    button (`get_operation`/`manual_approve_plisio_payment`). Web-configurable.
   - ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` + `pages/gateways` (super-admin):
     NowPayments + Plisio enable/title/min/keys; secrets masked (read = is_set+last4, empty save = no
     change), upsert, `settings:dirty`, audited (names only). Set the NowPayments IPN secret here.

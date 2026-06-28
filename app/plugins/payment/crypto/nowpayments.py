@@ -73,7 +73,9 @@ class ShowInvoiceText(TextValue):
         "MINIMUM_PAY_AMOUNT": format_number,
         "TRANSACTION_ID": format_number,
         "AMOUNT_TOMAN": format_number,
-        "AMOUNT_DOLLARS": format_number,
+        # AMOUNT_DOLLARS is a fractional USDT value rendered via _format_decimal
+        # (a pre-formatted string) — format_number's `{:,}` blows up on strings.
+        "AMOUNT_DOLLARS": str,
         "AMOUNT_RIAL": format_number,
         "TRACKING_CODE": str,
         "INVOICE_ID": str,
