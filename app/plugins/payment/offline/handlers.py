@@ -60,8 +60,48 @@ class OfflineCancelCb(CallbackData, prefix="ofcancel"):
 
 
 class OfflineReviewCb(CallbackData, prefix="ofrev"):
-    action: Literal["approve", "reject"]
+    action: Literal["approve", "reject", "reject_cancel"]
     cp_id: int
+    confirmed: bool = False
+
+
+class OfflineReviewKb(InlineKeyboardBuilder):
+    """Stateful review buttons: drop ``approve`` once finished and ``reject``
+    once rejected — so an admin can still **reject an already-approved** payment
+    (reverses the credit + removes the subscription) or re-approve a rejected one."""
+
+    def __init__(self, cp_id: int, status, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if status != Transaction.Status.finished:
+            self.button(
+                text="✅ تأیید",
+                callback_data=OfflineReviewCb(action="approve", cp_id=cp_id),
+            )
+        if status != Transaction.Status.rejected:
+            self.button(
+                text="❌ رد",
+                callback_data=OfflineReviewCb(action="reject", cp_id=cp_id),
+            )
+        self.adjust(2)
+
+
+class OfflineRejectConfirmKb(InlineKeyboardBuilder):
+    """Confirm step before rejecting an already-approved payment (it also removes
+    the customer's subscription)."""
+
+    def __init__(self, cp_id: int, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.button(
+            text="✅ بله، حذف و رد کن",
+            callback_data=OfflineReviewCb(
+                action="reject", cp_id=cp_id, confirmed=True
+            ),
+        )
+        self.button(
+            text="↩️ انصراف",
+            callback_data=OfflineReviewCb(action="reject_cancel", cp_id=cp_id),
+        )
+        self.adjust(1, 1)
 
 
 def _qr_png(text: str) -> BufferedInputFile:
@@ -188,6 +228,8 @@ async def select_offline(
         direct_mode=callback_data.direct_mode,
         service_id=callback_data.service_id,
         proxy_id=callback_data.proxy_id,
+        pending_txid=None,  # fresh proof session — clear any abandoned progress
+        pending_shot=None,
     )
     kb = InlineKeyboardBuilder()
     for c in coins:
@@ -262,17 +304,47 @@ async def offline_cancel(qmsg: CallbackQuery, user: User, state: FSMContext):
 )
 async def offline_proof(message: Message, user: User, state: FSMContext):
     s = settings.get_settings().payment_offline
-    txid = (message.caption or message.text or "").strip()
-    file_id = message.photo[-1].file_id if message.photo else None
-
-    if not txid:
-        return await message.answer("لطفاً <b>TXID</b> (هشِ تراکنش) را به‌صورتِ متن یا کپشنِ تصویر بفرستید.")
-    if len(txid) < 6 or len(txid) > 128:
-        return await message.answer("TXID نامعتبر است؛ دوباره ارسال کنید.")
-    if s.require_screenshot and not file_id:
-        return await message.answer("لطفاً <b>اسکرین‌شاتِ پرداخت</b> را هم ارسال کنید (تصویر).")
-
     data = await state.get_data()
+    # Accumulate across messages so order/splitting never traps the user: a text
+    # message = the hash, a photo = the screenshot, a photo+caption = both. We
+    # keep partial progress in the FSM and only proceed once everything required
+    # is collected (avoids the "hash → asks screenshot → asks hash …" loop).
+    txid = data.get("pending_txid")
+    file_id = data.get("pending_shot")
+
+    candidate = None  # a hash supplied by THIS message (text or photo caption)
+    if message.photo:
+        file_id = message.photo[-1].file_id
+        if (message.caption or "").strip():
+            candidate = message.caption.strip()
+    elif (message.text or "").strip():
+        candidate = message.text.strip()
+    else:
+        return await message.answer(
+            "لطفاً <b>TXID</b> را به‌صورتِ متن، یا <b>اسکرین‌شات</b> را به‌صورتِ تصویر بفرستید."
+        )
+
+    if candidate is not None:
+        if len(candidate) < 6 or len(candidate) > 128:
+            await state.update_data(pending_shot=file_id)  # don't lose a screenshot
+            return await message.answer(
+                "TXID نامعتبر است؛ هشِ تراکنش را دوباره ارسال کنید."
+            )
+        txid = candidate
+
+    await state.update_data(pending_txid=txid, pending_shot=file_id)
+
+    # ask only for what is still missing — keeping what we already have
+    if not txid:
+        return await message.answer(
+            "✅ دریافت شد. حالا <b>TXID</b> (هشِ تراکنش) را ارسال کنید 👇"
+        )
+    if s.require_screenshot and not file_id:
+        return await message.answer(
+            "✅ دریافت شد. حالا <b>اسکرین‌شاتِ پرداخت</b> را ارسال کنید (تصویر) 👇"
+        )
+
+    # everything required is in hand → build the pending payment
     coin = s.coin_by_code(data.get("coin_code"))
     amount = data.get("amount")
     free = int(data.get("free") or 0)
@@ -330,11 +402,8 @@ async def offline_proof(message: Message, user: User, state: FSMContext):
         "پس از تأییدِ ادمین، اعتبار به‌صورتِ خودکار به حساب‌تان اضافه می‌شود."
     )
 
-    # notify super-admins with an approve/reject card
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ تأیید", callback_data=OfflineReviewCb(action="approve", cp_id=cp.id))
-    kb.button(text="❌ رد", callback_data=OfflineReviewCb(action="reject", cp_id=cp.id))
-    kb.adjust(2)
+    # notify super-admins with a stateful approve/reject card
+    kb = OfflineReviewKb(cp_id=cp.id, status=transaction.status)
     info = (
         "🪙 <b>پرداختِ آفلاینِ جدید — بررسی</b>\n\n"
         f"👤 کاربر: <code>{user.id}</code> {('@' + user.username) if user.username else ''}\n"
@@ -367,55 +436,80 @@ async def _fetch_offline_cp(cp_id: int):
     )
 
 
-async def apply_offline_review(cp, action: str, bot) -> str:
-    """Apply approve/reject to a pending offline payment — the SINGLE credit
-    path, shared by the bot's inline review and the web→Redis queue. Idempotent
-    (already-finished guard). Approve sets the tx ``finished`` (= credit) +
-    activates/notifies; reject marks it ``rejected``. Returns:
-    ``approved`` | ``rejected`` | ``already`` | ``notfound``."""
-    if cp is None:
-        return "notfound"
+async def _approve_offline(cp, bot) -> str:
+    """Credit + activate a pending offline payment. Idempotent (already-finished
+    guard). Returns ``approved`` | ``already``."""
     transaction = cp.transaction
     if transaction.status == Transaction.Status.finished:
         return "already"
-
-    if action == "approve":
-        async with in_transaction():
-            transaction.status = Transaction.Status.finished
-            transaction.finished_at = dt.now()
-            transaction.amount_paid = transaction.amount - transaction.amount_free_given
-            await transaction.save()
-            cp.payment_status = CryptoPayment.PaymentStatus.finished
-            await cp.save()
-        from app.plugins.payment import jobs  # local: credit/activation flow
-
-        msg = None
-        try:
-            msg = await bot.send_message(
-                transaction.user_id,
-                f"✅ پرداختِ آفلاینِ شما تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!\n"
-                f"🧾 فاکتور: <code>{transaction.id}</code>",
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        helpers.transaction_log(transaction=transaction, payment=cp)
-        jobs.activate_service(transaction, msg)
-        return "approved"
-
     async with in_transaction():
-        transaction.status = Transaction.Status.rejected
+        transaction.status = Transaction.Status.finished
+        transaction.finished_at = dt.now()
+        transaction.amount_paid = transaction.amount - transaction.amount_free_given
         await transaction.save()
-        cp.payment_status = CryptoPayment.PaymentStatus.failed
+        cp.payment_status = CryptoPayment.PaymentStatus.finished
         await cp.save()
+    from app.plugins.payment import jobs  # local: credit/activation flow
+
+    msg = None
     try:
-        await bot.send_message(
+        msg = await bot.send_message(
             transaction.user_id,
-            f"❌ پرداختِ آفلاینِ شما (فاکتور <code>{transaction.id}</code>) رد شد.\n"
-            "اگر مبلغی واریز کرده‌اید، با پشتیبانی تماس بگیرید.",
+            f"✅ پرداختِ آفلاینِ شما تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!\n"
+            f"🧾 فاکتور: <code>{transaction.id}</code>",
         )
     except Exception:  # noqa: BLE001
         pass
-    return "rejected"
+    helpers.transaction_log(transaction=transaction, payment=cp)
+    jobs.activate_service(transaction, msg)
+    return "approved"
+
+
+async def _reject_offline(cp, bot) -> tuple[str, str]:
+    """Reject a pending offline payment, or REVERSE an already-approved one —
+    undo the credit + remove the activated subscription (panel + bot) via
+    ``revoke_activated_transaction`` (same helper the card-to-card reject uses).
+    Idempotent. Returns ``(result, summary)`` where result is
+    ``rejected`` | ``reverted`` | ``already_rejected``."""
+    transaction = cp.transaction
+    if transaction.status == Transaction.Status.rejected:
+        return "already_rejected", ""
+    was_activated = transaction.status == Transaction.Status.finished
+    # local import: avoid an import cycle on the jobs module
+    from app.plugins.payment.jobs import revoke_activated_transaction
+
+    # sets the tx to ``rejected`` (removes the credit) and, for an activated
+    # purchase, deletes the proxy + invoice so the balance nets back to ~0
+    summary = await revoke_activated_transaction(transaction)
+    cp.payment_status = CryptoPayment.PaymentStatus.failed
+    await cp.save()
+    try:
+        if was_activated:
+            await bot.send_message(
+                transaction.user_id,
+                f"❌ پرداختِ آفلاینِ شما (فاکتور <code>{transaction.id}</code>) رد شد و اشتراکِ مربوطه لغو شد.\n"
+                "برای اطلاعاتِ بیشتر با پشتیبانی تماس بگیرید.",
+            )
+        else:
+            await bot.send_message(
+                transaction.user_id,
+                f"❌ پرداختِ آفلاینِ شما (فاکتور <code>{transaction.id}</code>) رد شد.\n"
+                "اگر مبلغی واریز کرده‌اید، با پشتیبانی تماس بگیرید.",
+            )
+    except Exception:  # noqa: BLE001
+        pass
+    return ("reverted" if was_activated else "rejected"), summary
+
+
+async def apply_offline_review(cp, action: str, bot) -> str:
+    """Single credit/reverse path shared by the bot's inline review and the
+    web→Redis queue. Idempotent. Returns a short status code."""
+    if cp is None:
+        return "notfound"
+    if action == "approve":
+        return await _approve_offline(cp, bot)
+    result, _ = await _reject_offline(cp, bot)
+    return result
 
 
 async def process_offline_review_queue(bot) -> None:
@@ -441,32 +535,80 @@ async def process_offline_review_queue(bot) -> None:
         await apply_offline_review(await _fetch_offline_cp(cp_id), action, bot)
 
 
-@router.callback_query(OfflineReviewCb.filter(), IsSuperUser())
-async def offline_review(
+async def _rerender_card(qmsg: CallbackQuery, cp_id: int, status) -> None:
+    """Swap the card's keyboard to reflect the new status (robust for both photo
+    and text cards — never edit_text a photo card)."""
+    try:
+        await qmsg.message.edit_reply_markup(
+            reply_markup=OfflineReviewKb(cp_id, status).as_markup()
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@router.callback_query(OfflineReviewCb.filter(F.action == "approve"), IsSuperUser())
+async def offline_approve(
     qmsg: CallbackQuery, user: User, callback_data: OfflineReviewCb
 ):
     cp = await _fetch_offline_cp(callback_data.cp_id)
-    result = await apply_offline_review(cp, callback_data.action, qmsg.bot)
-    if result == "notfound":
+    if cp is None:
         return await qmsg.answer("پرداخت یافت نشد!", show_alert=True)
+    result = await _approve_offline(cp, qmsg.bot)
     if result == "already":
         return await qmsg.answer("این پرداخت قبلاً تأیید شده است.", show_alert=True)
-    if result == "approved":
-        await qmsg.answer("تأیید شد ✅", show_alert=True)
-        _suffix = f"\n\n✅ تأیید توسط <code>{user.id}</code>"
-    else:
-        await qmsg.answer("رد شد", show_alert=True)
-        _suffix = f"\n\n❌ رد توسط <code>{user.id}</code>"
+    await qmsg.answer("تأیید شد ✅", show_alert=True)
+    await cp.transaction.refresh_from_db()
+    await _rerender_card(qmsg, cp.id, cp.transaction.status)
 
-    # stamp the admin card + drop the buttons
-    try:
-        if qmsg.message.caption is not None:
-            await qmsg.message.edit_caption(caption=(qmsg.message.caption or "") + _suffix)
-        else:
-            await qmsg.message.edit_text(text=(qmsg.message.text or "") + _suffix)
-    except Exception:  # noqa: BLE001
+
+@router.callback_query(
+    OfflineReviewCb.filter(F.action == "reject_cancel"), IsSuperUser()
+)
+async def offline_reject_cancel(
+    qmsg: CallbackQuery, user: User, callback_data: OfflineReviewCb
+):
+    """Cancel the reject confirmation: restore the normal review keyboard."""
+    cp = await _fetch_offline_cp(callback_data.cp_id)
+    if cp is None:
+        return await qmsg.answer("پرداخت یافت نشد!", show_alert=True)
+    await _rerender_card(qmsg, cp.id, cp.transaction.status)
+    return await qmsg.answer("لغو شد")
+
+
+@router.callback_query(OfflineReviewCb.filter(F.action == "reject"), IsSuperUser())
+async def offline_reject(
+    qmsg: CallbackQuery, user: User, callback_data: OfflineReviewCb
+):
+    cp = await _fetch_offline_cp(callback_data.cp_id)
+    if cp is None:
+        return await qmsg.answer("پرداخت یافت نشد!", show_alert=True)
+    transaction = cp.transaction
+    if transaction.status == Transaction.Status.rejected:
+        return await qmsg.answer("این پرداخت قبلاً رد شده است.", show_alert=True)
+
+    # already approved → rejecting now also removes the subscription, so confirm
+    # first (a waiting receipt has nothing to undo, so it rejects in one tap).
+    was_activated = transaction.status == Transaction.Status.finished
+    if was_activated and not callback_data.confirmed:
+        await qmsg.answer(
+            "⚠️ این پرداخت قبلاً تأیید شده و اشتراک ساخته شده! با رد کردن، اشتراکِ کاربر حذف و فاکتور باطل می‌شود.",
+            show_alert=True,
+        )
         try:
-            await qmsg.message.edit_reply_markup(reply_markup=None)
+            await qmsg.message.edit_reply_markup(
+                reply_markup=OfflineRejectConfirmKb(cp.id).as_markup()
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        return
+
+    _, summary = await _reject_offline(cp, qmsg.bot)
+    await qmsg.answer("رد شد", show_alert=True)
+    await transaction.refresh_from_db()
+    await _rerender_card(qmsg, cp.id, transaction.status)
+    if was_activated and summary:
+        try:
+            await qmsg.message.reply(f"🧾 نتیجهٔ لغو فعال‌سازی:\n{summary}")
         except Exception:  # noqa: BLE001
             pass
 

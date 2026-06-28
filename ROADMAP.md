@@ -32,6 +32,14 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    made the final handler dual-type (`CallbackQuery | Message`). Also the in-bot **⚙️→تنظیمات**
    `pm:settings:{plisio,offline}` button was dead → added a minimal admin screen (masked summary +
    enable/disable toggle, guarded against enabling a misconfigured gateway + "configure fully in web").
+0b. ✅ **Bugfix — offline proof loop + reject-after-approve.** (a) The proof step required TXID **and**
+   screenshot in one message, so hash-then-screenshot looped forever; now it **accumulates** across
+   messages in any order (text=hash, photo=screenshot, photo+caption=both), asks only for what's
+   missing, validates the hash, and resets stale progress on a new session. (b) The admin card is now a
+   **stateful** keyboard (`OfflineReviewKb`) like card-to-card: rejecting an **already-approved** payment
+   asks for confirmation then **reverses the credit + removes the subscription** via the shared
+   `revoke_activated_transaction` (handlers split into approve / reject / reject_cancel; web-queue path
+   keeps the `apply_offline_review` wrapper). Balance nets back correctly (no double-credit / negative).
 1. ✅ **Plisio gateway** — client/verify/handler/IPN built; now **configurable from the web** (#2).
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
