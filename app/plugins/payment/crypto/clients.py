@@ -177,7 +177,7 @@ class NowPaymentsAPI:
         success_url: str | None = None,
         cancel_url: str | None = None,
         partially_paid_url: str | None = None,
-        is_fixed_rate: bool = True,
+        is_fixed_rate: bool = False,
         is_fee_paid_by_user: bool | None = None,
     ):
         callback_url = ipn_callback_url or config.PUBLIC_BASE_URL + "/npipn"

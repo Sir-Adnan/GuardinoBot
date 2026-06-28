@@ -123,11 +123,11 @@ Immediate / carry-over (do anytime):
     keys (registered in `INLINE_BUTTONS`), so they're rename/emoji/colour-customizable in the web
     Buttons editor under a new **"Admin panel"** category. (Sub-menu admin keyboards = future extend.)
   - [ ] Extend gateway-config to the rial/card gateways; on-chain auto-check; web pending-offline review.
-- ✅ **Broadcast → non-blocking worker [§17.1]**: `app/utils/broadcast.py` (throttled, `TelegramRetryAfter`
+- ✅ **Broadcast → non-blocking worker**: `app/utils/broadcast.py` (throttled, `TelegramRetryAfter`
   sleep-retry, marks `blocked_bot`, Redis progress + `resume_pending`). Web has read-only monitor/cancel.
   **Web compose/start dropped (owner decision)** — `/broadcast` + `/forward` in the bot (reply → command)
   are simpler and let the owner use Telegram's native premium-emoji editor. Not adding it to the panel.
-- [ ] Guardino **reserves** + efficient paginated sync + `on_hold` create (§6 deferred).
+- [ ] Guardino **reserves** + efficient paginated sync + `on_hold` create (panel adapter, deferred).
 - [ ] Brand migration `marzbot`/`Marzdemo` → Guardino (gradual; migration for DB-facing strings).
 - [ ] PasarGuard native `reset_proxy_credentials` (currently raises; "smart reconnect" works).
 - [ ] aiogram 3.4.1 upgrade (`parse_mode=` ctor → `DefaultBotProperties`) — testing + approval.
@@ -138,7 +138,7 @@ Immediate / carry-over (do anytime):
 ## Planned phases — web-panel maturity + bot UX (P5–P13)
 
 > Scope rule (unchanged): web panel = manage/support/report/customize + audit, through the
-> §6 adapter. **No manual sell** (provisioning a sub stays bot-only); defining plans/prices is
+> Panel adapter (`docs/panels.md`). **No manual sell** (provisioning a sub stays bot-only); defining plans/prices is
 > management and IS allowed. Never expose panel/payment/DB credentials. Reseller scoping holds.
 
 ### P5 — Plans & Sales: full CRUD + ordering (web)
@@ -158,7 +158,7 @@ Guardino **nodes** (+ pricing mode) → assembles `inbounds`/`all_inbounds` or `
 **P5b — remaining (minor):** discount/menu attach UI + true drag-and-drop reorder. (↑↓ reorder works.)
 
 ### P6 — Panels & Nodes: full CRUD (web)
-**P6 core — ✅ done:** add panel (validates the connection via §6 `fetch_token`/`login` +
+**P6 core — ✅ done:** add panel (validates the connection via the panel adapter `fetch_token`/`login` +
 `validate` BEFORE saving — Marzban/PasarGuard token flow, Guardino reseller login with a clear
 "disable 2FA" error), edit (re-connects + refreshes the token when host/port/https/username/
 password change), delete (**blocked** if services/proxies attached — FK is CASCADE, would wipe
@@ -177,7 +177,7 @@ service provisioning picker).
   **Adjust balance** (super-only: charge→`Transaction(by_admin,finished)` / decharge→`Invoice(by_admin)`,
   mirroring the bot so stats stay exact, audit `balance.adjust`).
 - **Subscriptions tab**: their proxies via `/proxies?user_id=` + enable/disable/reset/revoke/delete
-  (reuses the §6-backed proxy action/delete endpoints, audited).
+  (reuses the panel-adapter-backed proxy action/delete endpoints, audited).
 - Backend: `users` router gained `PATCH /{id}` + `POST /{id}/balance`; `UserDetail` enriched
   (postpaid credit, test count, discount %, prefix, parent/referrer); `audit` got a `target_id` filter.
 - **Remaining (minor):** a dedicated Orders view (currently Transactions covers payments); reseller
@@ -417,9 +417,9 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
 ---
 
 ## Done log (compact — don't rebuild these)
-- ✅ **Multi-panel adapter** (`app/panels/`, §6) — Marzban (legacy) + **PasarGuard complete**
+- ✅ **Multi-panel adapter** (`app/panels/`, `docs/panels.md`) — Marzban (legacy) + **PasarGuard complete**
   (data-plane + admin UI + webhook). New code never imports a panel client directly.
-- ✅ **Guardino Hub** (§6, phase 2) — id-based, GB/days, hub pricing. Stages 0–4: model +
+- ✅ **Guardino Hub** (panel adapter, phase 2) — id-based, GB/days, hub pricing. Stages 0–4: model +
   migration 47, adapter, admin UX, purchase/manage, low-balance job. ⛔ reserves + efficient
   sync + on_hold deferred. ⚠️ 2FA must be OFF on the bot's hub account.
 - ✅ **Web panel Phase 1** — FastAPI `app/api/` (`api` service, uvicorn :8000) + `webpanel/`
@@ -460,7 +460,7 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
   sentinel = forced no-colour). Main (reply) menu premium emoji/colour behind a separate
   `premium_reply_enabled` flag with build-time fallback + `main_menu_routing_map` so emoji-stripped
   labels still route. Decoupled from inline so it can't break the menu.
-- ✅ **Fix §17.2** — reseller test-service counting (`record_purchase_service` uses `user.role`;
+- ✅ **Fix** — reseller test-service counting (`record_purchase_service` uses `user.role`;
   unified Redis key + `count >= limit`).
 
 ---
@@ -469,7 +469,7 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
 - **No manual sell in the web panel** — purchases/renew stay bot-only (user-centric; avoids
   free-provisioning on the owner's panel). Web = manage / support / report / customise + audit.
 - **Web panel goal is bot operations, not re-creating upstream panels** (Guardino Hub etc.).
-  Cover sales/management/support/reporting through the same §6 adapter for all three panels.
+  Cover sales/management/support/reporting through the same panel adapter for all three panels.
 - **Premium buttons** default OFF; safe fallback always; inline-only; emoji needs owner Premium.
 - **Button customization targets the customer UI only** — admin buttons + the ⚙️ admin-panel
   menu are deliberately NOT made premium/customizable (focus is customer attraction/retention).

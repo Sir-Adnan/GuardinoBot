@@ -33,8 +33,12 @@ class Settings(BaseSettings):
     api_key: str | None = config.NP_API_KEY
     ipn_secret_key: str | None = config.NP_IPN_SECRET_KEY
     # fixed coin for the hosted invoice (e.g. usdtbsc=BEP20, usdttrc20=TRC20);
-    # empty = let the customer pick on the page. Default BEP20 (low min/fee).
+    # empty = let the customer pick on the page (supports all enabled coins).
     pay_currency: str | None = config.NP_PAY_CURRENCY
+    # Floating rate by default. Fixed rate locks the quote at creation but
+    # enforces a higher per-coin minimum → "amountTo is too small"; keep OFF
+    # unless you specifically need a locked rate.
+    is_fixed_rate: bool = False
     rate_provider: str = config.PAYMENT_RATE_PROVIDER
     rate_cache_seconds: int = config.PAYMENT_RATE_CACHE_SECONDS
     usdt_margin_percent: str = config.PAYMENT_USDT_MARGIN_PERCENT
@@ -960,6 +964,7 @@ async def select_amount(
                 order_id=str(transaction.id),
                 order_description=tracking_code,
                 pay_currency=pay_currency,
+                is_fixed_rate=bool(_settings.is_fixed_rate),
                 ipn_callback_url=f"{public_base}/npipn",
                 success_url=f"{public_base}/payments/nowpayments/success",
                 cancel_url=f"{public_base}/payments/nowpayments/fail",

@@ -186,6 +186,7 @@ export function GatewaysPage() {
     }
     if (g.key === "payment_nowpayments" && f.name === "pay_currency") {
       const npCoins = [
+        { value: "", label: t("gateways.pc_all") },
         { value: "usdtbsc", label: "USDT — BEP20 (BSC)" },
         { value: "usdttrc20", label: "USDT — TRC20 (Tron)" },
         { value: "usdterc20", label: "USDT — ERC20 (Ethereum)" },
@@ -202,11 +203,9 @@ export function GatewaysPage() {
           <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
           <Select
             {...common}
-            allowClear
             showSearch
             optionFilterProp="label"
-            placeholder={t("gateways.pc_customer")}
-            value={val || undefined}
+            value={val ?? ""}
             options={npCoins}
             onChange={(v) => setField(g.key, f.name, v ?? "")}
           />
