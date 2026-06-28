@@ -128,6 +128,8 @@ INLINE_BUTTONS: dict[str, str] = {
     "show_reserve": "📁 پلن پشتیبان",
     # -- payment methods (payment.ChargePanel — one per enabled gateway/plugin) --
     "pay_card_to_card": "💳 کارت به کارت",
+    "pay_plisio": "🪙 درگاه Plisio",
+    "pay_offline": "🪙 پرداخت دستی ارز دیجیتال",
     "pay_perfect_money": "💲 پرفکت‌مانی",
     "pay_nowpayments_io": "🪙 ارز دیجیتال",
     "pay_swapino": "🪙 سواپینو",
@@ -170,6 +172,8 @@ DEFAULT_STYLES: dict[str, str] = {
     # money / confirm CTAs → green
     "purchase_buy": "success",
     "purchase_pay": "success",
+    "pay_plisio": "success",
+    "pay_offline": "success",
     "plisio_pay_online": "success",
     "plisio_check_payment": "success",
     "proxy_renew": "success",

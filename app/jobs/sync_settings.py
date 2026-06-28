@@ -40,8 +40,14 @@ async def sync_settings() -> None:
         from app.plugins.payment.offline.handlers import (
             process_offline_review_queue,
         )
+        from app.plugins.payment.crypto.plisio_service import (
+            auto_check_plisio_payments,
+            process_plisio_review_queue,
+        )
 
         await process_offline_review_queue(bot)
+        await process_plisio_review_queue()
+        await auto_check_plisio_payments()
     except Exception as exc:  # noqa: BLE001
         logger.error("sync_settings failed: %s", exc)
 

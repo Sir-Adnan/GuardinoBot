@@ -218,12 +218,12 @@ async def _read_plisio_payload(request: web.Request) -> dict[str, Any]:
 
 @routes.get("/payments/plisio/success")
 async def plisio_success(request: web.Request):
-    return web.Response(text="Payment result will be checked by the bot.")
+    return web.Response(text="وضعیت پرداخت توسط ربات بررسی می‌شود. لطفاً به تلگرام برگردید.")
 
 
 @routes.get("/payments/plisio/fail")
 async def plisio_fail(request: web.Request):
-    return web.Response(text="Payment was not completed.")
+    return web.Response(text="پرداخت کامل نشد یا توسط درگاه ناموفق اعلام شد. لطفاً به تلگرام برگردید.")
 
 
 @routes.post("/payments/plisio/callback")
@@ -263,6 +263,8 @@ async def verify_plisio_payment_v2(request: web.Request):
 @routes.post("/plisio")
 @routes.post("/plisio/")
 async def verify_plisio_payment(request: web.Request):
+    return await verify_plisio_payment_v2(request)
+
     """Plisio callback. SECURITY: the API key is mandatory and the `verify_hash`
     (HMAC-SHA1 over PHP-serialize, byte-exact) is verified — without it an
     attacker could forge a "completed" callback and self-credit. Read as form

@@ -36,10 +36,12 @@ from app.api.schemas import (
 from app.models.setting import BotSetting
 from app.models.user import CryptoPayment, Transaction, User
 from app.plugins.payment.crypto.plisio import (
+    DEFAULT_INVOICE_CURRENCY,
     FALLBACK_CURRENCIES,
     PlisioAPI,
     PlisioError,
     Settings as PlisioSettings,
+    is_usdt_currency,
 )
 from app.utils.audit import record_audit
 
@@ -121,9 +123,7 @@ async def _out() -> GatewaysOut:
     for key, spec in _GATEWAYS.items():
         data = await _read_json(key)
         if key == "payment_plisio":
-            defaults = PlisioSettings().model_dump()
-            defaults.update(data)
-            data = defaults
+            data = PlisioSettings(**data).model_dump()
         gateways.append(
             GatewayOut(
                 key=key,
@@ -184,7 +184,12 @@ async def update_gateway(
                 continue
             data[fname] = sv
         else:  # str
-            data[fname] = (str(v).strip() or None) if v is not None else None
+            value = (str(v).strip() or None) if v is not None else None
+            if body.key == "payment_plisio" and fname == "default_currency":
+                value = value.upper() if value else DEFAULT_INVOICE_CURRENCY
+                if not is_usdt_currency(value):
+                    value = DEFAULT_INVOICE_CURRENCY
+            data[fname] = value
         changed.append(fname)
 
     if changed:
@@ -193,9 +198,10 @@ async def update_gateway(
         # so create it if the update touched no row. Stored as JSON (the bot
         # validates the gateway's pydantic Settings from it, filling defaults).
         encoded = json.dumps(data, ensure_ascii=False)
-        n = await BotSetting.filter(_key=body.key).update(_value=encoded)
-        if not n:
-            await BotSetting.create(_key=body.key, _value=encoded)
+        await BotSetting.update_or_create(
+            defaults={"_value": encoded},
+            _key=body.key,
+        )
         await redis.set(_DIRTY, "1")
         await record_audit(
             action="payment_gateway.update",
@@ -314,9 +320,10 @@ async def update_offline(
         d["coins"] = clean
 
     encoded = json.dumps(d, ensure_ascii=False)
-    n = await BotSetting.filter(_key=_OFFLINE_KEY).update(_value=encoded)
-    if not n:
-        await BotSetting.create(_key=_OFFLINE_KEY, _value=encoded)
+    await BotSetting.update_or_create(
+        defaults={"_value": encoded},
+        _key=_OFFLINE_KEY,
+    )
     await redis.set(_DIRTY, "1")
     await record_audit(
         action="payment_gateway.offline",

@@ -17,6 +17,16 @@ PLISIO_API_URL = config.PLISIO_API_BASE
 SETTINGS_KEY_PREFIX = "plisio"
 
 DEFAULT_ALLOWED_CURRENCIES = ["USDT_BSC", "USDT_TRX", "USDT_TON", "TRX", "TON", "LTC"]
+DEFAULT_INVOICE_CURRENCY = "USDT_BSC"
+
+DISPLAY_NAMES = {
+    "USDT_BSC": "تتر USDT روی BNB Smart Chain (BEP20)",
+    "USDT_TRX": "تتر USDT روی TRON (TRC20)",
+    "USDT_TON": "تتر USDT روی TON",
+    "TRX": "ترون (TRX)",
+    "TON": "تون‌کوین (TON)",
+    "LTC": "لایت‌کوین (LTC)",
+}
 
 FALLBACK_CURRENCIES = [
     {
@@ -104,6 +114,30 @@ def _split_codes(value: Any) -> list[str]:
     return out
 
 
+def is_usdt_currency(code: str | None) -> bool:
+    return str(code or "").strip().upper().startswith("USDT")
+
+
+def invoice_currency_code(preferred: str | None, allowed: list[str] | None = None) -> str:
+    """Invoice amount is calculated in USDT, so Plisio's amount currency must
+    stay a USDT payment system even when the customer is allowed to pay another
+    coin inside Plisio.
+    """
+    preferred = str(preferred or "").strip().upper()
+    if is_usdt_currency(preferred):
+        return preferred
+    for code in allowed or []:
+        code = str(code or "").strip().upper()
+        if is_usdt_currency(code):
+            return code
+    return DEFAULT_INVOICE_CURRENCY
+
+
+def display_currency(code: str | None) -> str:
+    code = str(code or "").strip().upper()
+    return DISPLAY_NAMES.get(code, code or "-")
+
+
 class Settings(BaseSettings):
     """Plisio gateway config stored under ``payment_plisio`` in BotSetting."""
 
@@ -139,7 +173,7 @@ class Settings(BaseSettings):
     @classmethod
     def _normalize_default_currency(cls, value: Any) -> str:
         code = str(value or config.PLISIO_DEFAULT_CURRENCY).strip().upper()
-        return code or "USDT_BSC"
+        return code if is_usdt_currency(code) else DEFAULT_INVOICE_CURRENCY
 
     @field_validator("allowed_currencies", mode="before")
     @classmethod
@@ -159,6 +193,9 @@ class Settings(BaseSettings):
         if default and default not in codes:
             codes.insert(0, default)
         return codes
+
+    def invoice_currency(self) -> str:
+        return invoice_currency_code(self.default_currency, self.currency_codes())
 
 
 def _php_serialize(data: dict[str, Any]) -> str:

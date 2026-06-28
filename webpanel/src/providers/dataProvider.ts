@@ -18,6 +18,11 @@ export const dataProvider: DataProvider = {
       (f: any) => f.field === "search" || f.field === "q",
     ) as any;
     if (search && search.value) params.search = search.value;
+    (filters ?? []).forEach((f: any) => {
+      if (!f?.field || f.field === "search" || f.field === "q") return;
+      if (f.value === undefined || f.value === null || f.value === "") return;
+      params[f.field] = f.value;
+    });
 
     const res = await api.get(`/${resource}`, { params });
     const body = res.data;

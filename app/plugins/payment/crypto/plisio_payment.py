@@ -22,7 +22,7 @@ from app.models.user import CryptoPayment, Invoice, Transaction, User
 from app.utils import settings
 from app.utils.filters import IsSuperUser
 
-from .plisio import SETTINGS_KEY_PREFIX, PlisioAPI, PlisioError
+from .plisio import SETTINGS_KEY_PREFIX, PlisioAPI, PlisioError, display_currency
 from .plisio_service import finalize_plisio_payment
 from .rates import PaymentRateError, calculate_payable_usdt, get_usdt_toman_rate
 
@@ -82,6 +82,13 @@ def _format_decimal(value) -> str:
     if "." in text:
         text = text.rstrip("0").rstrip(".")
     return text
+
+
+def _short_currency_list(codes: list[str]) -> str:
+    labels = [display_currency(code) for code in codes[:4]]
+    if len(codes) > 4:
+        labels.append(f"{len(codes) - 4} گزینه دیگر")
+    return "، ".join(labels)
 
 
 def _direct_invoice_type(mode: str | None):
@@ -202,9 +209,10 @@ async def select_amount(
             callback_data.amount, usdt_rate, ps.usdt_margin_percent
         )
         currencies = ps.currency_codes()
-        selected_currency = ps.default_currency
-        if selected_currency not in currencies:
-            currencies.insert(0, selected_currency)
+        invoice_currency = ps.invoice_currency()
+        preferred_currency = ps.default_currency
+        if invoice_currency not in currencies:
+            currencies.insert(0, invoice_currency)
         public_base = config.PUBLIC_BASE_URL
 
         async with in_transaction():
@@ -233,7 +241,7 @@ async def select_amount(
                 order_number=str(transaction.id),
                 order_name=f"GuardinoBot #{transaction.id}",
                 description=f"GuardinoBot payment #{transaction.id}",
-                currency=selected_currency,
+                currency=invoice_currency,
                 amount=payable_usdt,
                 allowed_psys_cids=",".join(currencies),
                 callback_url=f"{public_base}/payments/plisio/callback?json=true",
@@ -244,6 +252,7 @@ async def select_amount(
             )
             invoice_url = inv["invoice_url"]
             txn_id = str(inv["txn_id"])
+            tracking_code = f"GB-{transaction.id}"
             await CryptoPayment.create(
                 transaction=transaction,
                 provider=CryptoPayment.Provider.plisio,
@@ -252,35 +261,45 @@ async def select_amount(
                 payment_id=txn_id,
                 order_id=str(transaction.id),
                 price_amount=float(payable_usdt),
-                price_currency=selected_currency,
-                pay_currency=selected_currency,
+                price_currency=invoice_currency,
+                pay_currency=invoice_currency,
+                order_description=tracking_code,
                 payment_status=CryptoPayment.PaymentStatus.waiting,
                 extra_data={
                     "invoice_url": invoice_url,
+                    "tracking_code": tracking_code,
                     "rate": str(usdt_rate),
                     "margin_percent": str(ps.usdt_margin_percent),
                     "raw_create_response": inv.get("_raw"),
-                    "selected_currency": selected_currency,
+                    "invoice_currency": invoice_currency,
+                    "invoice_currency_label": display_currency(invoice_currency),
+                    "preferred_currency": preferred_currency,
                     "allowed_currencies": currencies,
+                    "allowed_currency_labels": [display_currency(c) for c in currencies],
                     "payable_usdt": str(payable_usdt),
                     "status_source": "created",
                 },
             )
 
         toman = transaction.amount - transaction.amount_free_given
+        allowed_text = _short_currency_list(currencies)
         text = f"""
-🧾 <b>فاکتور پرداخت ارزی</b>
+🧾 <b>فاکتور پرداخت امن</b>
 
 سرویس/شارژ: <b>{ps.menu_title}</b>
-شماره فاکتور: <code>{transaction.id}</code>
+کد پیگیری: <code>GB-{transaction.id}</code>
+شناسه Plisio: <code>{txn_id}</code>
+
 مبلغ سفارش: <b>{toman:,}</b> تومان
-نرخ تتر: <b>{int(usdt_rate):,}</b> تومان
-مبلغ پرداختی: <b>{_format_decimal(payable_usdt)}</b> USDT
-شبکه پرداخت: <b>{selected_currency}</b>
+مبلغ مبنا در درگاه: <b>{_format_decimal(payable_usdt)}</b> USDT
+نرخ محاسبه: <b>{int(usdt_rate):,}</b> تومان
 
-⏳ اعتبار فاکتور: <b>{ps.expire_min}</b> دقیقه
+ارزهای قابل پرداخت: <b>{allowed_text}</b>
 
-برای پرداخت روی دکمه زیر بزنید. بعد از پرداخت، سفارش شما به‌صورت خودکار بررسی و فعال می‌شود.
+اعتبار فاکتور: <b>{ps.expire_min}</b> دقیقه
+
+در صفحه Plisio می‌توانید یکی از ارزهای مجاز را انتخاب کنید؛ مبلغ معادل همان‌جا محاسبه می‌شود.
+بعد از پرداخت، ربات به‌صورت خودکار وضعیت را بررسی می‌کند. اگر تایید با تاخیر انجام شد، کد پیگیری بالا را برای پشتیبانی ارسال کنید.
 """
         markup = PayUrl(url=invoice_url, transaction_id=transaction.id).as_markup()
         if isinstance(qmsg, CallbackQuery):
@@ -386,15 +405,16 @@ def _settings_kb(ps) -> InlineKeyboardBuilder:
 @router.callback_query(F.data == f"pm:settings:{SETTINGS_KEY_PREFIX}", IsSuperUser())
 async def show_settings(qmsg: CallbackQuery, user: User):
     ps = settings.get_settings().payment_plisio
-    coins = ", ".join(ps.currency_codes()) if ps.currency_codes() else "همه"
+    coins = _short_currency_list(ps.currency_codes()) if ps.currency_codes() else "همه"
+    invoice_currency = ps.invoice_currency()
     text = (
         "💎 <b>درگاه Plisio</b>\n\n"
         f"وضعیت: <b>{'فعال ✅' if ps.enabled else 'غیرفعال ❌'}</b>\n"
         f"نام در منو: <b>{ps.menu_title}</b>\n"
         f"کلید API: {'ثبت‌شده ✅' if ps.api_key else 'خالی ❌'}\n"
         f"حداقل مبلغ: <code>{ps.min_pay_amount:,}</code> تومان\n"
-        f"ارز پیش‌فرض: <code>{ps.default_currency}</code>\n"
-        f"ارزهای مجاز: <code>{coins}</code>\n\n"
+        f"ارز مبنای فاکتور: <b>{display_currency(invoice_currency)}</b>\n"
+        f"ارزهای قابل پرداخت: <b>{coins}</b>\n\n"
         "ℹ️ تنظیمات کامل از پنل وب انجام می‌شود."
     )
     await qmsg.message.edit_text(

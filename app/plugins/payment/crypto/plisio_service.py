@@ -16,9 +16,17 @@ from app.models.user import CryptoPayment, Transaction
 from app.plugins.payment import jobs
 from app.utils import helpers, settings
 
-from .plisio import FAILED_STATUSES, PENDING_STATUSES, STATUS_COMPLETED, STATUS_MISMATCH
+from .plisio import (
+    FAILED_STATUSES,
+    PENDING_STATUSES,
+    STATUS_COMPLETED,
+    STATUS_MISMATCH,
+    PlisioAPI,
+    PlisioError,
+)
 
 logger = get_logger("plugins/payment/plisio")
+PLISIO_REVIEW_QUEUE = "plisio:review:queue"
 
 
 def _safe_payload(value: Any) -> Any:
@@ -51,6 +59,10 @@ def extract_txn_id(payload: dict[str, Any]) -> str | None:
 
 def extract_status(payload: dict[str, Any]) -> str:
     return str(payload.get("status") or "").strip().lower()
+
+
+def tracking_code(transaction_id: int | str) -> str:
+    return f"GB-{transaction_id}"
 
 
 async def find_plisio_transaction(
@@ -154,6 +166,7 @@ async def finalize_plisio_payment(
         text = f"""
 ✅ پرداخت شما از طریق {title} با موفقیت تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!
 
+🧾 کد پیگیری: <code>{tracking_code(transaction.id)}</code>
 💳 شماره فاکتور: <b>{transaction.id}</b>
 💴 مبلغ پرداختی: <b>{transaction.amount_paid:,}</b> تومان
 """
@@ -202,3 +215,140 @@ async def finalize_plisio_payment(
     cp.extra_data = extra
     await cp.save(update_fields=["extra_data"])
     return {"result": "unknown", "status": status}
+
+
+async def manual_approve_plisio_payment(
+    transaction: Transaction,
+    *,
+    source: str,
+    actor_id: int | None = None,
+) -> str:
+    await transaction.fetch_related("crypto_payment")
+    cp = transaction.crypto_payment
+    if not cp or cp.provider != CryptoPayment.Provider.plisio:
+        return "ignored"
+    if transaction.status in (
+        Transaction.Status.finished,
+        Transaction.Status.partially_paid,
+    ):
+        return "already_finished"
+
+    extra = dict(cp.extra_data or {})
+    extra["status_source"] = source
+    extra["plisio_status"] = "manual_approved"
+    extra["manual_approved"] = True
+    extra["manual_approved_at"] = dt.now().isoformat()
+    if actor_id is not None:
+        extra["manual_approved_by"] = actor_id
+
+    async with in_transaction():
+        await transaction.fetch_related("crypto_payment")
+        cp = transaction.crypto_payment
+        transaction.status = Transaction.Status.finished
+        transaction.finished_at = dt.now()
+        transaction.amount_paid = max(0, transaction.amount - transaction.amount_free_given)
+        await transaction.save()
+        cp.payment_status = CryptoPayment.PaymentStatus.finished
+        cp.extra_data = extra
+        await cp.save()
+
+    text = f"""
+✅ پرداخت شما با بررسی دستی ادمین تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد.
+
+🧾 کد پیگیری: <code>{tracking_code(transaction.id)}</code>
+"""
+    try:
+        msg = await bot.send_message(transaction.user_id, text)
+    except Exception:  # noqa: BLE001
+        msg = None
+    await transaction.fetch_related("crypto_payment")
+    helpers.transaction_log(transaction=transaction, payment=transaction.crypto_payment)
+    jobs.activate_service(transaction, msg)
+    return "manual_approved"
+
+
+async def _fetch_plisio_transaction(transaction_id: int) -> Transaction | None:
+    return await Transaction.filter(id=transaction_id).prefetch_related("crypto_payment").first()
+
+
+async def _check_plisio_transaction(transaction: Transaction, *, source: str) -> dict[str, str]:
+    await transaction.fetch_related("crypto_payment")
+    cp = transaction.crypto_payment
+    if not cp or cp.provider != CryptoPayment.Provider.plisio:
+        return {"result": "ignored", "status": ""}
+    txn_id = cp.payment_id or cp.invoice_id
+    if not txn_id:
+        return {"result": "missing_txn_id", "status": ""}
+    ps = settings.get_settings().payment_plisio
+    operation = await PlisioAPI.get_operation(
+        txn_id,
+        api_key=ps.api_key,
+        api_base=ps.api_base,
+    )
+    return await finalize_plisio_payment(transaction, operation, source=source)
+
+
+async def process_plisio_review_queue() -> None:
+    import json
+
+    from app.main import redis
+
+    for _ in range(50):
+        raw = await redis.lpop(PLISIO_REVIEW_QUEUE)
+        if not raw:
+            break
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        try:
+            item = json.loads(raw)
+            transaction_id = int(item["transaction_id"])
+            action = str(item.get("action") or "check")
+            actor_id = int(item["actor_id"]) if item.get("actor_id") else None
+        except Exception:  # noqa: BLE001
+            continue
+        transaction = await _fetch_plisio_transaction(transaction_id)
+        if not transaction:
+            continue
+        try:
+            if action == "approve":
+                await manual_approve_plisio_payment(
+                    transaction,
+                    source="admin_manual",
+                    actor_id=actor_id,
+                )
+            else:
+                await _check_plisio_transaction(transaction, source="admin_check")
+        except PlisioError:
+            logger.warning(f"plisio admin check failed for transaction {transaction_id}")
+
+
+async def auto_check_plisio_payments(limit: int = 10) -> None:
+    ps = settings.get_settings().payment_plisio
+    if not ps.enabled or not ps.api_key:
+        return
+    from app.main import redis
+
+    rows = await (
+        CryptoPayment.filter(
+            provider=CryptoPayment.Provider.plisio,
+            transaction__status__in=[
+                Transaction.Status.waiting,
+                Transaction.Status.confirming,
+            ],
+        )
+        .prefetch_related("transaction")
+        .order_by("created_at")
+        .limit(limit)
+    )
+    for cp in rows:
+        txn_id = cp.payment_id or cp.invoice_id
+        if not txn_id:
+            continue
+        key = f"plisio:auto-check:{txn_id}"
+        if await redis.get(key):
+            continue
+        await redis.set(key, "1", ex=60)
+        try:
+            await _check_plisio_transaction(cp.transaction, source="auto_check")
+        except PlisioError:
+            logger.warning(f"plisio auto-check failed for txn {txn_id}")

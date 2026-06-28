@@ -68,8 +68,15 @@ export function GatewaysPage() {
     gws.forEach((g) => {
       init[g.key] = {};
       g.fields.forEach((f) => {
+        const value =
+          g.key === "payment_plisio" &&
+          f.name === "default_currency" &&
+          f.value &&
+          !String(f.value).toUpperCase().startsWith("USDT")
+            ? "USDT_BSC"
+            : f.value;
         // non-secret fields seed from the current value; secrets start empty
-        init[g.key][f.name] = f.kind === "secret" ? "" : f.value;
+        init[g.key][f.name] = f.kind === "secret" ? "" : value;
       });
     });
     setEdits(init);
@@ -122,6 +129,9 @@ export function GatewaysPage() {
       currencyData: c,
       disabled: !!c.hidden || !!c.maintenance,
     }));
+    const usdtCurrencyOptions = currencyOptions.filter((c) =>
+      String(c.value).toUpperCase().startsWith("USDT"),
+    );
     const currencyOption = (option: any) => {
       const c = option.data?.currencyData || option.currencyData || {};
       return (
@@ -142,10 +152,13 @@ export function GatewaysPage() {
             showSearch
             optionFilterProp="label"
             value={val || "USDT_BSC"}
-            options={currencyOptions}
+            options={usdtCurrencyOptions.length ? usdtCurrencyOptions : currencyOptions}
             optionRender={currencyOption}
             onChange={(v) => setField(g.key, f.name, v)}
           />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t("gateways.plisio_base_hint")}
+          </Text>
         </>
       );
     }

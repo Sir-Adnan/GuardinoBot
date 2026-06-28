@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ROLE_NAMES = {0: "user", 1: "reseller", 2: "admin", 3: "super_user"}
 
@@ -327,10 +327,16 @@ class TransactionListItem(BaseModel):
     user_id: int
     provider: Optional[str] = None
     provider_txn_id: Optional[str] = None
+    tracking_code: Optional[str] = None
     invoice_url: Optional[str] = None
     pay_currency: Optional[str] = None
     pay_amount: Optional[float] = None
     provider_status: Optional[str] = None
+    invoice_currency: Optional[str] = None
+    invoice_amount: Optional[str] = None
+    allowed_currencies: list[str] = Field(default_factory=list)
+    user_name: Optional[str] = None
+    username: Optional[str] = None
     created_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
