@@ -265,6 +265,7 @@ class CryptoPayment(TimedBase):
         eswap = "eswap"
         swapino = "swapino"
         plisio = "plisio"  # fits the existing VARCHAR(11) column → no migration
+        offline = "offline"  # manual crypto (admin wallet → user TXID/screenshot → approve)
 
     type = fields.IntEnumField(
         Transaction.PaymentType, default=Transaction.PaymentType.crypto

@@ -8,12 +8,14 @@ from app.logger import get_logger
 logger = get_logger("plugins/payment")
 
 
-from . import card_to_card, crypto, perfect_money, rial_gateway, tronseller
+from . import card_to_card, crypto, offline, perfect_money, rial_gateway, tronseller
+from .offline import handlers as offline_handlers
 
 handlers = [
     crypto.nowpayments,
     crypto.plisio_payment,
     crypto.swapino,
+    offline_handlers,
     card_to_card.card_to_card,
     perfect_money.perfect_money,
     rial_gateway.auto_select,

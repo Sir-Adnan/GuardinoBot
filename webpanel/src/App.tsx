@@ -33,6 +33,7 @@ import { ResellerShow } from "./pages/resellers/show";
 import { DiscountList } from "./pages/discounts/list";
 import { AutomationPage } from "./pages/automation";
 import { SettingsPage } from "./pages/settings";
+import { GatewaysPage } from "./pages/gateways";
 import { AuditPage } from "./pages/audit";
 import { TextsPage } from "./pages/texts";
 import { MenusPage } from "./pages/menus";
@@ -147,6 +148,7 @@ export default function App() {
                 { name: "audit", list: "/audit", meta: { label: "Audit" } },
                 { name: "texts", list: "/texts", meta: { label: "Texts" } },
                 { name: "buttons", list: "/buttons", meta: { label: "Buttons" } },
+                { name: "gateways", list: "/gateways", meta: { label: "Payment Gateways" } },
                 { name: "settings", list: "/settings", meta: { label: "Settings" } },
               ]}
               options={{ syncWithLocation: true, disableTelemetry: true }}
@@ -180,6 +182,7 @@ export default function App() {
                   <Route path="/audit" element={<AuditPage />} />
                   <Route path="/texts" element={<TextsPage />} />
                   <Route path="/buttons" element={<ButtonsPage />} />
+                  <Route path="/gateways" element={<GatewaysPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
 

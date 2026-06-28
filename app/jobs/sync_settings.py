@@ -34,6 +34,14 @@ async def sync_settings() -> None:
             # background task so a full scan never blocks this 15s poll loop
             asyncio.create_task(proxy_alerts(force=True))
             logger.info("proxy_alerts triggered (web run-now)")
+        # drain any web-submitted offline-payment reviews (credit runs here so
+        # user-notify + service-activation work in the bot process)
+        from app.main import bot  # local: avoid import-order issues
+        from app.plugins.payment.offline.handlers import (
+            process_offline_review_queue,
+        )
+
+        await process_offline_review_queue(bot)
     except Exception as exc:  # noqa: BLE001
         logger.error("sync_settings failed: %s", exc)
 

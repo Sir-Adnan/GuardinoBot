@@ -133,6 +133,15 @@ INLINE_BUTTONS: dict[str, str] = {
     "pay_zibal": "🏦 زیبال",
     "pay_payping": "🏦 پی‌پینگ",
     "pay_aqaye_pardakht": "🏦 آقای پرداخت",
+    # -- admin panel (⚙️ — keyboards.admin.admin.AdminPanel) --
+    "admin_web_panel": "🖥 پنل وب مدیریت",
+    "admin_servers": "مدیریت سرورها",
+    "admin_services": "مدیریت سرویس‌ها",
+    "admin_service_menues": "دسته بندی سرویس‌ها",
+    "admin_users": "مدیریت کاربران",
+    "admin_payments": "مدیریت پرداخت‌ها",
+    "admin_settings": "تنظیمات",
+    "admin_stats": "وضعیت",
     # -- generic confirm/cancel/back (shared across customer keyboards) --
     "confirm_action": "⚠️ تأیید",
     "common_back": "🔙 برگشت",

@@ -602,6 +602,77 @@ class SettingsUpdateIn(BaseModel):
     alerts_quiet_end_hour: Optional[int] = None
 
 
+# -- payment gateways ---------------------------------------------------------
+class GatewayFieldOut(BaseModel):
+    name: str
+    kind: str  # bool | int | str | secret
+    value: Any = None  # for non-secret fields
+    is_set: Optional[bool] = None  # for secret fields
+    hint: Optional[str] = None  # masked secret hint (e.g. ••••cd34)
+
+
+class GatewayOut(BaseModel):
+    key: str  # BotSetting key, e.g. payment_nowpayments
+    name: str
+    type: str  # crypto | rial | card | ...
+    fields: list[GatewayFieldOut]
+
+
+class GatewaysOut(BaseModel):
+    gateways: list[GatewayOut]
+
+
+class GatewayUpdateIn(BaseModel):
+    key: str
+    values: dict[str, Any]  # field name -> new value (empty secret = no change)
+
+
+class OfflineCoin(BaseModel):
+    code: str = ""  # auto-derived from label if blank
+    label: str
+    network: str = ""
+    address: str
+    enabled: bool = True
+    auto_check: bool = False
+
+
+class OfflineConfigOut(BaseModel):
+    enabled: bool = False
+    menu_title: str = ""
+    min_pay_amount: int = 0
+    require_screenshot: bool = True
+    coins: list[OfflineCoin] = []
+
+
+class OfflineConfigUpdateIn(BaseModel):
+    enabled: Optional[bool] = None
+    menu_title: Optional[str] = None
+    min_pay_amount: Optional[int] = None
+    require_screenshot: Optional[bool] = None
+    coins: Optional[list[OfflineCoin]] = None
+
+
+class OfflinePendingItem(BaseModel):
+    cp_id: int
+    transaction_id: int
+    user_id: int
+    username: Optional[str] = None
+    amount: int
+    coin_label: str = ""
+    network: str = ""
+    txid: str = ""
+    has_screenshot: bool = False
+    created_at: Optional[datetime] = None
+
+
+class OfflinePendingOut(BaseModel):
+    items: list[OfflinePendingItem]
+
+
+class OfflineReviewIn(BaseModel):
+    action: str  # approve | reject
+
+
 # -- force-join channels ------------------------------------------------------
 class ForceJoinChat(BaseModel):
     id: str  # channel id or @username — used for the membership check

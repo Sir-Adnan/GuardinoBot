@@ -77,10 +77,12 @@ const CAT_ORDER = [
   "reset",
   "reserve",
   "alerts",
+  "admin",
   "common",
   "other",
 ];
 const catOf = (key: string): string => {
+  if (key.startsWith("admin_")) return "admin";
   if (key.startsWith("pay_") || key === "purchase_pay") return "payment";
   if (key.startsWith("proxy_")) return "proxy";
   if (key.startsWith("account_")) return "account";

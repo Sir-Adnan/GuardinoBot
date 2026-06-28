@@ -88,6 +88,7 @@ const TITLE_KEYS: Record<string, string> = {
   "/audit": "audit.title",
   "/texts": "texts.title",
   "/buttons": "buttons.title",
+  "/gateways": "gateways.title",
   "/settings": "settings.title",
 };
 
@@ -162,6 +163,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     { key: "/audit", icon: <AuditOutlined />, label: t("nav.audit") },
                     { key: "/texts", icon: <FileTextOutlined />, label: t("nav.texts") },
                     { key: "/buttons", icon: <LayoutOutlined />, label: t("nav.buttons") },
+                    { key: "/gateways", icon: <CreditCardOutlined />, label: t("nav.gateways") },
                     { key: "/settings", icon: <SettingOutlined />, label: t("nav.settings") },
                   ]
                 : []),

@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 import config
 from app.keyboards import base
 from app.keyboards.admin import server, service
+from app.keyboards.premium import premium_button
 
 
 class AdminPanelAction(str, Enum):
@@ -30,37 +31,61 @@ class AdminPanel(InlineKeyboardBuilder):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         if config.WEB_PANEL_URL:
-            self.button(
-                text="🖥 پنل وب مدیریت",
-                web_app=WebAppInfo(url=config.WEB_PANEL_URL),
+            self.add(
+                premium_button(
+                    text="🖥 پنل وب مدیریت",
+                    key="admin_web_panel",
+                    web_app=WebAppInfo(url=config.WEB_PANEL_URL),
+                )
             )
-        self.button(
-            text="مدیریت سرورها",
-            callback_data=self.Callback(action=AdminPanelAction.servers),
+        self.add(
+            premium_button(
+                text="مدیریت سرورها",
+                key="admin_servers",
+                callback_data=self.Callback(action=AdminPanelAction.servers),
+            )
         )
-        self.button(
-            text="مدیریت سرویس‌ها",
-            callback_data=self.Callback(action=AdminPanelAction.services),
+        self.add(
+            premium_button(
+                text="مدیریت سرویس‌ها",
+                key="admin_services",
+                callback_data=self.Callback(action=AdminPanelAction.services),
+            )
         )
-        self.button(
-            text="دسته بندی سرویس‌ها",
-            callback_data=self.Callback(action=AdminPanelAction.service_menues),
+        self.add(
+            premium_button(
+                text="دسته بندی سرویس‌ها",
+                key="admin_service_menues",
+                callback_data=self.Callback(action=AdminPanelAction.service_menues),
+            )
         )
-        self.button(
-            text="مدیریت کاربران",
-            callback_data=self.Callback(action=AdminPanelAction.users),
+        self.add(
+            premium_button(
+                text="مدیریت کاربران",
+                key="admin_users",
+                callback_data=self.Callback(action=AdminPanelAction.users),
+            )
         )
-        self.button(
-            text="مدیریت پرداخت‌ها",
-            callback_data=self.Callback(action=AdminPanelAction.payments),
+        self.add(
+            premium_button(
+                text="مدیریت پرداخت‌ها",
+                key="admin_payments",
+                callback_data=self.Callback(action=AdminPanelAction.payments),
+            )
         )
-        self.button(
-            text="تنظیمات",
-            callback_data=self.Callback(action=AdminPanelAction.settings),
+        self.add(
+            premium_button(
+                text="تنظیمات",
+                key="admin_settings",
+                callback_data=self.Callback(action=AdminPanelAction.settings),
+            )
         )
-        self.button(
-            text="وضعیت",
-            callback_data=self.Callback(action=AdminPanelAction.stats),
+        self.add(
+            premium_button(
+                text="وضعیت",
+                key="admin_stats",
+                callback_data=self.Callback(action=AdminPanelAction.stats),
+            )
         )
         if config.WEB_PANEL_URL:
             self.adjust(1, 2, 1, 2, 1)

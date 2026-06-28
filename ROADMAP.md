@@ -24,8 +24,13 @@ insufficient-balance clarity), P13 (alerts v2 complete). Editor UX (texts insert
 grouping) + payment-method buttons customizable. Details in **Done log** + the **Pxx blocks**.
 
 **Current focus (in order):**
-1. **Plisio gateway** — client/verify/handler/IPN built ✅; needs the **web gateway-config** to enable it.
-2. **Web payment-gateway config** — enable/title/min-amount + **masked** api_key/IPN-secret, super-admin only.
+1. ✅ **Plisio gateway** — client/verify/handler/IPN built; now **configurable from the web** (#2).
+2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
+   `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
+   never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited
+   (field names only). Web page `pages/gateways` (NowPayments + Plisio: enabled/title/min/api_key/
+   ipn_secret/allowed_coins). ⚠️ enabling **Plisio** still needs a bot restart (to load its plugin +
+   create the row); setting the **NowPayments IPN secret** here unblocks crypto crediting.
 3. **Offline crypto gateway** — wallet-per-coin (USDT-BEP20/TRX/TON/…), customer picks + sends TXID+screenshot,
    manual admin confirm + optional on-chain auto-check. (needs a model + additive migration)
 4. **Admin glass buttons in the bot** — fix/extend the ⚙️ admin-panel inline buttons.
@@ -59,10 +64,31 @@ Immediate / carry-over (do anytime):
     `request.post()` (form/PHP-`$_POST`), **mandatory** api-key + `verify_hash`, credit only on
     `completed` (sets `status=finished` → balance counts `transaction.amount`); **`mismatch` never
     auto-credits** — alerts super-users for manual review; `confirming/pending` → status update.
-    All compiles. **Remaining: web config to enable/set api_key/menu_title/allowed_coins** (until then
-    it stays disabled = inert/safe).
-  - [ ] **Offline crypto gateway** (manual: admin wallet address → user pays → TXID/admin-confirm credit).
-  - [ ] Web payment-gateway config (P10) — enable/title/min-amount + masked keys/IPN-secret.
+    All compiles. **Configurable from the web** (gateway-config below).
+  - ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` + `pages/gateways` (super-admin):
+    NowPayments + Plisio enable/title/min/keys; secrets masked (read = is_set+last4, empty save = no
+    change), upsert, `settings:dirty`, audited (names only). Set the NowPayments IPN secret here.
+  - ✅ **Offline crypto gateway** — **no migration** (reuses `CryptoPayment` + `Provider.offline` +
+    `extra_data`). Config: `payment_offline` Settings (`offline/offline.py`: `CoinWallet` list +
+    `enabled_coins`/`coin_by_code`, `require_screenshot`), API `GET/PUT /payment-gateways/offline`
+    (super-admin, coins list, upsert, audited), web editor `OfflineGateway`. **Bot flow**
+    (`offline/handlers.py`, registered in handlers): pick coin → wallet **+ QR** (lazy `gen_qr` to dodge
+    the qr→app.main cycle) → customer sends TXID(+screenshot) → pending `CryptoPayment(offline,
+    waiting)` + Transaction(waiting) + super-admin **Approve/Reject** card. Approve → `finished` (the
+    only credit step; balance = Σ finished `amount`) + activate_service; Reject → `rejected` + user
+    notified. **No auto-credit**; idempotent (already-finished guard); cancel button; command-guarded
+    FSM. ✅ **Web pending-review** — `apply_offline_review` factored as the single credit path (used by
+    the bot card AND the web); `process_offline_review_queue` drains a Redis list (`offline:review:queue`)
+    in the 15s sync poll so web approve/reject runs in the BOT (credit+notify+activate). API
+    `GET /offline/pending`, `GET /offline/{id}/screenshot` (proxied via the bot's `get_file`),
+    `POST /offline/{id}/review` (queues). Web `OfflinePending` table (approve/reject queued + screenshot
+    viewer via auth'd blob). **Remaining (optional): on-chain auto-check** (TronGrid/BscScan/TON; the
+    `auto_check` flag is modelled).
+  - ✅ **Admin glass buttons (⚙️ panel)** — the 8 `AdminPanel` buttons (web-panel/servers/services/
+    service-menus/users/payments/settings/status) now route through `premium_button` with `admin_*`
+    keys (registered in `INLINE_BUTTONS`), so they're rename/emoji/colour-customizable in the web
+    Buttons editor under a new **"Admin panel"** category. (Sub-menu admin keyboards = future extend.)
+  - [ ] Extend gateway-config to the rial/card gateways; on-chain auto-check; web pending-offline review.
 - ✅ **Broadcast → non-blocking worker [§17.1]**: `app/utils/broadcast.py` (throttled, `TelegramRetryAfter`
   sleep-retry, marks `blocked_bot`, Redis progress + `resume_pending`). Web has read-only monitor/cancel.
   **Web compose/start dropped (owner decision)** — `/broadcast` + `/forward` in the bot (reply → command)

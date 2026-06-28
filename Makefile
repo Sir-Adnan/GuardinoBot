@@ -11,6 +11,6 @@ push:
 
 
 generate-client:
-	openapi-python-client update --path ./openapi.json --config openapi-generator-config.yaml
+	openapi-python-client update --path ./docs/references/upstream-apis/Marzban-API.json --config openapi-generator-config.yaml
 
 
