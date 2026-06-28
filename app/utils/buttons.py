@@ -109,6 +109,9 @@ INLINE_BUTTONS: dict[str, str] = {
     "purchase_redeem": "🎁 کد تخفیف دارم",
     # -- charge flow (payment.SelectPayAmount) --
     "pay_custom_amount": "✍️ مبلغ دلخواه",
+    "plisio_pay_online": "💳 پرداخت آنلاین Plisio",
+    "plisio_check_payment": "🔄 بررسی وضعیت Plisio",
+    "plisio_cancel_invoice": "❌ لغو فاکتور Plisio",
     # -- renew flow (proxy.RenewSelectMethod / ConfirmRenew) --
     "renew_now": "♻️ تمدید آنی اشتراک",
     "renew_reserve": "🌀 پلن پشتیبان (تمدید خودکار)",
@@ -167,6 +170,8 @@ DEFAULT_STYLES: dict[str, str] = {
     # money / confirm CTAs → green
     "purchase_buy": "success",
     "purchase_pay": "success",
+    "plisio_pay_online": "success",
+    "plisio_check_payment": "success",
     "proxy_renew": "success",
     "renew_now": "success",
     "renew_confirm": "success",
@@ -175,6 +180,7 @@ DEFAULT_STYLES: dict[str, str] = {
     "proxy_remove": "danger",
     "proxy_delete_payback": "danger",
     "reserve_cancel": "danger",
+    "plisio_cancel_invoice": "danger",
     "confirm_action": "danger",
 }
 

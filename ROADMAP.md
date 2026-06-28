@@ -40,12 +40,14 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    asks for confirmation then **reverses the credit + removes the subscription** via the shared
    `revoke_activated_transaction` (handlers split into approve / reject / reject_cancel; web-queue path
    keeps the `apply_offline_review` wrapper). Balance nets back correctly (no double-credit / negative).
-1. ✅ **Plisio gateway** — client/verify/handler/IPN built; now **configurable from the web** (#2).
+1. ⏳ **Plisio v2 fix** — move from fiat `source_amount/source_currency` invoices to
+   crypto `currency+amount`, Nobitex USDT/Toman rate conversion, manual check, and
+   web currency picker (`USDT_BSC` default).
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
    never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited
    (field names only). Web page `pages/gateways` (NowPayments + Plisio: enabled/title/min/api_key/
-   ipn_secret/allowed_coins). ⚠️ enabling **Plisio** still needs a bot restart (to load its plugin +
+   currency/rate fields). ⚠️ enabling **Plisio** still needs a bot restart (to load its plugin +
    create the row); setting the **NowPayments IPN secret** here unblocks crypto crediting.
 3. **Offline crypto gateway** — wallet-per-coin (USDT-BEP20/TRX/TON/…), customer picks + sends TXID+screenshot,
    manual admin confirm + optional on-chain auto-check. (needs a model + additive migration)
@@ -68,9 +70,9 @@ Immediate / carry-over (do anytime):
     (`crypto/views.py`). **Owner action: set the NowPayments *IPN secret* in the bot** or crypto
     crediting (correctly) won't run. Endpoints verified unchanged vs the live v1 API — any create-side
     failure needs the exact `NowPaymentsError` body from logs.
-  - ⏳ **Plisio gateway** — verified against the official OpenAPI (`Plisio-API.json`): server
-    `https://plisio.net/api/v1`, `GET /invoices/new` (hosted invoice via `source_amount`+
-    `source_currency`+`allowed_psys_cids`). Done: `crypto/plisio.py` client + `Settings`
+  - ⏳ **Plisio gateway v2** — verified against the official OpenAPI (`Plisio-API.json`): server
+    `https://plisio.net/api/v1`, `GET /invoices/new` (hosted invoice via crypto
+    `currency`+`amount`+`allowed_psys_cids`). Done/refreshing: `crypto/plisio.py` client + `Settings`
     (`payment_plisio`, web-configured) + `verify_callback` (HMAC-SHA1 over PHP-`serialize()`,
     **byte-exact self-tested**); `Provider.plisio` registered (fits VARCHAR(11) → **no migration**);
     `payment_plisio` wired into bot Settings (auto charge-menu button when enabled).

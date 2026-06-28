@@ -19,6 +19,8 @@ from app.keyboards.admin.user import ManageTrx, ManageTrxAction
 from app.main import bot, get_bot_username
 from app.models.user import CryptoPayment, Transaction, User
 from app.plugins.payment.crypto.clients import NowPaymentsAPI, NowPaymentsError
+from app.plugins.payment.crypto.plisio import PlisioAPI, PlisioError
+from app.plugins.payment.crypto.plisio_service import finalize_plisio_payment
 from app.plugins.payment.crypto.views import get_menu_title
 from app.utils import helpers
 from app.utils.filters import AdminAccess, IsSuperUser
@@ -280,6 +282,38 @@ async def admin_accept_trx(
 
     if transaction.type == Transaction.PaymentType.crypto:
         await transaction.fetch_related("crypto_payment")
+        if transaction.crypto_payment.provider == CryptoPayment.Provider.plisio:
+            txn_id = (
+                transaction.crypto_payment.payment_id
+                or transaction.crypto_payment.invoice_id
+            )
+            if not txn_id:
+                return await query.answer("no Plisio txn_id is present!", show_alert=True)
+            try:
+                ps = settings.payment_plisio
+                operation = await PlisioAPI.get_operation(
+                    txn_id, api_key=ps.api_key, api_base=ps.api_base
+                )
+                result = await finalize_plisio_payment(
+                    transaction, operation, source="admin_check"
+                )
+                await query.answer(
+                    f"Plisio status: {result.get('status') or 'unknown'}",
+                    show_alert=True,
+                )
+                return await admin_get_payment_command(
+                    query,
+                    user,
+                    callback_data=ManageTrx.Callback(
+                        user_id=callback_data.user_id,
+                        trx_id=callback_data.trx_id,
+                        action=ManageTrxAction.show,
+                        current_page=callback_data.current_page,
+                    ),
+                )
+            except PlisioError as exc:
+                await query.answer(f"Error: {exc}", show_alert=True)
+                raise exc
         if not transaction.crypto_payment.payment_id:
             return await query.answer("no payment_id is present!", show_alert=True)
         try:

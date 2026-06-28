@@ -325,6 +325,12 @@ class TransactionListItem(BaseModel):
     amount_free_given: int
     amount_paid: Optional[int] = None
     user_id: int
+    provider: Optional[str] = None
+    provider_txn_id: Optional[str] = None
+    invoice_url: Optional[str] = None
+    pay_currency: Optional[str] = None
+    pay_amount: Optional[float] = None
+    provider_status: Optional[str] = None
     created_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
@@ -625,6 +631,21 @@ class GatewaysOut(BaseModel):
 class GatewayUpdateIn(BaseModel):
     key: str
     values: dict[str, Any]  # field name -> new value (empty secret = no change)
+
+
+class PlisioCurrencyOut(BaseModel):
+    cid: str
+    currency: str = ""
+    name: str = ""
+    icon: str = ""
+    precision: str = ""
+    hidden: int = 0
+    maintenance: bool = False
+
+
+class PlisioCurrenciesOut(BaseModel):
+    items: list[PlisioCurrencyOut]
+    fallback: bool = False
 
 
 class OfflineCoin(BaseModel):

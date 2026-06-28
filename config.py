@@ -27,6 +27,7 @@ BOT_TOKEN = config("BOT_TOKEN")
 PROXY = config("PROXY", None)
 
 WEBHOOK_BASE_URL: str = config("WEBHOOK_BASE_URL").rstrip("/")
+PUBLIC_BASE_URL: str = config("PUBLIC_BASE_URL", default=WEBHOOK_BASE_URL).rstrip("/")
 
 
 AIOHTTP_SSL_CERTFILE = config("AIOHTTP_SSL_CERTFILE", default=None)
@@ -50,6 +51,20 @@ ZARINPAL_BASE_URL = config(
 NP_API_URL = config("NP_API_URL", default="https://api.nowpayments.io/v1")
 NP_API_KEY = config("NP_API_KEY", default=None)
 NP_IPN_SECRET_KEY = config("NP_IPN_SECRET_KEY", default=None)
+
+PLISIO_ENABLED = config("PLISIO_ENABLED", default=False, cast=bool)
+PLISIO_API_KEY = config("PLISIO_API_KEY", default=None)
+PLISIO_API_BASE = config("PLISIO_API_BASE", default="https://plisio.net/api/v1").rstrip("/")
+PLISIO_DEFAULT_CURRENCY = config("PLISIO_DEFAULT_CURRENCY", default="USDT_BSC")
+PLISIO_EXPIRE_MIN = config("PLISIO_EXPIRE_MIN", default=30, cast=int)
+PLISIO_RETURN_EXISTING = config("PLISIO_RETURN_EXISTING", default=0, cast=int)
+
+PAYMENT_RATE_PROVIDER = config("PAYMENT_RATE_PROVIDER", default="nobitex")
+PAYMENT_RATE_CACHE_SECONDS = config(
+    "PAYMENT_RATE_CACHE_SECONDS", default=30, cast=int
+)
+PAYMENT_USDT_MARGIN_PERCENT = config("PAYMENT_USDT_MARGIN_PERCENT", default="2")
+MANUAL_USDT_TOMAN_RATE = config("MANUAL_USDT_TOMAN_RATE", default=None)
 
 
 SUPER_USERS = {

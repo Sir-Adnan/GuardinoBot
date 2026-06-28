@@ -1,16 +1,10 @@
-"""Plisio charge-flow handler.
+"""Plisio charge-flow handler."""
 
-Kept SEPARATE from ``plisio.py`` (which holds the client + Settings and is
-imported by ``app.utils.settings``) so this module's heavy imports
-(``app.utils.settings``, models, keyboards) don't create a settings↔plisio
-import cycle. Mirrors the NowPayments flow end-to-end: charge-account entry →
-amount menu → (preset or custom amount) → create a Transaction + a hosted Plisio
-invoice and show the pay link. Crediting happens in ``crypto/views.py`` on the
-signature-verified IPN — never here.
-"""
+from typing import Literal
 
 from aiogram import F, Router
 from aiogram.filters import StateFilter
+from aiogram.filters.callback_data import CallbackData
 from aiogram.filters.command import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -21,49 +15,95 @@ from tortoise.transactions import in_transaction
 import config
 from app.keyboards import base
 from app.keyboards.admin.admin import AdminPanel, AdminPanelAction, CancelFormAdmin
+from app.keyboards.premium import premium_button
 from app.keyboards.user import payment
 from app.models.user import CryptoPayment, Invoice, Transaction, User
-from app.plugins.payment.clients import CouldNotGetUSDTPrice, NobitexMarketAPI
 from app.utils import settings
 from app.utils.filters import IsSuperUser
 
 from .plisio import SETTINGS_KEY_PREFIX, PlisioAPI, PlisioError
+from .plisio_service import finalize_plisio_payment
+from .rates import PaymentRateError, calculate_payable_usdt, get_usdt_toman_rate
 
 router = Router(name="payment/plisio")
 
 _UNAVAILABLE = (
     "📍 درحال حاضر امکان پرداخت ارز دیجیتال وجود ندارد! لطفا با پشتیبانی تماس بگیرید."
 )
-_RATE_ERR = "📍 خطایی در دریافت نرخ ارز رخ داد! لطفا با پشتیبانی تماس بگیرید."
+_RATE_ERR = (
+    "📍 خطایی در دریافت نرخ تتر رخ داد. لطفا چند دقیقه دیگر دوباره تلاش کنید یا با پشتیبانی تماس بگیرید."
+)
 
 
 class PlisioCustomAmountForm(StatesGroup):
     amount = State()
 
 
+class PlisioInvoiceAction(CallbackData, prefix="plisact"):
+    action: Literal["check", "cancel"]
+    transaction_id: int
+
+
 class PayUrl(InlineKeyboardBuilder):
-    def __init__(self, url: str, *args, **kwargs) -> None:
+    def __init__(self, url: str, transaction_id: int, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.button(text="💳 پرداخت", url=url)
+        self.add(
+            premium_button(
+                text="💳 پرداخت آنلاین",
+                key="plisio_pay_online",
+                url=url,
+            )
+        )
+        self.add(
+            premium_button(
+                text="🔄 بررسی وضعیت پرداخت",
+                key="plisio_check_payment",
+                callback_data=PlisioInvoiceAction(
+                    action="check", transaction_id=transaction_id
+                ),
+            )
+        )
+        self.add(
+            premium_button(
+                text="❌ لغو فاکتور",
+                key="plisio_cancel_invoice",
+                callback_data=PlisioInvoiceAction(
+                    action="cancel", transaction_id=transaction_id
+                ),
+            )
+        )
+        self.adjust(1)
 
 
-# --- 1) charge-account entry: show the amount menu --------------------------
+def _format_decimal(value) -> str:
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def _direct_invoice_type(mode: str | None):
+    if mode == "renew":
+        return Invoice.Type.renew_now
+    if mode == "reserve":
+        return Invoice.Type.renew_reserve
+    return Invoice.Type.purchase
+
+
 @router.message(
     F.text.in_([base.MainMenu.cancel, base.MainMenu.back]),
     ~CommandStart(),
     ~Command("menu"),
     StateFilter(PlisioCustomAmountForm),
 )
-@router.callback_query(
-    payment.ChargePanel.Callback.filter(F.method == SETTINGS_KEY_PREFIX)
-)
+@router.callback_query(payment.ChargePanel.Callback.filter(F.method == SETTINGS_KEY_PREFIX))
 async def charge(qmsg: CallbackQuery | Message, user: User, state: FSMContext = None):
     if (state is not None) and (await state.get_state() is not None):
         await state.clear()
         if isinstance(qmsg, CallbackQuery):
-            await qmsg.answer("🌀 عملیات لغو شد!")
+            await qmsg.answer("🌐 عملیات لغو شد!")
         else:
-            await qmsg.answer("🌀 عملیات لغو شد!", reply_markup=ReplyKeyboardRemove())
+            await qmsg.answer("🌐 عملیات لغو شد!", reply_markup=ReplyKeyboardRemove())
     _settings = settings.get_settings()
     ps = _settings.payment_plisio
     if not ps.enabled or not ps.api_key:
@@ -72,7 +112,7 @@ async def charge(qmsg: CallbackQuery | Message, user: User, state: FSMContext = 
         return await qmsg.answer(_UNAVAILABLE)
     text = (
         f"💎 افزایش اعتبار با <b>{ps.menu_title}</b>\n\n"
-        f"مبلغ موردِنظر را انتخاب کنید (حداقل {ps.min_pay_amount:,} تومان):"
+        f"مبلغ موردنظر را انتخاب کنید (حداقل {ps.min_pay_amount:,} تومان):"
     )
     markup = payment.SelectPayAmount(
         method=SETTINGS_KEY_PREFIX, _settings=_settings
@@ -82,7 +122,6 @@ async def charge(qmsg: CallbackQuery | Message, user: User, state: FSMContext = 
     return await qmsg.answer(text, reply_markup=markup)
 
 
-# --- 2) custom amount: prompt for a typed value -----------------------------
 @router.callback_query(
     payment.SelectPayAmount.Callback.filter(
         (F.amount == 0) & (F.method == SETTINGS_KEY_PREFIX)
@@ -101,14 +140,13 @@ async def custom_amount(
     await state.set_state(PlisioCustomAmountForm.amount)
     await state.set_data({"method": callback_data.method})
     await query.message.answer(
-        f"💴 مبلغ موردِنظر برای افزایش اعتبار را وارد کنید: (حداقل {min_pay_amount:,})",
+        f"💴 مبلغ موردنظر برای افزایش اعتبار را وارد کنید: (حداقل {min_pay_amount:,})",
         reply_markup=base.CancelUserForm(cancel=True).as_markup(
             resize_keyboard=True, one_time_keyboard=True
         ),
     )
 
 
-# --- 3) custom amount: capture the typed value ------------------------------
 @router.message(
     ~F.text.in_([CancelFormAdmin.cancel, base.MainMenu.main_menu]),
     ~CommandStart(),
@@ -143,25 +181,31 @@ async def get_custom_amount(message: Message, user: User, state: FSMContext):
     )
 
 
-# --- 4) create the transaction + hosted Plisio invoice ----------------------
-@router.callback_query(
-    payment.SelectPayAmount.Callback.filter(F.method == SETTINGS_KEY_PREFIX)
-)
+@router.callback_query(payment.SelectPayAmount.Callback.filter(F.method == SETTINGS_KEY_PREFIX))
 async def select_amount(
     qmsg: CallbackQuery | Message,
     user: User,
     callback_data: payment.SelectPayAmount.Callback,
 ):
-    _settings = settings.get_settings().payment_plisio
-    if not _settings.enabled or not _settings.api_key:
+    ps = settings.get_settings().payment_plisio
+    if not ps.enabled or not ps.api_key:
         if isinstance(qmsg, CallbackQuery):
             return await qmsg.answer(_UNAVAILABLE, show_alert=True)
         return await qmsg.answer(_UNAVAILABLE)
 
     await qmsg.answer("♻️ درحال پردازش! لطفا کمی منتظر بمانید...")
     try:
+        usdt_rate = await get_usdt_toman_rate(ps)
+        payable_usdt = calculate_payable_usdt(
+            callback_data.amount, usdt_rate, ps.usdt_margin_percent
+        )
+        currencies = ps.currency_codes()
+        selected_currency = ps.default_currency
+        if selected_currency not in currencies:
+            currencies.insert(0, selected_currency)
+        public_base = config.PUBLIC_BASE_URL
+
         async with in_transaction():
-            usdt_rate = await NobitexMarketAPI.get_price()
             transaction = await Transaction.create(
                 type=Transaction.PaymentType.crypto,
                 status=Transaction.Status.waiting,
@@ -170,15 +214,9 @@ async def select_amount(
                 user=user,
             )
             if callback_data.direct_mode is not None:
-                if callback_data.direct_mode == "renew":
-                    invoice_type = Invoice.Type.renew_now
-                elif callback_data.direct_mode == "reserve":
-                    invoice_type = Invoice.Type.renew_reserve
-                else:
-                    invoice_type = Invoice.Type.purchase
                 await Invoice.create(
                     amount=callback_data.amount,
-                    type=invoice_type,
+                    type=_direct_invoice_type(callback_data.direct_mode),
                     is_paid=False,
                     is_draft=True,
                     service_id=callback_data.service_id or None,
@@ -186,54 +224,140 @@ async def select_amount(
                     user=user,
                     transaction=transaction,
                 )
-            # fiat (USD) priced — Plisio converts to the coin the customer picks
-            usd_amount = round(callback_data.amount / usdt_rate, 2)
+
             inv = await PlisioAPI.create_invoice(
-                api_key=_settings.api_key,
+                api_key=ps.api_key,
+                api_base=ps.api_base,
                 order_number=str(transaction.id),
-                order_name=f"Charge #{transaction.id}",
-                source_amount=usd_amount,
-                source_currency="USD",
-                callback_url=config.WEBHOOK_BASE_URL + "/plisio",
-                allowed_psys_cids=(_settings.allowed_coins or None),
+                order_name=f"GuardinoBot #{transaction.id}",
+                description=f"GuardinoBot payment #{transaction.id}",
+                currency=selected_currency,
+                amount=payable_usdt,
+                allowed_psys_cids=",".join(currencies),
+                callback_url=f"{public_base}/payments/plisio/callback?json=true",
+                success_invoice_url=f"{public_base}/payments/plisio/success",
+                fail_invoice_url=f"{public_base}/payments/plisio/fail",
+                expire_min=ps.expire_min,
+                return_existing=ps.return_existing,
             )
-            invoice_url = inv.get("invoice_url")
-            if not invoice_url:
-                raise PlisioError("Plisio returned no invoice_url")
+            invoice_url = inv["invoice_url"]
+            txn_id = str(inv["txn_id"])
             await CryptoPayment.create(
                 transaction=transaction,
                 provider=CryptoPayment.Provider.plisio,
-                usdt_rate=usdt_rate,
-                invoice_id=str(inv.get("txn_id") or ""),
+                usdt_rate=int(usdt_rate),
+                invoice_id=txn_id,
+                payment_id=txn_id,
                 order_id=str(transaction.id),
-                price_amount=usd_amount,
-                price_currency="USD",
+                price_amount=float(payable_usdt),
+                price_currency=selected_currency,
+                pay_currency=selected_currency,
+                payment_status=CryptoPayment.PaymentStatus.waiting,
+                extra_data={
+                    "invoice_url": invoice_url,
+                    "rate": str(usdt_rate),
+                    "margin_percent": str(ps.usdt_margin_percent),
+                    "raw_create_response": inv.get("_raw"),
+                    "selected_currency": selected_currency,
+                    "allowed_currencies": currencies,
+                    "payable_usdt": str(payable_usdt),
+                    "status_source": "created",
+                },
             )
+
         toman = transaction.amount - transaction.amount_free_given
-        text = (
-            f"✔️ شما در حال افزایش اعتبار با <b>{_settings.menu_title}</b> هستید!\n\n"
-            f"💳 شماره فاکتور: <code>{transaction.id}</code>\n"
-            f"💰 مبلغ: <b>{toman:,}</b> تومان (~${usd_amount})\n\n"
-            "برای پرداخت روی دکمهٔ زیر بزنید 👇\n"
-            "پس از تأییدِ پرداخت، اعتبار به‌صورت خودکار اضافه می‌شود."
-        )
-        markup = PayUrl(url=invoice_url).as_markup()
+        text = f"""
+🧾 <b>فاکتور پرداخت ارزی</b>
+
+سرویس/شارژ: <b>{ps.menu_title}</b>
+شماره فاکتور: <code>{transaction.id}</code>
+مبلغ سفارش: <b>{toman:,}</b> تومان
+نرخ تتر: <b>{int(usdt_rate):,}</b> تومان
+مبلغ پرداختی: <b>{_format_decimal(payable_usdt)}</b> USDT
+شبکه پرداخت: <b>{selected_currency}</b>
+
+⏳ اعتبار فاکتور: <b>{ps.expire_min}</b> دقیقه
+
+برای پرداخت روی دکمه زیر بزنید. بعد از پرداخت، سفارش شما به‌صورت خودکار بررسی و فعال می‌شود.
+"""
+        markup = PayUrl(url=invoice_url, transaction_id=transaction.id).as_markup()
         if isinstance(qmsg, CallbackQuery):
             return await qmsg.message.edit_text(text=text, reply_markup=markup)
         return await qmsg.answer(text=text, reply_markup=markup)
+    except PaymentRateError:
+        if isinstance(qmsg, CallbackQuery):
+            return await qmsg.answer(_RATE_ERR, show_alert=True)
+        return await qmsg.answer(_RATE_ERR)
     except PlisioError:
         if isinstance(qmsg, CallbackQuery):
             return await qmsg.answer(_UNAVAILABLE, show_alert=True)
         return await qmsg.answer(_UNAVAILABLE)
-    except CouldNotGetUSDTPrice:
-        if isinstance(qmsg, CallbackQuery):
-            return await qmsg.answer(_RATE_ERR, show_alert=True)
-        return await qmsg.answer(_RATE_ERR)
 
 
-# --- in-bot admin settings (⚙️ → تنظیمات → درگاه‌ها) -------------------------
-# Full config (API key / allowed coins) lives in the WEB panel; in the bot we
-# only show a summary + an enable/disable toggle so the button is never dead.
+@router.callback_query(PlisioInvoiceAction.filter(F.action == "check"))
+async def check_invoice(
+    query: CallbackQuery,
+    user: User,
+    callback_data: PlisioInvoiceAction,
+):
+    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    if not transaction or transaction.user_id != user.id:
+        return await query.answer("فاکتور پیدا نشد.", show_alert=True)
+    if transaction.status == Transaction.Status.finished:
+        return await query.answer("پرداخت قبلا تأیید شده است ✅", show_alert=True)
+    await transaction.fetch_related("crypto_payment")
+    cp = transaction.crypto_payment
+    txn_id = cp.payment_id or cp.invoice_id
+    ps = settings.get_settings().payment_plisio
+    if not ps.api_key or not txn_id:
+        return await query.answer(_UNAVAILABLE, show_alert=True)
+    try:
+        operation = await PlisioAPI.get_operation(
+            txn_id, api_key=ps.api_key, api_base=ps.api_base
+        )
+        result = await finalize_plisio_payment(
+            transaction, operation, source="manual_check"
+        )
+    except PlisioError:
+        return await query.answer(
+            "امکان بررسی وضعیت پرداخت در این لحظه وجود ندارد.", show_alert=True
+        )
+
+    if result["result"] in {"completed", "already_finished"}:
+        return await query.answer("پرداخت تأیید شد ✅", show_alert=True)
+    if result["result"] == "pending":
+        return await query.answer(
+            "پرداخت هنوز در انتظار تأیید شبکه است.", show_alert=True
+        )
+    if result["result"] == "failed":
+        return await query.answer(
+            "پرداخت ناموفق، منقضی یا نامتناظر ثبت شده است.", show_alert=True
+        )
+    return await query.answer("وضعیت پرداخت نامشخص است؛ با پشتیبانی تماس بگیرید.", show_alert=True)
+
+
+@router.callback_query(PlisioInvoiceAction.filter(F.action == "cancel"))
+async def cancel_invoice(
+    query: CallbackQuery,
+    user: User,
+    callback_data: PlisioInvoiceAction,
+):
+    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    if not transaction or transaction.user_id != user.id:
+        return await query.answer("فاکتور پیدا نشد.", show_alert=True)
+    if transaction.status == Transaction.Status.finished:
+        return await query.answer("این فاکتور قبلا پرداخت و تأیید شده است.", show_alert=True)
+    await Transaction.filter(id=transaction.id).update(status=Transaction.Status.canceled)
+    await CryptoPayment.filter(transaction_id=transaction.id).update(
+        payment_status=CryptoPayment.PaymentStatus.failed,
+    )
+    try:
+        await query.message.edit_reply_markup(reply_markup=None)
+    except Exception:  # noqa: BLE001
+        pass
+    return await query.answer("فاکتور لغو شد.", show_alert=True)
+
+
 def _settings_kb(ps) -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
     kb.button(
@@ -255,15 +379,16 @@ def _settings_kb(ps) -> InlineKeyboardBuilder:
 @router.callback_query(F.data == f"pm:settings:{SETTINGS_KEY_PREFIX}", IsSuperUser())
 async def show_settings(qmsg: CallbackQuery, user: User):
     ps = settings.get_settings().payment_plisio
-    coins = ", ".join(ps.allowed_coins) if ps.allowed_coins else "همه"
+    coins = ", ".join(ps.currency_codes()) if ps.currency_codes() else "همه"
     text = (
-        "💎 <b>درگاهِ Plisio</b>\n\n"
+        "💎 <b>درگاه Plisio</b>\n\n"
         f"وضعیت: <b>{'فعال ✅' if ps.enabled else 'غیرفعال ❌'}</b>\n"
         f"نام در منو: <b>{ps.menu_title}</b>\n"
-        f"کلیدِ API: {'ثبت‌شده ✅' if ps.api_key else 'خالی ❌'}\n"
+        f"کلید API: {'ثبت‌شده ✅' if ps.api_key else 'خالی ❌'}\n"
         f"حداقل مبلغ: <code>{ps.min_pay_amount:,}</code> تومان\n"
-        f"کوین‌های مجاز: <code>{coins}</code>\n\n"
-        "ℹ️ تنظیماتِ کامل (کلیدِ API و کوین‌ها) از <b>پنلِ وب</b> انجام می‌شود."
+        f"ارز پیش‌فرض: <code>{ps.default_currency}</code>\n"
+        f"ارزهای مجاز: <code>{coins}</code>\n\n"
+        "ℹ️ تنظیمات کامل از پنل وب انجام می‌شود."
     )
     await qmsg.message.edit_text(
         text, reply_markup=_settings_kb(ps).as_markup(), disable_web_page_preview=True
@@ -275,7 +400,7 @@ async def toggle_settings(qmsg: CallbackQuery, user: User):
     ps = settings.get_settings().payment_plisio
     if not ps.enabled and not ps.api_key:
         return await qmsg.answer(
-            "ابتدا کلیدِ API را در پنلِ وب ثبت کنید.", show_alert=True
+            "ابتدا کلید API را در پنل وب ثبت کنید.", show_alert=True
         )
     ps.enabled = not ps.enabled
     await settings.Settings.update(payment_plisio=ps)

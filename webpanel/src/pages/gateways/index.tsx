@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import {
   Alert,
   App as AntdApp,
+  Avatar,
   Button,
   Card,
   Col,
   Input,
   InputNumber,
   Row,
+  Select,
   Skeleton,
+  Space,
   Switch,
   Tag,
   Typography,
@@ -24,7 +27,7 @@ const { Text } = Typography;
 
 interface Field {
   name: string;
-  kind: "bool" | "int" | "str" | "secret";
+  kind: "bool" | "int" | "str" | "list_str" | "secret";
   value?: any;
   is_set?: boolean;
   hint?: string;
@@ -34,6 +37,14 @@ interface Gateway {
   name: string;
   type: string;
   fields: Field[];
+}
+interface PlisioCurrency {
+  cid: string;
+  currency?: string;
+  name?: string;
+  icon?: string;
+  hidden?: number;
+  maintenance?: boolean;
 }
 
 const flabel = (t: (k: string) => string, name: string) => {
@@ -47,6 +58,7 @@ export function GatewaysPage() {
   const { message } = AntdApp.useApp();
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [edits, setEdits] = useState<Record<string, Record<string, any>>>({});
+  const [plisioCurrencies, setPlisioCurrencies] = useState<PlisioCurrency[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -69,6 +81,10 @@ export function GatewaysPage() {
       .then((r) => apply(r.data.gateways ?? []))
       .catch(() => message.error(t("actions.failed")))
       .finally(() => setLoading(false));
+    api
+      .get("/payment-gateways/plisio/currencies")
+      .then((r) => setPlisioCurrencies(r.data.items ?? []))
+      .catch(() => setPlisioCurrencies([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -100,6 +116,61 @@ export function GatewaysPage() {
   const renderField = (g: Gateway, f: Field) => {
     const val = edits[g.key]?.[f.name];
     const common = { style: { width: "100%" } as const };
+    const currencyOptions = plisioCurrencies.map((c) => ({
+      value: c.cid,
+      label: `${c.cid} ${c.name || ""}`.trim(),
+      currencyData: c,
+      disabled: !!c.hidden || !!c.maintenance,
+    }));
+    const currencyOption = (option: any) => {
+      const c = option.data?.currencyData || option.currencyData || {};
+      return (
+        <Space>
+          {c.icon ? <Avatar size={18} src={c.icon} /> : <Avatar size={18}>{String(option.value || "?").slice(0, 1)}</Avatar>}
+          <span className="mono">{option.value}</span>
+          <Text type="secondary">{c.name}</Text>
+          {(c.hidden || c.maintenance) && <Tag color="orange">off</Tag>}
+        </Space>
+      );
+    };
+    if (g.key === "payment_plisio" && f.name === "default_currency") {
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <Select
+            {...common}
+            showSearch
+            optionFilterProp="label"
+            value={val || "USDT_BSC"}
+            options={currencyOptions}
+            optionRender={currencyOption}
+            onChange={(v) => setField(g.key, f.name, v)}
+          />
+        </>
+      );
+    }
+    if (g.key === "payment_plisio" && f.name === "allowed_currencies") {
+      const current = Array.isArray(val)
+        ? val
+        : typeof val === "string" && val
+          ? val.split(",").map((x) => x.trim()).filter(Boolean)
+          : ["USDT_BSC", "USDT_TRX", "USDT_TON", "TRX", "TON", "LTC"];
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <Select
+            {...common}
+            mode="multiple"
+            showSearch
+            optionFilterProp="label"
+            value={current}
+            options={currencyOptions}
+            optionRender={currencyOption}
+            onChange={(v) => setField(g.key, f.name, v)}
+          />
+        </>
+      );
+    }
     if (f.kind === "bool") {
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 10, height: 32 }}>
@@ -139,6 +210,24 @@ export function GatewaysPage() {
             placeholder={t("gateways.secret_ph")}
             value={val}
             onChange={(e) => setField(g.key, f.name, e.target.value)}
+          />
+        </>
+      );
+    }
+    if (f.kind === "list_str") {
+      const current = Array.isArray(val)
+        ? val
+        : typeof val === "string" && val
+          ? val.split(",").map((x) => x.trim()).filter(Boolean)
+          : [];
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <Select
+            {...common}
+            mode="tags"
+            value={current}
+            onChange={(v) => setField(g.key, f.name, v)}
           />
         </>
       );

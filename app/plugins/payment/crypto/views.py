@@ -16,6 +16,12 @@ from app.utils import helpers, settings
 
 from .clients import PaymentResponse
 from .plisio import verify_callback as plisio_verify
+from .plisio_service import (
+    extract_order_number,
+    extract_txn_id,
+    finalize_plisio_payment,
+    find_plisio_transaction,
+)
 
 
 def _to_float(v: Any):
@@ -73,6 +79,8 @@ def get_menu_title(
 ) -> str:
     if provider == CryptoPayment.Provider.nowpayments:
         return _settings.payment_nowpayments.menu_title
+    elif provider == CryptoPayment.Provider.plisio:
+        return _settings.payment_plisio.menu_title
     elif provider == CryptoPayment.Provider.eswap:
         return _settings.payment_eswap.menu_title
     elif provider == CryptoPayment.Provider.swapino:
@@ -192,6 +200,64 @@ async def verify_payment(request: web.Request):
 """
         await bot.send_message(transaction.user_id, text)
     return web.Response(status=200)
+
+
+async def _read_plisio_payload(request: web.Request) -> dict[str, Any]:
+    wants_json = request.query.get("json") == "true"
+    content_type = (request.content_type or "").lower()
+    if wants_json or "json" in content_type:
+        try:
+            data = await request.json()
+            if isinstance(data, dict):
+                return data
+        except Exception:  # noqa: BLE001
+            if wants_json:
+                raise
+    return dict(await request.post())
+
+
+@routes.get("/payments/plisio/success")
+async def plisio_success(request: web.Request):
+    return web.Response(text="Payment result will be checked by the bot.")
+
+
+@routes.get("/payments/plisio/fail")
+async def plisio_fail(request: web.Request):
+    return web.Response(text="Payment was not completed.")
+
+
+@routes.post("/payments/plisio/callback")
+@routes.post("/payments/plisio/callback/")
+async def verify_plisio_payment_v2(request: web.Request):
+    _settings = settings.get_settings()
+    api_key = _settings.payment_plisio.api_key
+    if not api_key:
+        logger.error("plisio: API key not configured - rejecting callback")
+        return web.Response(status=403, text="not configured")
+
+    try:
+        payload = await _read_plisio_payload(request)
+    except Exception:  # noqa: BLE001
+        return web.Response(status=400, text="bad request")
+    if not payload:
+        return web.Response(status=400, text="empty body")
+    if not plisio_verify(payload, api_key):
+        logger.error("plisio: verify_hash verification failed")
+        return web.Response(status=403, text="invalid signature")
+
+    order_number = extract_order_number(payload)
+    txn_id = extract_txn_id(payload)
+    transaction = await find_plisio_transaction(
+        order_number=order_number, txn_id=txn_id
+    )
+    if not transaction:
+        logger.warning(
+            f"plisio: callback for unknown transaction order={order_number} txn={txn_id}"
+        )
+        return web.json_response({"ok": True})
+
+    result = await finalize_plisio_payment(transaction, payload, source="callback")
+    return web.json_response({"ok": True, **result})
 
 
 @routes.post("/plisio")

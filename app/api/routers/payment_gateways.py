@@ -30,9 +30,17 @@ from app.api.schemas import (
     OfflinePendingOut,
     OfflineReviewIn,
     OkOut,
+    PlisioCurrenciesOut,
+    PlisioCurrencyOut,
 )
 from app.models.setting import BotSetting
 from app.models.user import CryptoPayment, Transaction, User
+from app.plugins.payment.crypto.plisio import (
+    FALLBACK_CURRENCIES,
+    PlisioAPI,
+    PlisioError,
+    Settings as PlisioSettings,
+)
 from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/payment-gateways", tags=["payment-gateways"])
@@ -68,7 +76,15 @@ _GATEWAYS: dict[str, dict] = {
             "menu_title": "str",
             "min_pay_amount": "int",
             "api_key": "secret",
-            "allowed_coins": "str",
+            "api_base": "str",
+            "default_currency": "str",
+            "allowed_currencies": "list_str",
+            "expire_min": "int",
+            "return_existing": "int",
+            "rate_provider": "str",
+            "rate_cache_seconds": "int",
+            "usdt_margin_percent": "str",
+            "manual_usdt_toman_rate": "str",
         },
     },
 }
@@ -104,6 +120,10 @@ async def _out() -> GatewaysOut:
     gateways = []
     for key, spec in _GATEWAYS.items():
         data = await _read_json(key)
+        if key == "payment_plisio":
+            defaults = PlisioSettings().model_dump()
+            defaults.update(data)
+            data = defaults
         gateways.append(
             GatewayOut(
                 key=key,
@@ -143,6 +163,21 @@ async def update_gateway(
                 data[fname] = max(0, int(v or 0))
             except (ValueError, TypeError):
                 continue
+        elif kind == "list_str":
+            if isinstance(v, str):
+                items = v.split(",")
+            elif isinstance(v, list):
+                items = v
+            else:
+                items = []
+            clean: list[str] = []
+            seen: set[str] = set()
+            for item in items:
+                code = str(item or "").strip().upper()
+                if code and code not in seen:
+                    seen.add(code)
+                    clean.append(code)
+            data[fname] = clean
         elif kind == "secret":
             sv = str(v or "").strip()
             if not sv:  # empty = no change — never wipe a key on save
@@ -170,6 +205,53 @@ async def update_gateway(
             detail={"changed": changed},  # field NAMES only, never secret values
         )
     return await _out()
+
+
+def _plisio_currency_items(items: list[dict]) -> list[PlisioCurrencyOut]:
+    out: list[PlisioCurrencyOut] = []
+    for item in items:
+        cid = str(item.get("cid") or item.get("psys_cid") or "").strip().upper()
+        if not cid:
+            continue
+        try:
+            hidden = int(item.get("hidden") or 0)
+        except (TypeError, ValueError):
+            hidden = 0
+        out.append(
+            PlisioCurrencyOut(
+                cid=cid,
+                currency=str(item.get("currency") or ""),
+                name=str(item.get("name") or cid),
+                icon=str(item.get("icon") or ""),
+                precision=str(item.get("precision") or ""),
+                hidden=hidden,
+                maintenance=bool(item.get("maintenance")),
+            )
+        )
+    return out
+
+
+@router.get("/plisio/currencies", response_model=PlisioCurrenciesOut)
+async def plisio_currencies(
+    _: User = Depends(require_role(User.Role.super_user)),
+) -> PlisioCurrenciesOut:
+    data = await _read_json("payment_plisio")
+    api_key = str(data.get("api_key") or "").strip()
+    api_base = str(data.get("api_base") or "").strip() or None
+    if api_key:
+        try:
+            items = await PlisioAPI.get_currencies(
+                api_key=api_key, api_base=api_base, fiat="USD"
+            )
+            normalized = _plisio_currency_items(items)
+            if normalized:
+                return PlisioCurrenciesOut(items=normalized, fallback=False)
+        except PlisioError:
+            pass
+    return PlisioCurrenciesOut(
+        items=_plisio_currency_items(FALLBACK_CURRENCIES),
+        fallback=True,
+    )
 
 
 # -- offline (manual) crypto gateway: wallet-per-coin -------------------------
