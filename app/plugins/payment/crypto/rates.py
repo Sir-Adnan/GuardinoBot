@@ -51,11 +51,15 @@ def parse_nobitex_usdt_toman(data: dict[str, Any]) -> Decimal:
 
 
 async def _fetch_nobitex_usdt_toman() -> Decimal:
-    async with httpx.AsyncClient(timeout=Timeout(10.0), proxies=config.PROXY) as client:
-        response = await client.get(
-            "https://apiv2.nobitex.ir/market/stats",
-            params={"srcCurrency": "usdt", "dstCurrency": "rls"},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=Timeout(10.0), proxies=config.PROXY) as client:
+            response = await client.get(
+                "https://apiv2.nobitex.ir/market/stats",
+                params={"srcCurrency": "usdt", "dstCurrency": "rls"},
+            )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise PaymentRateError("nobitex request failed") from exc
     try:
         data = response.json()
     except Exception:  # noqa: BLE001

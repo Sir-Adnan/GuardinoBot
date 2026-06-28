@@ -13,6 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from tortoise.transactions import in_transaction
 
 import config
+from app.logger import get_logger
 from app.keyboards import base
 from app.keyboards.admin.admin import AdminPanel, AdminPanelAction, CancelFormAdmin
 from app.keyboards.premium import premium_button
@@ -26,6 +27,7 @@ from .plisio_service import finalize_plisio_payment
 from .rates import PaymentRateError, calculate_payable_usdt, get_usdt_toman_rate
 
 router = Router(name="payment/plisio")
+logger = get_logger("payment/plisio")
 
 _UNAVAILABLE = (
     "📍 درحال حاضر امکان پرداخت ارز دیجیتال وجود ندارد! لطفا با پشتیبانی تماس بگیرید."
@@ -289,6 +291,11 @@ async def select_amount(
             return await qmsg.answer(_RATE_ERR, show_alert=True)
         return await qmsg.answer(_RATE_ERR)
     except PlisioError:
+        if isinstance(qmsg, CallbackQuery):
+            return await qmsg.answer(_UNAVAILABLE, show_alert=True)
+        return await qmsg.answer(_UNAVAILABLE)
+    except Exception:  # noqa: BLE001
+        logger.exception("plisio invoice flow failed")
         if isinstance(qmsg, CallbackQuery):
             return await qmsg.answer(_UNAVAILABLE, show_alert=True)
         return await qmsg.answer(_UNAVAILABLE)

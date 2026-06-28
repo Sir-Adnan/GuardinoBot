@@ -211,10 +211,13 @@ class PlisioAPI:
         q = {"api_key": api_key}
         q.update({k: v for k, v in (params or {}).items() if v is not None})
         base_url = (api_base or cls.BASE_URL).rstrip("/")
-        async with httpx.AsyncClient(
-            timeout=Timeout(15.0), proxies=config.PROXY
-        ) as client:
-            response = await client.get(f"{base_url}/{action.lstrip('/')}", params=q)
+        try:
+            async with httpx.AsyncClient(
+                timeout=Timeout(15.0), proxies=config.PROXY
+            ) as client:
+                response = await client.get(f"{base_url}/{action.lstrip('/')}", params=q)
+        except httpx.HTTPError as exc:
+            raise PlisioError("Plisio request failed") from exc
         try:
             body = response.json()
         except Exception:  # noqa: BLE001
@@ -277,7 +280,7 @@ class PlisioAPI:
             },
             api_base=api_base,
         )
-        data = body.get("data") or {}
+        data = dict(body.get("data") or {})
         if not data.get("txn_id"):
             raise PlisioError("Plisio returned no txn_id")
         if not data.get("invoice_url"):
@@ -294,7 +297,7 @@ class PlisioAPI:
         api_base: str | None = None,
     ) -> dict:
         body = await cls._request(f"operations/{txn_id}", api_key, {}, api_base=api_base)
-        data = body.get("data") or {}
+        data = dict(body.get("data") or {})
         data["_raw"] = body
         return data
 
