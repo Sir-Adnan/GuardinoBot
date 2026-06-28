@@ -184,6 +184,38 @@ export function GatewaysPage() {
         </>
       );
     }
+    if (g.key === "payment_nowpayments" && f.name === "pay_currency") {
+      const npCoins = [
+        { value: "usdtbsc", label: "USDT — BEP20 (BSC)" },
+        { value: "usdttrc20", label: "USDT — TRC20 (Tron)" },
+        { value: "usdterc20", label: "USDT — ERC20 (Ethereum)" },
+        { value: "usdtsol", label: "USDT — Solana" },
+        { value: "usdtmatic", label: "USDT — Polygon" },
+        { value: "btc", label: "BTC" },
+        { value: "eth", label: "ETH" },
+        { value: "trx", label: "TRX (Tron)" },
+        { value: "ton", label: "TON" },
+        { value: "bnbbsc", label: "BNB (BSC)" },
+      ];
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <Select
+            {...common}
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder={t("gateways.pc_customer")}
+            value={val || undefined}
+            options={npCoins}
+            onChange={(v) => setField(g.key, f.name, v ?? "")}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t("gateways.pay_currency_hint")}
+          </Text>
+        </>
+      );
+    }
     if (f.name === "rate_provider") {
       return (
         <>

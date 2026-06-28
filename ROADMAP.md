@@ -55,10 +55,14 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    ✅ **Bugfix (this session): NowPayments invoice crashed** with `ValueError: Cannot specify ',' with 's'`
    — `ShowInvoiceText._allowed_variables["AMOUNT_DOLLARS"]` was `format_number` but the value is a
    pre-formatted string from `_format_decimal`; changed the formatter to `str` (nowpayments.py).
-   ✅ **Bugfix (this session): NowPayments "amountTo is too small"** — the hosted invoice let the customer
-   pick USDT-TRC20 (high min/fee). Added a configurable **`pay_currency`** (NowPayments `Settings` +
-   `create_invoice` param + web gateway field, default `usdtbsc`=BEP20, env `NP_PAY_CURRENCY`); empty =
-   customer picks. Fixes the coin on the page to the low-min BEP20.
+   ✅ **NowPayments "amountTo is too small" + the broken-page regression.** Root cause (from the official
+   Postman spec): `pay_currency` is **not** a `/v1/invoice` body field (response has `pay_currency:null`);
+   the hosted page shows the coins enabled in the **merchant dashboard** (`/v1/merchant/coins`). Forcing
+   `pay_currency=usdtbsc` (a coin not enabled in the account) blanked the page out. Fix: `NP_PAY_CURRENCY`
+   default **empty** = customer picks (always works); an optional fixed coin is **validated against
+   `/v1/merchant/coins`** (cached) and silently dropped if not enabled, so the page can never break again.
+   Web: `pay_currency` is now a **dropdown** (curated coins + "customer picks") with a hint. The real way
+   to avoid the TRC20 minimum is to enable **usdtbsc (BEP20)** in the NowPayments dashboard.
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
    never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited

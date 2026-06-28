@@ -142,6 +142,29 @@ class NowPaymentsAPI:
         )
         return r
 
+    # the coins ENABLED in the merchant dashboard — what the hosted invoice can
+    # actually show. Cached briefly so we can validate a fixed pay_currency
+    # without an extra round-trip on every invoice.
+    _coins_cache: list[str] | None = None
+    _coins_cache_ts: float = 0.0
+
+    @classmethod
+    async def get_merchant_coins(cls, *, use_cache: bool = True) -> list[str]:
+        import time
+
+        now = time.time()
+        if use_cache and cls._coins_cache is not None and (now - cls._coins_cache_ts) < 300:
+            return cls._coins_cache
+        r = await cls._call_api("GET", "/merchant/coins")
+        coins = (
+            [str(c).lower() for c in (r.get("currencies") or [])]
+            if isinstance(r, dict)
+            else []
+        )
+        cls._coins_cache = coins
+        cls._coins_cache_ts = now
+        return coins
+
     @classmethod
     async def create_invoice(
         cls,

@@ -938,11 +938,28 @@ async def select_amount(
                     transaction=transaction,
                 )
             tracking_code = f"GB-{transaction.id}"
+            # Optional fixed coin: only apply it if it's actually enabled in the
+            # merchant account, otherwise leave the invoice multi-coin. Passing a
+            # non-enabled coin blanks out the hosted page (NowPayments shows no
+            # currency), so this guard keeps the page from ever breaking.
+            pay_currency = (_settings.pay_currency or "").strip().lower() or None
+            if pay_currency:
+                try:
+                    enabled = await NowPaymentsAPI.get_merchant_coins()
+                    if enabled and pay_currency not in enabled:
+                        logger.warning(
+                            "nowpayments: pay_currency %r not enabled in account; "
+                            "falling back to customer-pick",
+                            pay_currency,
+                        )
+                        pay_currency = None
+                except Exception:  # noqa: BLE001 - never block a sale on this check
+                    pay_currency = None
             invoice = await NowPaymentsAPI.create_invoice(
                 price_amount=payable_usdt,
                 order_id=str(transaction.id),
                 order_description=tracking_code,
-                pay_currency=(_settings.pay_currency or None),
+                pay_currency=pay_currency,
                 ipn_callback_url=f"{public_base}/npipn",
                 success_url=f"{public_base}/payments/nowpayments/success",
                 cancel_url=f"{public_base}/payments/nowpayments/fail",

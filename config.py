@@ -51,10 +51,13 @@ ZARINPAL_BASE_URL = config(
 NP_API_URL = config("NP_API_URL", default="https://api.nowpayments.io/v1")
 NP_API_KEY = config("NP_API_KEY", default=None)
 NP_IPN_SECRET_KEY = config("NP_IPN_SECRET_KEY", default=None)
-# Fixed pay currency for NowPayments invoices — usdtbsc (BEP20) has a far lower
-# minimum/fee than usdttrc20 (TRC20), which triggers "amountTo is too small".
-# Empty = let the customer pick the coin on the hosted page.
-NP_PAY_CURRENCY = config("NP_PAY_CURRENCY", default="usdtbsc")
+# Optional fixed pay currency for NowPayments invoices. EMPTY (default) = the
+# customer picks among the coins enabled in your NowPayments dashboard (the
+# original, always-working behavior). A value is only applied if that coin is
+# actually enabled in the account (validated against /v1/merchant/coins), so a
+# misconfigured value can never blank out the hosted page. To avoid the costly
+# usdttrc20 (TRC20) minimum, enable usdtbsc (BEP20) in the NowPayments dashboard.
+NP_PAY_CURRENCY = config("NP_PAY_CURRENCY", default="")
 
 PLISIO_ENABLED = config("PLISIO_ENABLED", default=False, cast=bool)
 PLISIO_API_KEY = config("PLISIO_API_KEY", default=None)
