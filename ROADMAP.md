@@ -61,8 +61,13 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    `pay_currency=usdtbsc` (a coin not enabled in the account) blanked the page out. Fix: `NP_PAY_CURRENCY`
    default **empty** = customer picks (always works); an optional fixed coin is **validated against
    `/v1/merchant/coins`** (cached) and silently dropped if not enabled, so the page can never break again.
-   Web: `pay_currency` is now a **dropdown** (curated coins + "customer picks") with a hint. The real way
-   to avoid the TRC20 minimum is to enable **usdtbsc (BEP20)** in the NowPayments dashboard.
+   Web: `pay_currency` is now a **dropdown** (curated coins + an explicit selectable **"all coins"**
+   default) with a hint.
+   ✅ **The actual "amountTo is too small" cause = `is_fixed_rate`.** The invoice was created with
+   **fixed rate ON** (`create_invoice` defaulted `is_fixed_rate=True`), which locks the quote but enforces
+   a higher per-coin minimum. Fix: default **OFF** (floating) everywhere (`create_invoice`, NowPayments
+   `Settings.is_fixed_rate`, passed from `select_amount`) + a **web toggle** (`is_fixed_rate` bool field).
+   To avoid the TRC20 minimum entirely, also enable **usdtbsc (BEP20)** in the NowPayments dashboard.
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
    never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited
