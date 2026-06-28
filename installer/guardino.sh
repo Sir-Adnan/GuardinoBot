@@ -105,7 +105,25 @@ install_docker() {
 }
 
 rand()      { tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-24}"; echo; }
-public_ip() { curl -fsSL --ipv4 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'; }
+public_ip() { curl -fsSL --ipv4 https://api.ipify.org 2>/dev/null | head -1 || hostname -I 2>/dev/null | awk '{print $1}'; }
+
+# warn (non-fatal) if a domain doesn't resolve to this server — the #1 reason a
+# panel "doesn't come up" is a missing wildcard DNS record (no record → no HTTPS).
+dns_check() { # <domain>
+    local domain="$1" ip rip base
+    ip="$(public_ip)"; base="$(env_get "$PLATFORM_ENV" BASE_DOMAIN)"
+    rip="$(getent hosts "$domain" 2>/dev/null | awk '{print $1}' | head -1)"
+    [[ -n "$rip" ]] || rip="$(command -v dig >/dev/null 2>&1 && dig +short "$domain" A 2>/dev/null | tail -1)"
+    if [[ -z "$rip" ]]; then
+        warn "DNS: '${domain}' does not resolve yet."
+        warn "     Add a WILDCARD record so every bot works:  ${CYAN}*.${base} A ${ip}${NC}"
+        warn "     HTTPS will be issued automatically once DNS points here (no re-run needed)."
+    elif [[ "$rip" != "$ip" ]]; then
+        warn "DNS: '${domain}' resolves to ${rip}, not this server (${ip}). HTTPS will fail until fixed."
+    else
+        info "DNS OK: ${domain} -> ${ip}"
+    fi
+}
 
 # ----------------------------------------------------------------------------- env file helpers (KEY = "value")
 env_get() { # <file> <key>
@@ -344,6 +362,29 @@ ensure_images() {
     build_images
 }
 
+# the legacy single-install stack (project 'guardinobot') owns ports 80/443/8081
+# and conflicts with the platform — detect it so we can guide the cutover.
+legacy_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qE '^guardinobot-(caddy|bot|api|webpanel)-[0-9]'; }
+stop_legacy() {
+    [[ -f "${LEGACY_APP_DIR}/docker-compose.yml" ]] || return 0
+    info "Stopping the legacy single-install stack (frees 80/443/8081 + its bot token) ..."
+    docker compose -p guardinobot -f "${LEGACY_APP_DIR}/docker-compose.yml" --project-directory "$LEGACY_APP_DIR" down >/dev/null 2>&1 || true
+    docker start "${PLATFORM_PROJECT}-caddy" "${PLATFORM_PROJECT}-phpmyadmin" >/dev/null 2>&1 || true
+}
+# warn if the platform Caddy didn't actually start (almost always a port 80/443 clash)
+verify_platform() {
+    local st; st="$(docker inspect -f '{{.State.Status}}' "${PLATFORM_PROJECT}-caddy" 2>/dev/null || true)"
+    [[ "$st" == "running" ]] && return 0
+    warn "Caddy is not running (state: ${st:-missing}) — ports 80/443 are held by another service."
+    if legacy_running; then
+        warn "The legacy single-install stack is still up and owns 80/443/8081. Cut over with:"
+        warn "    cd ${LEGACY_APP_DIR} && docker compose down"
+        warn "    docker start ${PLATFORM_PROJECT}-caddy ${PLATFORM_PROJECT}-phpmyadmin"
+    else
+        warn "Find what owns the ports:  ss -ltnp '( sport = :80 or sport = :443 )'"
+    fi
+}
+
 platform_up() {
     need_root; install_docker
     ensure_net
@@ -356,6 +397,7 @@ platform_up() {
     dcp up -d
     wait_mariadb
     install_cli
+    verify_platform
     info "Platform is up (MariaDB · Redis · Caddy · phpMyAdmin)."
 }
 
@@ -486,6 +528,7 @@ do_add() {
     [[ -n "$BASE_DOMAIN" ]] || { prompt_base_domain; BASE_DOMAIN="$(env_get "$PLATFORM_ENV" BASE_DOMAIN)"; }
     [[ -n "$BASE_DOMAIN" ]] || die "A base domain is required (run platform-up and set it)."
     local domain="${name}.${BASE_DOMAIN}"
+    dns_check "$domain"
 
     local token; read -rp "${CYAN}Telegram bot token for '${name}': ${NC}" token
     [[ -n "$token" ]] || die "BOT_TOKEN is required."
@@ -503,6 +546,7 @@ do_add() {
 
     info "Starting bot '${name}' ..."
     dci "$name" up -d
+    verify_platform   # warn if Caddy isn't serving (e.g. legacy stack holds 80/443)
     hr
     info "Bot '${name}' is up."
     echo "  Panel / webhooks: ${CYAN}https://${domain}/${NC}"
@@ -652,6 +696,16 @@ do_migrate_legacy() {
     ensure_platform; ensure_images
     resolve_name "${1:-main}"; local name="$REPLY"
     reg_has "$name" && die "An instance named '$name' already exists."
+    # migrate-legacy imports the legacy DB into a NEW instance each time it runs —
+    # guard against accidentally creating duplicate copies of the same old bot.
+    if [[ -n "$(reg_names)" ]]; then
+        warn "You already have instance(s): $(reg_names | tr '\n' ' ')"
+        warn "migrate-legacy makes ANOTHER copy of the old bot's data into a new instance."
+        warn "After a successful migration you should STOP the old stack so it isn't re-migrated:"
+        warn "    docker compose -p guardinobot -f ${LEGACY_APP_DIR}/docker-compose.yml down"
+        read -rp "Create a NEW duplicate from the legacy bot anyway? (yes/no): " mg
+        [[ "$mg" == "yes" ]] || { info "Cancelled."; return; }
+    fi
     local lenv="${LEGACY_APP_DIR}/.env" lcompose="${LEGACY_APP_DIR}/docker-compose.yml"
 
     info "Backing up the legacy bot first ..."
@@ -675,6 +729,7 @@ do_migrate_legacy() {
         domain="${name}.${BASE_DOMAIN}"
     fi
     [[ -n "$domain" ]] || die "No domain resolved; set a base domain first."
+    dns_check "$domain"
 
     sani="$(sanitize "$name")"; db="guardino_${sani}"; user="gb_${sani:0:24}"; pass="$(rand 24)"; rdb="$(alloc_redis_db)"
     info "Creating ${db} + importing legacy data ..."
@@ -696,9 +751,23 @@ do_migrate_legacy() {
     dci "$name" up -d
     hr
     info "Migrated legacy bot -> instance '${name}'. Panel: ${CYAN}https://${domain}/${NC}"
-    warn "VERIFY it works (panel login decrypts secrets; bot polls; a test IPN arrives)."
-    warn "Only then stop the old stack:  docker compose -p guardinobot -f ${lcompose} down"
-    warn "Keep ${LEGACY_DATA_DIR} until you've confirmed everything."
+    # the legacy stack owns 80/443 (so the platform Caddy can't start) AND keeps
+    # polling the same bot token (conflict). Offer the cutover now.
+    if legacy_running; then
+        warn "The legacy stack is still running — it blocks the platform's HTTPS (ports 80/443)"
+        warn "and double-polls this bot's token. The new instance has the imported data."
+        read -rp "Stop the legacy stack now and cut over to the platform? (yes/no) [yes]: " co || true
+        if [[ "$co" != "no" ]]; then
+            stop_legacy
+            sleep 2; caddy_reload
+            verify_platform
+            info "Cut over. ${LEGACY_DATA_DIR} is kept as a safety net until you delete it."
+        else
+            warn "Until you stop it, the panel stays unreachable. Later run:"
+            warn "    cd ${LEGACY_APP_DIR} && docker compose down && docker start ${PLATFORM_PROJECT}-caddy ${PLATFORM_PROJECT}-phpmyadmin"
+        fi
+    fi
+    warn "VERIFY the new bot (panel login decrypts secrets; bot polls; a test IPN arrives)."
     hr
 }
 

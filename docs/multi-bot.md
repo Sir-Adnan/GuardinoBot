@@ -66,9 +66,15 @@ guardino migrate-legacy [name]   # default name: main
 Dumps the legacy DB (`/opt/GuardinoBot`), imports it into the shared MariaDB, and carries the legacy
 `.env` **wholesale** (keeps `SECRET_KEY_STRING` — required to decrypt stored panel passwords — plus
 `BOT_TOKEN`/`SUPER_USERS`/`WEB_JWT_SECRET`), repointing only `DATABASE_URL`/`REDIS_DB`/domain. You can
-**keep the legacy domain** for this bot so existing gateway IPN URLs stay valid. **Verify** the new bot
-(panel login decrypts secrets, bot polls, a test IPN arrives) **before** stopping the old stack; the old
-`/var/lib/guardinobot` is left intact as a safety net.
+**keep the legacy domain** for this bot so existing gateway IPN URLs stay valid.
+
+> **Cutover (important):** the legacy stack owns ports **80/443** (its own Caddy) — so the platform
+> Caddy can't start while it runs — and keeps polling the **same bot token** (a Telegram conflict).
+> `migrate-legacy` therefore **offers to stop the legacy stack and start the platform Caddy** at the end.
+> Accept it (after a quick sanity check). To do it manually:
+> `cd /opt/GuardinoBot && docker compose down && docker start guardino-platform-caddy guardino-platform-phpmyadmin`.
+> `/var/lib/guardinobot` is left intact as a safety net. If the legacy bot was active *after* the dump,
+> re-migrate (or re-import) to capture the latest before retiring it.
 
 ## Limits & notes
 
