@@ -32,6 +32,9 @@ class Settings(BaseSettings):
 
     api_key: str | None = config.NP_API_KEY
     ipn_secret_key: str | None = config.NP_IPN_SECRET_KEY
+    # fixed coin for the hosted invoice (e.g. usdtbsc=BEP20, usdttrc20=TRC20);
+    # empty = let the customer pick on the page. Default BEP20 (low min/fee).
+    pay_currency: str | None = config.NP_PAY_CURRENCY
     rate_provider: str = config.PAYMENT_RATE_PROVIDER
     rate_cache_seconds: int = config.PAYMENT_RATE_CACHE_SECONDS
     usdt_margin_percent: str = config.PAYMENT_USDT_MARGIN_PERCENT
@@ -939,6 +942,7 @@ async def select_amount(
                 price_amount=payable_usdt,
                 order_id=str(transaction.id),
                 order_description=tracking_code,
+                pay_currency=(_settings.pay_currency or None),
                 ipn_callback_url=f"{public_base}/npipn",
                 success_url=f"{public_base}/payments/nowpayments/success",
                 cancel_url=f"{public_base}/payments/nowpayments/fail",

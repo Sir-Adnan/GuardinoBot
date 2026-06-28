@@ -693,6 +693,7 @@
     "f_min_pay_amount": "Min payment amount (toman)",
     "f_api_key": "API key",
     "f_ipn_secret_key": "IPN secret",
+    "f_pay_currency": "Pay currency (e.g. usdtbsc=BEP20, usdttrc20=TRC20; empty=customer picks)",
     "f_allowed_coins": "Allowed coins (comma, e.g. USDT_TRX,TRX,TON)",
     "f_api_base": "API base URL",
     "f_default_currency": "Invoice base currency (USDT)",

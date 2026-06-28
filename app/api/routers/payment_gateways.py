@@ -69,6 +69,7 @@ _GATEWAYS: dict[str, dict] = {
             "min_pay_amount": "int",
             "api_key": "secret",
             "ipn_secret_key": "secret",
+            "pay_currency": "str",
             "rate_provider": "str",
             "rate_cache_seconds": "int",
             "usdt_margin_percent": "str",
@@ -100,6 +101,7 @@ _GATEWAY_DEFAULTS = {
     "payment_nowpayments": {
         "api_key": config.NP_API_KEY,
         "ipn_secret_key": config.NP_IPN_SECRET_KEY,
+        "pay_currency": config.NP_PAY_CURRENCY,
         "rate_provider": config.PAYMENT_RATE_PROVIDER,
         "rate_cache_seconds": config.PAYMENT_RATE_CACHE_SECONDS,
         "usdt_margin_percent": config.PAYMENT_USDT_MARGIN_PERCENT,

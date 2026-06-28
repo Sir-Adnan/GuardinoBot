@@ -55,6 +55,10 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    ✅ **Bugfix (this session): NowPayments invoice crashed** with `ValueError: Cannot specify ',' with 's'`
    — `ShowInvoiceText._allowed_variables["AMOUNT_DOLLARS"]` was `format_number` but the value is a
    pre-formatted string from `_format_decimal`; changed the formatter to `str` (nowpayments.py).
+   ✅ **Bugfix (this session): NowPayments "amountTo is too small"** — the hosted invoice let the customer
+   pick USDT-TRC20 (high min/fee). Added a configurable **`pay_currency`** (NowPayments `Settings` +
+   `create_invoice` param + web gateway field, default `usdtbsc`=BEP20, env `NP_PAY_CURRENCY`); empty =
+   customer picks. Fixes the coin on the page to the low-min BEP20.
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
    never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited

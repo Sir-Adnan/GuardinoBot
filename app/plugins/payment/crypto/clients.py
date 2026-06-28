@@ -149,6 +149,7 @@ class NowPaymentsAPI:
         order_id: int | str,
         order_description: str = "",
         price_currency: str = "usd",
+        pay_currency: str | None = None,
         ipn_callback_url: str | None = None,
         success_url: str | None = None,
         cancel_url: str | None = None,
@@ -164,6 +165,9 @@ class NowPaymentsAPI:
         data = {
             "price_amount": price_amount,
             "price_currency": price_currency,
+            # when set, the hosted page is fixed to this coin (avoids the
+            # customer picking a high-min coin → "amountTo is too small")
+            "pay_currency": pay_currency,
             "order_id": order_id,
             "order_description": order_description,
             "ipn_callback_url": callback_url,

@@ -693,6 +693,7 @@
     "f_min_pay_amount": "حداقل مبلغِ پرداخت (تومان)",
     "f_api_key": "کلیدِ API",
     "f_ipn_secret_key": "IPN secret",
+    "f_pay_currency": "ارزِ پرداخت (مثلاً usdtbsc=BEP20، usdttrc20=TRC20؛ خالی=انتخابِ مشتری)",
     "f_allowed_coins": "ارزهای مجاز (با کاما، مثلاً USDT_TRX,TRX,TON)",
     "f_api_base": "آدرس API",
     "f_default_currency": "ارز مبنای فاکتور (USDT)",
