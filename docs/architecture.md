@@ -64,10 +64,17 @@ make tag && make push                      # release (CI builds image on tag v*.
 
 Version in `app/__init__.py` (`__version__`). CI: `.github/workflows/` pushes the image to ghcr.io on a `v*.*.*` tag.
 
-**Server install** — `installer/guardinobot.sh` (menu: install/update/logs/backup/restart/status/uninstall):
+**Server install (single bot, legacy)** — `installer/guardinobot.sh` (menu: install/update/logs/backup/
+restart/status/uninstall):
 
 ```bash
 bash <(curl -Ls --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GuardinoBot/main/installer/guardinobot.sh)
 ```
 
 Clones the source to `/opt/GuardinoBot/src` and **builds locally** (independent of the ghcr image); `.env` + `docker-compose.yml` live in `/opt/GuardinoBot`, data in `/var/lib/guardinobot`. Migrations apply on start via `aerich upgrade`.
+
+**Server install (many bots on one server)** — `installer/guardino.sh` (CLI `guardino`): one shared
+platform (MariaDB + Redis + Caddy + phpMyAdmin) + an isolated app stack per bot (own DB + own
+`REDIS_DB` + own HTTPS subdomain), per-bot backup/restore, and `migrate-legacy` to import the single
+install above. **Full guide → `docs/multi-bot.md`.** No core code change — it only generates per-instance
+compose/.env/Caddy (the app is already env-driven; Telegram is polling).

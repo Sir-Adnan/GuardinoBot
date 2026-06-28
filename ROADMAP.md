@@ -79,6 +79,17 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
 4. **Admin glass buttons in the bot** — fix/extend the ⚙️ admin-panel inline buttons.
 5. Polish leftovers: theme presets/density done; remaining = micro-interactions, broader audit,
    detail-page tabs already done. Deferred infra: brand migration, aiogram 3.4.1 bump, Guardino reserves.
+6. ✅ **Multi-bot per server** — new `installer/guardino.sh` (CLI `guardino`): one shared **platform**
+   (MariaDB + Redis(`--databases 64`) + Caddy + phpMyAdmin on an external `guardino_net`) + an isolated
+   per-bot stack (bot/api/webpanel, shared images, **own DB + own `REDIS_DB` + own HTTPS subdomain**).
+   Wildcard subdomains (`<name>.<base>`); registry (`/opt/guardino/registry.tsv`) allocates DB names +
+   Redis-DB indices. Actions: `platform-up · add · update[all] · list · backup[all] · restore <name> ·
+   remove · migrate-legacy · logs/restart/...`. Per-bot **backup/restore** (DB dump + `.env` + compose;
+   restore one bot independently). `migrate-legacy` imports the single install as instance #1 (carries
+   `SECRET_KEY_STRING`). **No core code change** (app is env-driven; polling; per-bot `aerich upgrade`).
+   Caddy path list completed (was missing `/plisio` + `/payments/*`). Legacy `installer/guardinobot.sh`
+   kept for single installs + as migration source. Guide → `docs/multi-bot.md`. ⏳ Needs a real-server
+   end-to-end run (build/up not possible in the dev shell — only `bash -n` + generator dry-run passed).
 
 Immediate / carry-over (do anytime):
 - [ ] Verify Phase 3/4 premium rendering on a real deploy (Premium owner); if the fields are
