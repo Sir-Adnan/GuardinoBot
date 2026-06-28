@@ -123,9 +123,20 @@ env_set() { # <file> <key> <value>
 }
 
 # ----------------------------------------------------------------------------- name validation
+# DB name/user fragment (a-z0-9_); instance names are normalized by clean_name below
 sanitize() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '_' | sed -E 's/_+/_/g; s/^_+//; s/_+$//'; }
-validate_name() { # DNS-safe instance name
-    [[ "$1" =~ ^[a-z0-9]([a-z0-9-]{0,30})?$ ]] || die "Invalid name '$1' (use a-z, 0-9, '-'; start alphanumeric; max 31)."
+# normalize any input to a DNS/compose-safe instance name (lowercase a-z0-9-, max 31)
+clean_name() {
+    local out; out="$(echo "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | sed -E 's/-+/-/g; s/^-+//; s/-+$//')"
+    out="${out:0:31}"; sed -E 's/-+$//' <<<"$out"
+}
+# read+normalize an instance name into the caller's $name; warn if it changed
+resolve_name() { # <current name or empty> ; sets global REPLY
+    local raw="$1"
+    [[ -n "$raw" ]] || read -rp "Instance name (a-z0-9-): " raw
+    REPLY="$(clean_name "$raw")"
+    [[ -n "$REPLY" ]] || die "Invalid instance name '${raw}' (use letters a-z, digits, '-')."
+    [[ "$REPLY" == "$raw" ]] || warn "Normalized name to '${REPLY}'."
 }
 
 # ----------------------------------------------------------------------------- registry
@@ -325,6 +336,14 @@ build_images() {
     info "Images built: ${BOT_IMAGE} · ${WEB_IMAGE}"
 }
 
+# make sure the shared images exist (build them if a bot is added before a full install)
+ensure_images() {
+    docker image inspect "$BOT_IMAGE" >/dev/null 2>&1 && docker image inspect "$WEB_IMAGE" >/dev/null 2>&1 && return 0
+    warn "Shared images not found — building them now ..."
+    [[ -d "${SRC_DIR}/.git" ]] || clone_or_update_src
+    build_images
+}
+
 platform_up() {
     need_root; install_docker
     ensure_net
@@ -341,7 +360,7 @@ platform_up() {
 }
 
 ensure_platform() {
-    [[ -f "$PLATFORM_COMPOSE" ]] || die "Platform not initialized. Run: ${CYAN}guardino platform-up${NC}"
+    [[ -f "$PLATFORM_COMPOSE" ]] || die "Platform not initialized yet. Pick ${CYAN}'1) Install / init platform'${NC} from the menu first (or run: ${CYAN}guardino install${NC})."
     load_platform_creds
     docker ps --format '{{.Names}}' | grep -qx "${PLATFORM_PROJECT}-mariadb" || { info "Platform not running; starting ..."; dcp up -d; wait_mariadb; }
 }
@@ -459,10 +478,8 @@ do_platform_up() {
 }
 
 do_add() {
-    need_root; ensure_platform
-    local name="${1:-}"
-    [[ -n "$name" ]] || read -rp "Instance name (a-z0-9-): " name
-    validate_name "$name"
+    need_root; ensure_platform; ensure_images
+    resolve_name "${1:-}"; local name="$REPLY"
     reg_has "$name" && die "An instance named '$name' already exists."
 
     BASE_DOMAIN="$(env_get "$PLATFORM_ENV" BASE_DOMAIN)"
@@ -571,10 +588,9 @@ do_backup() {
 }
 
 do_restore() { # name file
-    need_root; ensure_platform
-    local name="${1:-}" file="${2:-}"
-    [[ -n "$name" ]] || read -rp "Instance name to restore as: " name
-    validate_name "$name"
+    need_root; ensure_platform; ensure_images
+    local file="${2:-}"
+    resolve_name "${1:-}"; local name="$REPLY"
     [[ -n "$file" ]] || { ls -1t "${BACKUP_ROOT}/${name}"/*.tar.gz 2>/dev/null | head; read -rp "Backup file path: " file; }
     [[ -f "$file" ]] || die "Backup file not found: $file"
 
@@ -633,8 +649,8 @@ do_remove() {
 do_migrate_legacy() {
     need_root
     [[ -f "${LEGACY_APP_DIR}/.env" ]] || die "No legacy install found at ${LEGACY_APP_DIR}."
-    ensure_platform
-    local name="${1:-main}"; validate_name "$name"
+    ensure_platform; ensure_images
+    resolve_name "${1:-main}"; local name="$REPLY"
     reg_has "$name" && die "An instance named '$name' already exists."
     local lenv="${LEGACY_APP_DIR}/.env" lcompose="${LEGACY_APP_DIR}/docker-compose.yml"
 
@@ -743,24 +759,26 @@ menu() {
         echo "  0) Exit"
         hr
         read -rp "Choice: " c || exit 0
+        # each action runs in a subshell so a failure (die) returns to the menu
+        # instead of dropping the user back to the shell.
         case "$c" in
-            1) do_install ;;
-            2) do_add ;;
-            3) read -rp "Instance [all]: " t || true; do_update "${t:-all}" ;;
-            4) do_list ;;
-            5) read -rp "Instance [all]: " t || true; do_backup "${t:-all}" ;;
-            6) do_restore ;;
-            7) do_logs ;;
-            8) read -rp "Action (restart/stop/start): " act || true; read -rp "Instance: " t || true
-               case "$act" in restart) do_restart "$t";; stop) do_stop "$t";; start) do_start "$t";; *) warn "Unknown.";; esac ;;
-            9) do_status ;;
-            10) do_edit_env ;;
-            11) ensure_platform; prompt_base_domain ;;
-            12) read -rp "New instance name [main]: " t || true; do_migrate_legacy "${t:-main}" ;;
-            13) do_remove ;;
-            14) do_uninstall ;;
-            0) exit 0 ;;
-            *) warn "Invalid option." ;;
+            1)  ( do_install ) || true ;;
+            2)  ( do_add ) || true ;;
+            3)  ( read -rp "Instance [all]: " t || true; do_update "${t:-all}" ) || true ;;
+            4)  ( do_list ) || true ;;
+            5)  ( read -rp "Instance [all]: " t || true; do_backup "${t:-all}" ) || true ;;
+            6)  ( do_restore ) || true ;;
+            7)  ( do_logs ) || true ;;
+            8)  ( read -rp "Action (restart/stop/start): " act || true; read -rp "Instance: " t || true
+                  case "$act" in restart) do_restart "$t";; stop) do_stop "$t";; start) do_start "$t";; *) warn "Unknown action.";; esac ) || true ;;
+            9)  ( do_status ) || true ;;
+            10) ( do_edit_env ) || true ;;
+            11) ( ensure_platform; prompt_base_domain ) || true ;;
+            12) ( read -rp "New instance name [main]: " t || true; do_migrate_legacy "${t:-main}" ) || true ;;
+            13) ( do_remove ) || true ;;
+            14) ( do_uninstall ) || true ;;
+            0)  exit 0 ;;
+            *)  warn "Invalid option." ;;
         esac
     done
 }
