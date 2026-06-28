@@ -24,6 +24,14 @@ insufficient-balance clarity), P13 (alerts v2 complete). Editor UX (texts insert
 grouping) + payment-method buttons customizable. Details in **Done log** + the **Pxx blocks**.
 
 **Current focus (in order):**
+0. ✅ **Bugfix — Plisio/offline buttons were dead in the bot.** Each gateway must replicate the full
+   handler surface (every plugin does its own; there is no generic one). Plisio/offline only had the
+   final `SelectPayAmount` handler, so the **charge-account** flow (`ChargePanel.Callback`, no amount)
+   + custom-amount sub-flow had no handler, and `select_*` only accepted `CallbackQuery`. Added to both:
+   `charge` (ChargePanel entry → amount menu), `custom_amount` (amount==0 prompt) + FSM message capture,
+   made the final handler dual-type (`CallbackQuery | Message`). Also the in-bot **⚙️→تنظیمات**
+   `pm:settings:{plisio,offline}` button was dead → added a minimal admin screen (masked summary +
+   enable/disable toggle, guarded against enabling a misconfigured gateway + "configure fully in web").
 1. ✅ **Plisio gateway** — client/verify/handler/IPN built; now **configurable from the web** (#2).
 2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
    `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,

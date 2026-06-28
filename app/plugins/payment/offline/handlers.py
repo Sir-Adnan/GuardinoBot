@@ -16,15 +16,22 @@ from datetime import datetime as dt
 from typing import Literal
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from tortoise.transactions import in_transaction
 
 import config
+from app.keyboards import base
+from app.keyboards.admin.admin import AdminPanel, AdminPanelAction, CancelFormAdmin
 from app.keyboards.user import payment
 from app.models.user import CryptoPayment, Invoice, Transaction, User
 from app.utils import helpers, settings
@@ -40,6 +47,7 @@ _UNAVAILABLE = (
 
 
 class OfflineForm(StatesGroup):
+    custom_amount = State()  # awaiting a typed charge amount
     proof = State()  # awaiting TXID (+ optional screenshot)
 
 
@@ -64,10 +72,105 @@ def _qr_png(text: str) -> BufferedInputFile:
     return BufferedInputFile(buf.getvalue(), filename="wallet.png")
 
 
-# --- 1) method selected: show the coin list ---------------------------------
+# --- 0) charge-account entry: show the amount menu --------------------------
+@router.message(
+    F.text.in_([base.MainMenu.cancel, base.MainMenu.back]),
+    ~CommandStart(),
+    ~Command("menu"),
+    StateFilter(OfflineForm.custom_amount),
+)
+@router.callback_query(
+    payment.ChargePanel.Callback.filter(F.method == SETTINGS_KEY_PREFIX)
+)
+async def charge(qmsg: CallbackQuery | Message, user: User, state: FSMContext = None):
+    if (state is not None) and (await state.get_state() is not None):
+        await state.clear()
+        if isinstance(qmsg, CallbackQuery):
+            await qmsg.answer("🌀 عملیات لغو شد!")
+        else:
+            await qmsg.answer("🌀 عملیات لغو شد!", reply_markup=ReplyKeyboardRemove())
+    s = settings.get_settings()
+    if not s.payment_offline.enabled or not s.payment_offline.enabled_coins():
+        if isinstance(qmsg, CallbackQuery):
+            return await qmsg.answer(_UNAVAILABLE, show_alert=True)
+        return await qmsg.answer(_UNAVAILABLE)
+    text = (
+        f"💠 پرداختِ دستیِ ارز دیجیتال — <b>{s.payment_offline.menu_title}</b>\n\n"
+        f"مبلغ موردِنظر برای افزایش اعتبار را انتخاب کنید "
+        f"(حداقل {s.payment_offline.min_pay_amount:,} تومان):"
+    )
+    markup = payment.SelectPayAmount(
+        method=SETTINGS_KEY_PREFIX, _settings=s
+    ).as_markup()
+    if isinstance(qmsg, CallbackQuery):
+        return await qmsg.message.edit_text(text, reply_markup=markup)
+    return await qmsg.answer(text, reply_markup=markup)
+
+
+# --- 0b) custom amount: prompt + capture ------------------------------------
+@router.callback_query(
+    payment.SelectPayAmount.Callback.filter(
+        (F.amount == 0) & (F.method == SETTINGS_KEY_PREFIX)
+    )
+)
+async def custom_amount(
+    query: CallbackQuery,
+    user: User,
+    callback_data: payment.SelectPayAmount.Callback,
+    state: FSMContext,
+):
+    _settings = settings.get_settings()
+    min_pay_amount, _, _ = payment.get_payment_variables(
+        callback_data.method, _settings
+    )
+    await state.set_state(OfflineForm.custom_amount)
+    await query.message.answer(
+        f"💴 مبلغ موردِنظر برای افزایش اعتبار را وارد کنید: (حداقل {min_pay_amount:,})",
+        reply_markup=base.CancelUserForm(cancel=True).as_markup(
+            resize_keyboard=True, one_time_keyboard=True
+        ),
+    )
+
+
+@router.message(
+    ~F.text.in_([CancelFormAdmin.cancel, base.MainMenu.main_menu]),
+    ~CommandStart(),
+    ~Command("menu"),
+    OfflineForm.custom_amount,
+)
+async def get_custom_amount(message: Message, user: User, state: FSMContext):
+    try:
+        amount = int(message.text)
+    except (ValueError, TypeError):
+        return await message.reply("❌ لطفا مقداری عددی وارد کنید:")
+    _settings = settings.get_settings()
+    min_pay_amount, free_after, free_after_percent = payment.get_payment_variables(
+        SETTINGS_KEY_PREFIX, _settings
+    )
+    if amount < min_pay_amount:
+        return await message.reply(
+            f"❌ لطفا مقداری بیشتر از {min_pay_amount:,} وارد کنید:"
+        )
+    free = int(
+        0
+        if (not free_after) or (amount < free_after)
+        else amount * (free_after_percent / 100)
+    )
+    await state.clear()
+    return await select_offline(
+        message,
+        user,
+        callback_data=payment.SelectPayAmount.Callback(
+            amount=amount, free=free, method=SETTINGS_KEY_PREFIX
+        ),
+        state=state,
+    )
+
+
+# --- 1) amount chosen: show the coin list -----------------------------------
 @router.callback_query(payment.SelectPayAmount.Callback.filter(F.method == SETTINGS_KEY_PREFIX))
 async def select_offline(
-    qmsg: CallbackQuery,
+    qmsg: CallbackQuery | Message,
     user: User,
     callback_data: payment.SelectPayAmount.Callback,
     state: FSMContext,
@@ -75,7 +178,9 @@ async def select_offline(
     s = settings.get_settings().payment_offline
     coins = s.enabled_coins() if s.enabled else []
     if not coins:
-        return await qmsg.answer(_UNAVAILABLE, show_alert=True)
+        if isinstance(qmsg, CallbackQuery):
+            return await qmsg.answer(_UNAVAILABLE, show_alert=True)
+        return await qmsg.answer(_UNAVAILABLE)
     await state.set_state(None)
     await state.update_data(
         amount=callback_data.amount,
@@ -89,10 +194,12 @@ async def select_offline(
         kb.button(text=c.label, callback_data=OfflineCoinCb(code=c.code))
     kb.button(text="🔙 انصراف", callback_data=OfflineCancelCb())
     kb.adjust(1)
-    await qmsg.message.edit_text(
-        "💠 ارزِ موردِنظر برای پرداخت را انتخاب کنید:", reply_markup=kb.as_markup()
-    )
-    await qmsg.answer()
+    text = "💠 ارزِ موردِنظر برای پرداخت را انتخاب کنید:"
+    if isinstance(qmsg, CallbackQuery):
+        await qmsg.message.edit_text(text, reply_markup=kb.as_markup())
+        await qmsg.answer()
+    else:
+        await qmsg.answer(text, reply_markup=kb.as_markup())
 
 
 # --- 2) coin selected: show wallet + QR, ask for the TXID --------------------
@@ -362,3 +469,56 @@ async def offline_review(
             await qmsg.message.edit_reply_markup(reply_markup=None)
         except Exception:  # noqa: BLE001
             pass
+
+
+# --- in-bot admin settings (⚙️ → تنظیمات → درگاه‌ها) -------------------------
+# Wallets/coins are configured in the WEB panel; in the bot we only show a
+# summary + an enable/disable toggle so the button is never dead.
+def _settings_kb(s) -> InlineKeyboardBuilder:
+    kb = InlineKeyboardBuilder()
+    kb.button(
+        text=(
+            "🟢 فعال — برای غیرفعال‌کردن بزنید"
+            if s.enabled
+            else "🔴 غیرفعال — برای فعال‌کردن بزنید"
+        ),
+        callback_data=f"pm:toggle:{SETTINGS_KEY_PREFIX}",
+    )
+    kb.button(
+        text="🔙 برگشت",
+        callback_data=AdminPanel.Callback(action=AdminPanelAction.settings),
+    )
+    kb.adjust(1)
+    return kb
+
+
+@router.callback_query(F.data == f"pm:settings:{SETTINGS_KEY_PREFIX}", IsSuperUser())
+async def show_settings(qmsg: CallbackQuery, user: User):
+    s = settings.get_settings().payment_offline
+    n_coins = len(s.enabled_coins())
+    text = (
+        "💠 <b>درگاهِ پرداختِ دستیِ ارز دیجیتال</b>\n\n"
+        f"وضعیت: <b>{'فعال ✅' if s.enabled else 'غیرفعال ❌'}</b>\n"
+        f"نام در منو: <b>{s.menu_title}</b>\n"
+        f"کیف‌پول‌های فعال: <code>{n_coins}</code>\n"
+        f"حداقل مبلغ: <code>{s.min_pay_amount:,}</code> تومان\n"
+        f"الزامِ اسکرین‌شات: {'بله' if s.require_screenshot else 'خیر'}\n\n"
+        "ℹ️ آدرسِ کیف‌پول‌ها و تنظیماتِ کامل از <b>پنلِ وب</b> انجام می‌شود."
+    )
+    await qmsg.message.edit_text(
+        text, reply_markup=_settings_kb(s).as_markup(), disable_web_page_preview=True
+    )
+
+
+@router.callback_query(F.data == f"pm:toggle:{SETTINGS_KEY_PREFIX}", IsSuperUser())
+async def toggle_settings(qmsg: CallbackQuery, user: User):
+    s = settings.get_settings().payment_offline
+    if not s.enabled and not s.enabled_coins():
+        return await qmsg.answer(
+            "ابتدا حداقل یک کیف‌پولِ فعال در پنلِ وب اضافه کنید.", show_alert=True
+        )
+    s.enabled = not s.enabled
+    await settings.Settings.update(payment_offline=s)
+    await settings.reload_settings()
+    await qmsg.answer("به‌روزرسانی شد ✅")
+    await show_settings(qmsg, user)
