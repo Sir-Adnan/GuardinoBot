@@ -282,24 +282,17 @@ async def select_amount(
             )
 
         toman = transaction.amount - transaction.amount_free_given
-        allowed_text = _short_currency_list(currencies)
         text = f"""
-🧾 <b>فاکتور پرداخت امن</b>
-
-سرویس/شارژ: <b>{ps.menu_title}</b>
-کد پیگیری: <code>GB-{transaction.id}</code>
-شناسه Plisio: <code>{txn_id}</code>
+🧾 <b>فاکتور پرداخت ارزی</b>
 
 مبلغ سفارش: <b>{toman:,}</b> تومان
-مبلغ مبنا در درگاه: <b>{_format_decimal(payable_usdt)}</b> USDT
-نرخ محاسبه: <b>{int(usdt_rate):,}</b> تومان
+کد پیگیری: <code>GB-{transaction.id}</code>
+شناسه درگاه: <code>{txn_id}</code>
 
-ارزهای قابل پرداخت: <b>{allowed_text}</b>
+مبلغ مبنا: <b>{_format_decimal(payable_usdt)}</b> USDT
 
-اعتبار فاکتور: <b>{ps.expire_min}</b> دقیقه
-
-در صفحه Plisio می‌توانید یکی از ارزهای مجاز را انتخاب کنید؛ مبلغ معادل همان‌جا محاسبه می‌شود.
-بعد از پرداخت، ربات به‌صورت خودکار وضعیت را بررسی می‌کند. اگر تایید با تاخیر انجام شد، کد پیگیری بالا را برای پشتیبانی ارسال کنید.
+در صفحه پرداخت می‌توانید ارز موردنظر را انتخاب کنید. پس از تأیید شبکه، پرداخت به‌صورت خودکار ثبت می‌شود.
+اگر تأیید با تأخیر انجام شد، کد پیگیری را برای پشتیبانی ارسال کنید.
 """
         markup = PayUrl(url=invoice_url, transaction_id=transaction.id).as_markup()
         if isinstance(qmsg, CallbackQuery):

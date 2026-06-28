@@ -1,12 +1,10 @@
 import json
 import sys
-from datetime import datetime as dt
 from html import escape
 
 from aiogram import F
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
-from tortoise.transactions import in_transaction
 
 from app.keyboards.admin.admin import AdminPanel, AdminPanelAction
 from app.keyboards.admin.payment import (
@@ -18,11 +16,10 @@ from app.keyboards.admin.payment import (
 from app.keyboards.admin.user import ManageTrx, ManageTrxAction
 from app.main import bot, get_bot_username
 from app.models.user import CryptoPayment, Transaction, User
-from app.plugins.payment.crypto.clients import NowPaymentsAPI, NowPaymentsError
+from app.plugins.payment.crypto.clients import NowPaymentsError
+from app.plugins.payment.crypto.nowpayments_service import check_nowpayments_transaction
 from app.plugins.payment.crypto.plisio import PlisioAPI, PlisioError
 from app.plugins.payment.crypto.plisio_service import finalize_plisio_payment
-from app.plugins.payment.crypto.views import get_menu_title
-from app.utils import helpers
 from app.utils.filters import AdminAccess, IsSuperUser
 from app.utils.settings import get_settings
 
@@ -314,64 +311,24 @@ async def admin_accept_trx(
             except PlisioError as exc:
                 await query.answer(f"Error: {exc}", show_alert=True)
                 raise exc
-        if not transaction.crypto_payment.payment_id:
-            return await query.answer("no payment_id is present!", show_alert=True)
         try:
-            payment = await NowPaymentsAPI.get_payment_status(
-                transaction.crypto_payment.payment_id
+            result = await check_nowpayments_transaction(
+                transaction, source="admin_check"
             )
-            if payment.payment_status == "finished" and (
-                transaction.status
-                not in [Transaction.Status.finished, Transaction.Status.partially_paid]
-            ):
-                async with in_transaction():
-                    await transaction.fetch_related("crypto_payment")
-                    transaction.status = Transaction.Status.finished
-                    transaction.finished_at = dt.now()
-                    transaction.amount_paid = (
-                        transaction.crypto_payment.usdt_rate * payment.price_amount
-                    )
-                    await transaction.save()
-                    await transaction.refresh_from_db()
-                    await transaction.crypto_payment.update_from_dict(
-                        {
-                            "pay_currency": payment.pay_currency,
-                            "pay_amount": payment.pay_amount,
-                            "nowpm_updated_at": payment.updated_at,
-                            "payment_status": CryptoPayment.PaymentStatus.finished,
-                            "outcome_amount": payment.outcome_amount,
-                            "outcome_currency": payment.outcome_currency,
-                            "purchase_id": payment.purchase_id,
-                            "pay_address": payment.pay_address,
-                        }
-                    ).save()
-                gateway_title = get_menu_title(
-                    provider=transaction.crypto_payment.provider, settings=settings
-                )
-                text = f"""
-        ✅ پرداخت شما از طریق {gateway_title} با موفقیت تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!
-
-        💳 شماره فاکتور: <b>{transaction.id}</b>
-        💴 مبلغ پرداختی: <b>{transaction.amount_paid:,}</b> تومان
-        ‌‌
-        """
-                await bot.send_message(transaction.user_id, text)
-                await transaction.fetch_related("crypto_payment")
-                helpers.transaction_log(
-                    transaction=transaction, payment=transaction.crypto_payment
-                )
-                await transaction.fetch_related("crypto_payment")
-                await query.answer("Transaction Accepted!", show_alert=True)
-                return await admin_get_payment_command(
-                    query,
-                    user,
-                    callback_data=ManageTrx.Callback(
-                        user_id=callback_data.user_id,
-                        trx_id=callback_data.trx_id,
-                        action=ManageTrxAction.show,
-                        current_page=callback_data.current_page,
-                    ),
-                )
+            await query.answer(
+                f"NowPayments status: {result.get('status') or result.get('result') or 'unknown'}",
+                show_alert=True,
+            )
+            return await admin_get_payment_command(
+                query,
+                user,
+                callback_data=ManageTrx.Callback(
+                    user_id=callback_data.user_id,
+                    trx_id=callback_data.trx_id,
+                    action=ManageTrxAction.show,
+                    current_page=callback_data.current_page,
+                ),
+            )
         except NowPaymentsError as exc:
             await query.answer(f"Error: {exc}")
             raise exc

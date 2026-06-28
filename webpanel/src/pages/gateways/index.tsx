@@ -184,6 +184,51 @@ export function GatewaysPage() {
         </>
       );
     }
+    if (f.name === "rate_provider") {
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <Select
+            {...common}
+            value={val || "nobitex"}
+            options={[
+              { value: "nobitex", label: "Nobitex" },
+              { value: "manual", label: t("gateways.rate_manual") },
+            ]}
+            onChange={(v) => setField(g.key, f.name, v)}
+          />
+        </>
+      );
+    }
+    if (f.name === "usdt_margin_percent") {
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <InputNumber
+            {...common}
+            min={0}
+            step={0.1}
+            value={Number(val ?? 0)}
+            addonAfter="%"
+            onChange={(v) => setField(g.key, f.name, String(v ?? 0))}
+          />
+        </>
+      );
+    }
+    if (f.name === "manual_usdt_toman_rate") {
+      return (
+        <>
+          <Text type="secondary" style={{ fontSize: 12 }}>{flabel(t, f.name)}</Text>
+          <InputNumber
+            {...common}
+            min={0}
+            value={val ? Number(val) : undefined}
+            placeholder={t("gateways.manual_rate_ph")}
+            onChange={(v) => setField(g.key, f.name, v ? String(v) : "")}
+          />
+        </>
+      );
+    }
     if (f.kind === "bool") {
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 10, height: 32 }}>
@@ -283,9 +328,29 @@ export function GatewaysPage() {
                 </Button>
               }
             >
-              <div style={{ display: "grid", gap: 12 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  alignItems: "start",
+                }}
+              >
                 {g.fields.map((f) => (
-                  <div key={f.name}>{renderField(g, f)}</div>
+                  <div
+                    key={f.name}
+                    style={{
+                      minWidth: 0,
+                      gridColumn:
+                        f.kind === "secret" ||
+                        f.kind === "list_str" ||
+                        f.name === "allowed_currencies"
+                          ? "1 / -1"
+                          : undefined,
+                    }}
+                  >
+                    {renderField(g, f)}
+                  </div>
                 ))}
               </div>
             </Card>

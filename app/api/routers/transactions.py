@@ -14,6 +14,7 @@ from app.utils.audit import record_audit
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 PLISIO_REVIEW_QUEUE = "plisio:review:queue"
+NOWPAYMENTS_REVIEW_QUEUE = "nowpayments:review:queue"
 
 TYPE_NAMES = {
     1: "crypto",
@@ -59,7 +60,7 @@ def _item(tx: Transaction) -> TransactionListItem:
     if ty == int(Transaction.PaymentType.crypto) and isinstance(cp, CryptoPayment):
         extra = cp.extra_data if isinstance(cp.extra_data, dict) else {}
         provider = getattr(cp.provider, "value", str(cp.provider))
-        provider_txn_id = cp.payment_id or cp.invoice_id
+        provider_txn_id = cp.payment_id or cp.invoice_id or cp.purchase_id
         tracking_code = extra.get("tracking_code") or cp.order_description or f"GB-{tx.id}"
         invoice_url = extra.get("invoice_url")
         pay_currency = cp.pay_currency or cp.price_currency
@@ -67,7 +68,7 @@ def _item(tx: Transaction) -> TransactionListItem:
         invoice_currency = extra.get("invoice_currency") or cp.price_currency
         invoice_amount = extra.get("payable_usdt") or str(cp.price_amount or "")
         allowed_currencies = extra.get("allowed_currencies") or []
-        provider_status = extra.get("plisio_status") or getattr(
+        provider_status = extra.get("plisio_status") or extra.get("nowpayments_status") or getattr(
             cp.payment_status, "name", str(cp.payment_status)
         )
     u = getattr(tx, "user", None)
@@ -159,26 +160,32 @@ async def list_transactions(
     return TransactionsPage(items=[_item(t) for t in rows], total=total)
 
 
-async def _get_plisio_transaction(tx_id: int) -> Transaction:
+async def _get_crypto_transaction(tx_id: int, provider: CryptoPayment.Provider) -> Transaction:
     tx = await (
         Transaction.filter(id=tx_id)
         .prefetch_related("crypto_payment")
         .first()
     )
     cp = getattr(tx, "crypto_payment", None) if tx else None
-    if not tx or not isinstance(cp, CryptoPayment) or cp.provider != CryptoPayment.Provider.plisio:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Plisio transaction not found")
+    if not tx or not isinstance(cp, CryptoPayment) or cp.provider != provider:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"{provider.value} transaction not found")
     return tx
 
 
-async def _queue_plisio_action(tx_id: int, action: str, actor: User) -> OkOut:
-    await _get_plisio_transaction(tx_id)
+async def _queue_crypto_action(
+    tx_id: int,
+    provider: CryptoPayment.Provider,
+    queue: str,
+    action: str,
+    actor: User,
+) -> OkOut:
+    await _get_crypto_transaction(tx_id, provider)
     await redis.rpush(
-        PLISIO_REVIEW_QUEUE,
+        queue,
         json.dumps({"transaction_id": tx_id, "action": action, "actor_id": actor.id}),
     )
     await record_audit(
-        action=f"plisio_payment.{action}",
+        action=f"{provider.value}_payment.{action}",
         actor=actor,
         target_type="transaction",
         target_id=str(tx_id),
@@ -192,7 +199,9 @@ async def check_plisio_transaction(
     tx_id: int,
     actor: User = Depends(require_role(User.Role.super_user)),
 ) -> OkOut:
-    return await _queue_plisio_action(tx_id, "check", actor)
+    return await _queue_crypto_action(
+        tx_id, CryptoPayment.Provider.plisio, PLISIO_REVIEW_QUEUE, "check", actor
+    )
 
 
 @router.post("/{tx_id}/plisio/manual-approve", response_model=OkOut)
@@ -200,7 +209,40 @@ async def manual_approve_plisio_transaction(
     tx_id: int,
     actor: User = Depends(require_role(User.Role.super_user)),
 ) -> OkOut:
-    tx = await _get_plisio_transaction(tx_id)
+    tx = await _get_crypto_transaction(tx_id, CryptoPayment.Provider.plisio)
     if tx.status == Transaction.Status.finished:
         return OkOut(ok=True, status="already_finished")
-    return await _queue_plisio_action(tx_id, "approve", actor)
+    return await _queue_crypto_action(
+        tx_id, CryptoPayment.Provider.plisio, PLISIO_REVIEW_QUEUE, "approve", actor
+    )
+
+
+@router.post("/{tx_id}/nowpayments/check", response_model=OkOut)
+async def check_nowpayments_transaction(
+    tx_id: int,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> OkOut:
+    return await _queue_crypto_action(
+        tx_id,
+        CryptoPayment.Provider.nowpayments,
+        NOWPAYMENTS_REVIEW_QUEUE,
+        "check",
+        actor,
+    )
+
+
+@router.post("/{tx_id}/nowpayments/manual-approve", response_model=OkOut)
+async def manual_approve_nowpayments_transaction(
+    tx_id: int,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> OkOut:
+    tx = await _get_crypto_transaction(tx_id, CryptoPayment.Provider.nowpayments)
+    if tx.status == Transaction.Status.finished:
+        return OkOut(ok=True, status="already_finished")
+    return await _queue_crypto_action(
+        tx_id,
+        CryptoPayment.Provider.nowpayments,
+        NOWPAYMENTS_REVIEW_QUEUE,
+        "approve",
+        actor,
+    )

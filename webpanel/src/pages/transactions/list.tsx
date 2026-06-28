@@ -49,9 +49,9 @@ export function TransactionList() {
 
   const refresh = () => invalidate({ resource: "transactions", invalidates: ["list"] });
 
-  const queuePlisio = async (id: number, action: "check" | "manual-approve") => {
+  const queueGateway = async (id: number, gateway: string, action: "check" | "manual-approve") => {
     try {
-      await api.post(`/transactions/${id}/plisio/${action}`);
+      await api.post(`/transactions/${id}/${gateway}/${action}`);
       message.success(t("tx.queued"));
       refresh();
     } catch (e: any) {
@@ -66,100 +66,101 @@ export function TransactionList() {
   };
 
   const columns = [
-    { title: t("tx.id"), dataIndex: "id", width: 80, className: "mono" },
-    { title: t("tx.type"), dataIndex: "type_name" },
     {
-      title: t("tx.provider"),
-      dataIndex: "provider",
-      render: (v: string, r: any) =>
-        v ? (
-          <span>
-            <Tag>{v}</Tag>
+      title: t("tx.id"),
+      dataIndex: "id",
+      width: 180,
+      render: (_: number, r: any) => (
+        <Space direction="vertical" size={0}>
+          <Text strong className="mono">#{r.id}</Text>
+          <Space size={4} wrap>
+            <Tag>{r.type_name}</Tag>
+            <Tag color={STATUS_COLORS[r.status_name] || "default"}>{r.status_name}</Tag>
+            {r.provider && <Tag>{r.provider}</Tag>}
             {r.provider_status && <Tag color="blue">{r.provider_status}</Tag>}
-          </span>
-        ) : (
-          "-"
-        ),
+          </Space>
+        </Space>
+      ),
     },
     {
       title: t("tx.tracking"),
       dataIndex: "tracking_code",
+      width: 240,
       render: (v: string, r: any) => (
-        <Space direction="vertical" size={0}>
+        <Space direction="vertical" size={2} style={{ maxWidth: 230 }}>
           <Space size={4}>
-            <Text className="mono">{v || `GB-${r.id}`}</Text>
+            <Text className="mono" copyable={false}>{v || `GB-${r.id}`}</Text>
             <Tooltip title={t("tx.copy")}>
               <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copy(v || `GB-${r.id}`)} />
             </Tooltip>
           </Space>
           {r.provider_txn_id && (
-            <Text type="secondary" className="mono" style={{ fontSize: 12 }}>
+            <Text type="secondary" className="mono" style={{ fontSize: 12 }} ellipsis>
               {r.provider_txn_id}
             </Text>
+          )}
+          {r.invoice_url && (
+            <Button type="link" size="small" href={r.invoice_url} target="_blank" style={{ padding: 0, height: 20 }}>
+              {t("tx.invoice")}
+            </Button>
           )}
         </Space>
       ),
     },
     {
-      title: t("tx.status"),
-      dataIndex: "status_name",
-      render: (v: string) => <Tag color={STATUS_COLORS[v] || "default"}>{v}</Tag>,
-    },
-    {
       title: t("tx.amount"),
       dataIndex: "amount",
-      className: "mono",
-      render: (v: number) => fmtToman(v),
-    },
-    {
-      title: t("tx.payable"),
-      dataIndex: "pay_amount",
-      className: "mono",
-      render: (v: number, r: any) =>
-        v ? `${v} ${r.invoice_currency || r.pay_currency || ""}` : "-",
-    },
-    {
-      title: t("tx.invoice"),
-      dataIndex: "invoice_url",
-      render: (v: string, r: any) =>
-        v ? (
-          <Button type="link" size="small" href={v} target="_blank">
-            {r.provider_txn_id || t("tx.invoice")}
-          </Button>
-        ) : (
-          <span className="mono">{r.provider_txn_id || "-"}</span>
-        ),
+      width: 190,
+      render: (v: number, r: any) => (
+        <Space direction="vertical" size={0}>
+          <Text className="mono">{fmtToman(v)}</Text>
+          {r.pay_amount ? (
+            <Text type="secondary" className="mono" style={{ fontSize: 12 }}>
+              {r.pay_amount} {r.invoice_currency || r.pay_currency || ""}
+            </Text>
+          ) : null}
+          {r.amount_paid ? (
+            <Text type="secondary" className="mono" style={{ fontSize: 12 }}>
+              {fmtToman(r.amount_paid)}
+            </Text>
+          ) : null}
+        </Space>
+      ),
     },
     {
       title: t("tx.user"),
       dataIndex: "user_id",
-      className: "mono",
-      render: (v: number) => (
-        <Button type="link" size="small" onClick={() => navigate(`/users/show/${v}`)}>
-          {v}
-        </Button>
+      width: 170,
+      render: (v: number, r: any) => (
+        <Space direction="vertical" size={0}>
+          <Button type="link" size="small" onClick={() => navigate(`/users/show/${v}`)} style={{ padding: 0 }}>
+            {r.user_name || r.username || v}
+          </Button>
+          <Text type="secondary" className="mono" style={{ fontSize: 12 }}>
+            {r.username ? `@${r.username}` : `ID ${v}`}
+          </Text>
+        </Space>
       ),
     },
-    { title: t("tx.createdAt"), dataIndex: "created_at", render: (v: string) => fmtDate(v) },
+    { title: t("tx.createdAt"), dataIndex: "created_at", width: 150, render: (v: string) => fmtDate(v) },
     {
       title: "",
       dataIndex: "actions",
+      width: 120,
       render: (_: any, r: any) =>
-        isSuper && r.provider === "plisio" ? (
+        isSuper && ["plisio", "nowpayments"].includes(r.provider) ? (
           <Space size={4}>
-            <Tooltip title={t("tx.check_plisio")}>
-              <Button size="small" icon={<SyncOutlined />} onClick={() => queuePlisio(r.id, "check")} />
+            <Tooltip title={t("tx.check_gateway")}>
+              <Button size="small" icon={<SyncOutlined />} onClick={() => queueGateway(r.id, r.provider, "check")} />
             </Tooltip>
             {r.status_name !== "finished" && (
               <Popconfirm
                 title={t("tx.manual_approve_q")}
                 okText={t("actions.done")}
                 cancelText={t("actions.cancel")}
-                onConfirm={() => queuePlisio(r.id, "manual-approve")}
+                onConfirm={() => queueGateway(r.id, r.provider, "manual-approve")}
               >
-                <Button size="small" danger icon={<CheckCircleOutlined />}>
-                  {t("tx.manual_approve")}
-                </Button>
+                <Button size="small" danger icon={<CheckCircleOutlined />} />
               </Popconfirm>
             )}
           </Space>
@@ -234,11 +235,12 @@ export function TransactionList() {
         />
       </Space>
       <ResponsiveTable
+        size="small"
         rowKey="id"
         loading={isLoading}
         dataSource={data?.data ?? []}
         columns={columns}
-        scroll={{ x: 780 }}
+        scroll={{ x: 720 }}
         pagination={{
           current: page,
           pageSize,

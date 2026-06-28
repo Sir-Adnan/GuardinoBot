@@ -144,37 +144,37 @@ export function OfflineGateway() {
       <Text strong style={{ display: "block", marginBottom: 8 }}>{t("gateways.coins")}</Text>
       <div style={{ display: "grid", gap: 8 }}>
         {coins.map((c, i) => (
-          <Row key={i} gutter={8} align="middle" wrap={false}>
-            <Col flex="1.2">
+          <Row key={i} gutter={[8, 8]} align="middle">
+            <Col xs={24} md={6}>
               <Input
                 placeholder={t("gateways.coin_label")}
                 value={c.label}
                 onChange={(e) => setCoin(i, "label", e.target.value)}
               />
             </Col>
-            <Col flex="0.8">
+            <Col xs={24} md={5}>
               <Input
                 placeholder={t("gateways.coin_network")}
                 value={c.network}
                 onChange={(e) => setCoin(i, "network", e.target.value)}
               />
             </Col>
-            <Col flex="1.8">
+            <Col xs={24} md={9}>
               <Input
                 placeholder={t("gateways.coin_address")}
                 value={c.address}
                 onChange={(e) => setCoin(i, "address", e.target.value)}
               />
             </Col>
-            <Col flex="none">
+            <Col xs={12} md={2}>
               <Switch
                 checkedChildren="✓"
                 checked={c.enabled}
                 onChange={(v) => setCoin(i, "enabled", v)}
               />
             </Col>
-            <Col flex="none">
-              <Button danger icon={<DeleteOutlined />} onClick={() => removeCoin(i)} />
+            <Col xs={12} md={2} style={{ textAlign: "end" }}>
+              <Button danger block icon={<DeleteOutlined />} onClick={() => removeCoin(i)} />
             </Col>
           </Row>
         ))}

@@ -44,10 +44,16 @@ async def sync_settings() -> None:
             auto_check_plisio_payments,
             process_plisio_review_queue,
         )
+        from app.plugins.payment.crypto.nowpayments_service import (
+            auto_check_nowpayments_payments,
+            process_nowpayments_review_queue,
+        )
 
         await process_offline_review_queue(bot)
         await process_plisio_review_queue()
+        await process_nowpayments_review_queue()
         await auto_check_plisio_payments()
+        await auto_check_nowpayments_payments()
     except Exception as exc:  # noqa: BLE001
         logger.error("sync_settings failed: %s", exc)
 

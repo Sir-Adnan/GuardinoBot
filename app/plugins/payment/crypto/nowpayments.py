@@ -7,6 +7,7 @@ SETTINGS_KEY_PREFIX = "nowpayments.io"
 from enum import Enum
 from typing import Any, Callable
 
+import config
 from app.plugins.payment.utils import BaseSettings, BaseTexts
 from app.utils.values import TextValue, format_number
 
@@ -29,8 +30,12 @@ class Settings(BaseSettings):
     _name = SETTINGS_KEY_PREFIX
     menu_title: str = "💸 ارز دیجیتال"
 
-    api_key: str | None = None
-    ipn_secret_key: str | None = None
+    api_key: str | None = config.NP_API_KEY
+    ipn_secret_key: str | None = config.NP_IPN_SECRET_KEY
+    rate_provider: str = config.PAYMENT_RATE_PROVIDER
+    rate_cache_seconds: int = config.PAYMENT_RATE_CACHE_SECONDS
+    usdt_margin_percent: str = config.PAYMENT_USDT_MARGIN_PERCENT
+    manual_usdt_toman_rate: str | None = config.MANUAL_USDT_TOMAN_RATE
 
 
 class ChooseAmountText(TextValue):
@@ -52,16 +57,15 @@ class ChooseAmountText(TextValue):
 
 class ShowInvoiceText(TextValue):
     value: str = """
-✅ فاکتور افزایش اعتبار شما ساخته شد!
+🧾 <b>فاکتور پرداخت ارزی</b>
 
-💳 شماره فاکتور: {TRANSACTION_ID}
-💲مبلغ قابل پرداخت: <b>{AMOUNT_TOMAN} تومان </b><code>({AMOUNT_DOLLARS} دلار)</code>
-~~~~~~~~~~~~~~~~~~~~~~~~
-🔵 تأیید پرداخت به صورت کاملاً خودکار انجام می‌شود. بعد از پرداخت و تأیید تراکنش در بلاکچین، مبلغ مورد نظر به حساب شما اضافه می‌شود!
+مبلغ سفارش: <b>{AMOUNT_TOMAN}</b> تومان
+کد پیگیری: <code>{TRACKING_CODE}</code>
+شناسه درگاه: <code>{INVOICE_ID}</code>
 
-⚠️ فاکتور پرداخت شما تا ۲ ساعت دیگر معتبر می‌باشد.
+مبلغ مبنا: <b>{AMOUNT_DOLLARS}</b> USDT
 
-🟩 برای پرداخت روی دکمه زیر کلیک کنید:
+در صفحه پرداخت می‌توانید ارز موردنظر را انتخاب کنید. پس از تأیید شبکه، پرداخت به‌صورت خودکار ثبت می‌شود.
 """
     _allowed_variables: dict[str, Callable[[Any], str]] = {
         "PAYMENT_PROVIDER_TITLE": lambda v: v,
@@ -71,6 +75,8 @@ class ShowInvoiceText(TextValue):
         "AMOUNT_TOMAN": format_number,
         "AMOUNT_DOLLARS": format_number,
         "AMOUNT_RIAL": format_number,
+        "TRACKING_CODE": str,
+        "INVOICE_ID": str,
     }
 
 
@@ -92,18 +98,24 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from tortoise.transactions import in_transaction
 
+from app.logger import get_logger
 from app.keyboards import base
 from app.keyboards.admin.admin import AdminPanel, AdminPanelAction, CancelFormAdmin
+from app.keyboards.premium import premium_button
 from app.keyboards.user import payment
 from app.models.user import CryptoPayment, Invoice, Transaction, User
-from app.plugins.payment.clients import CouldNotGetUSDTPrice, NobitexMarketAPI
 from app.utils import settings, texts
 from app.utils.filters import IsSuperUser
 from app.utils.values import admin_edit_texts_format, check_texts
 
 from .clients import NowPaymentsAPI, NowPaymentsError
+from .nowpayments_service import (
+    check_nowpayments_transaction,
+)
+from .rates import PaymentRateError, calculate_payable_usdt, get_usdt_toman_rate
 
 router = Router(name="payment/nowpayments")
+logger = get_logger("payment/nowpayments")
 
 
 # # Admin settings Start
@@ -207,10 +219,40 @@ class ConfirmKeyboard(InlineKeyboardBuilder):
         self.adjust(1, 1)
 
 
+class NowPaymentsInvoiceAction(CallbackData, prefix="npayact"):
+    action: Literal["check", "cancel"]
+    transaction_id: int
+
+
 class PayUrl(InlineKeyboardBuilder):
-    def __init__(self, url: str, *args, **kwargs) -> None:
+    def __init__(self, url: str, transaction_id: int, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.button(text="💳 پرداخت", url=url)
+        self.add(
+            premium_button(
+                text="💳 پرداخت آنلاین",
+                key="nowpayments_pay_online",
+                url=url,
+            )
+        )
+        self.add(
+            premium_button(
+                text="🔄 بررسی وضعیت پرداخت",
+                key="nowpayments_check_payment",
+                callback_data=NowPaymentsInvoiceAction(
+                    action="check", transaction_id=transaction_id
+                ),
+            )
+        )
+        self.add(
+            premium_button(
+                text="❌ لغو فاکتور",
+                key="nowpayments_cancel_invoice",
+                callback_data=NowPaymentsInvoiceAction(
+                    action="cancel", transaction_id=transaction_id
+                ),
+            )
+        )
+        self.adjust(1)
 
 
 class NowpaymentsEditForm(StatesGroup):
@@ -231,6 +273,28 @@ class NowpaymentsCustomAmountForm(StatesGroup):
     amount = State()
 
 
+def _format_decimal(value) -> str:
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def _direct_invoice_type(mode: str | None):
+    if mode == "renew":
+        return Invoice.Type.renew_now
+    if mode == "reserve":
+        return Invoice.Type.renew_reserve
+    return Invoice.Type.purchase
+
+
+def _mask_secret(value: str | None) -> str:
+    text = str(value or "")
+    if not text:
+        return "ثبت‌نشده"
+    return ("•" * max(0, len(text) - 4)) + text[-4:]
+
+
 @router.message(
     StateFilter(NowpaymentsEditForm),
     IsSuperUser(),
@@ -249,12 +313,14 @@ async def show_settings(
         await state.clear()
     _settings = settings.get_settings().payment_nowpayments
     text = f"""
-API Key: <code>{_settings.api_key}</code>
-IPN Secret key: <code>{_settings.ipn_secret_key}</code>
+API Key: <code>{_mask_secret(_settings.api_key)}</code>
+IPN Secret key: <code>{_mask_secret(_settings.ipn_secret_key)}</code>
 
 نام مستعار: <b>{_settings.menu_title}</b>
 
 حداقل مبلغ قابل پرداخت: <code>{_settings.min_pay_amount}</code>
+منبع نرخ: <code>{_settings.rate_provider or 'nobitex'}</code>
+مارجین تتر: <code>{_settings.usdt_margin_percent}</code>٪
 
 اعتبار هدیه برای مبلغ بیشتر از: <code>{_settings.free_after:,}</code>
 درصد اعتبار هدیه: <code>{_settings.free_after_percent} %</code>
@@ -432,13 +498,13 @@ async def edit_texts_get(message: Message, user: User, state: FSMContext):
 async def edit_texts_get(message: Message, user: User, state: FSMContext):  # noqa: F811
     _texts = texts.get_texts().payment_nowpayments
 
-    if not await check_texts(_texts.choose_amount, message):
+    if not await check_texts(_texts.show_invoice, message):
         return
-    _texts.choose_amount = ChooseAmountText(value=message.text)
+    _texts.show_invoice = ShowInvoiceText(value=message.text)
     await texts.Texts.update(payment_nowpayments=_texts)
     await texts.reload_texts()
     text = f"""
-متن choose_amount با موفقیت ویرایش شد!
+متن show_invoice با موفقیت ویرایش شد!
 ==================\n<blockquote>{message.html_text}</blockquote>\n==================
 """
     await message.answer(text)
@@ -446,7 +512,7 @@ async def edit_texts_get(message: Message, user: User, state: FSMContext):  # no
     await edit_settings_texts(
         message,
         user,
-        callback_data=SettingsKeyboard.Callback(field=Fields.text_choose_amount),
+        callback_data=SettingsKeyboard.Callback(field=Fields.text_show_invoice),
     )
 
 
@@ -528,8 +594,8 @@ Could not verify nowpayments.io API key! try again:
     await settings.reload_settings()
     text = f"""
 مقدار با موفقیت ویرایش شد!
-مقدار قبلی: <code>{origv}</code>
-مقدار جدید: <code>{api_key}</code>
+مقدار قبلی: <code>{_mask_secret(origv)}</code>
+مقدار جدید: <code>{_mask_secret(api_key)}</code>
 """
     await message.reply(text, reply_markup=ReplyKeyboardRemove())
     await show_settings(message, user)
@@ -554,8 +620,8 @@ async def get_ipn_secret_key(message: Message, user: User, state: FSMContext):
     await settings.reload_settings()
     text = f"""
 مقدار با موفقیت ویرایش شد!
-مقدار قبلی: <code>{origv}</code>
-مقدار جدید: <code>{ipn_secret_key}</code>
+مقدار قبلی: <code>{_mask_secret(origv)}</code>
+مقدار جدید: <code>{_mask_secret(ipn_secret_key)}</code>
 """
     await message.reply(text, reply_markup=ReplyKeyboardRemove())
     await show_settings(message, user)
@@ -722,12 +788,12 @@ async def select(qmsg: CallbackQuery | Message, user: User, state: FSMContext = 
             text=text,
         )
     try:
-        usdt_rate = await NobitexMarketAPI.get_price()
+        usdt_rate = await get_usdt_toman_rate(_settings.payment_nowpayments)
         _texts = texts.get_texts().payment_nowpayments
         text = texts.Texts.format(
             _texts.choose_amount,
             PAYMENT_PROVIDER_TITLE=_settings.payment_nowpayments.menu_title,
-            USDT_RATE=usdt_rate,
+            USDT_RATE=int(usdt_rate),
             MINIMUM_PAY_AMOUNT=_settings.payment_nowpayments.min_pay_amount,
         )
         markup = payment.SelectPayAmount(
@@ -743,7 +809,7 @@ async def select(qmsg: CallbackQuery | Message, user: User, state: FSMContext = 
             text,
             reply_markup=markup,
         )
-    except CouldNotGetUSDTPrice as err:
+    except PaymentRateError as err:
         text = "📍 خطایی در دریافت نرخ ارز رخ داد! لطفا با پشتیبانی تماس بگیرید."
         if isinstance(qmsg, CallbackQuery):
             await qmsg.answer(
@@ -842,8 +908,12 @@ async def select_amount(
         )
     await qmsg.answer("♻️ درحال پردازش! لطفا کمی منتظر بمانید...")
     try:
+        usdt_rate = await get_usdt_toman_rate(_settings)
+        payable_usdt = calculate_payable_usdt(
+            callback_data.amount, usdt_rate, _settings.usdt_margin_percent
+        )
+        public_base = config.PUBLIC_BASE_URL
         async with in_transaction():
-            usdt_rate = await NobitexMarketAPI.get_price()
             transaction = await Transaction.create(
                 type=Transaction.PaymentType.crypto,
                 status=Transaction.Status.waiting,
@@ -852,15 +922,9 @@ async def select_amount(
                 user=user,
             )
             if callback_data.direct_mode is not None:
-                if callback_data.direct_mode == "renew":
-                    invoice_type = Invoice.Type.renew_now
-                elif callback_data.direct_mode == "reserve":
-                    invoice_type = Invoice.Type.renew_reserve
-                else:
-                    invoice_type = Invoice.Type.purchase
                 await Invoice.create(
                     amount=callback_data.amount,
-                    type=invoice_type,
+                    type=_direct_invoice_type(callback_data.direct_mode),
                     is_paid=False,
                     is_draft=True,
                     service_id=callback_data.service_id or None,
@@ -868,36 +932,62 @@ async def select_amount(
                     user=user,
                     transaction=transaction,
                 )
+            tracking_code = f"GB-{transaction.id}"
             invoice = await NowPaymentsAPI.create_invoice(
-                price_amount=round(callback_data.amount / usdt_rate, 3),
-                order_id=transaction.id,
+                price_amount=payable_usdt,
+                order_id=str(transaction.id),
+                order_description=tracking_code,
+                ipn_callback_url=f"{public_base}/npipn",
+                success_url=f"{public_base}/payments/nowpayments/success",
+                cancel_url=f"{public_base}/payments/nowpayments/fail",
+                partially_paid_url=f"{public_base}/payments/nowpayments/partial",
             )
             await CryptoPayment.create(
                 transaction=transaction,
-                usdt_rate=usdt_rate,
+                provider=CryptoPayment.Provider.nowpayments,
+                usdt_rate=int(usdt_rate),
                 invoice_id=invoice.id,
                 order_id=invoice.order_id,
-                price_amount=invoice.price_amount,
+                price_amount=float(payable_usdt),
                 price_currency=invoice.price_currency,
+                order_description=tracking_code,
                 nowpm_created_at=invoice.created_at,
                 nowpm_updated_at=invoice.updated_at,
+                payment_status=CryptoPayment.PaymentStatus.waiting,
+                extra_data={
+                    "invoice_url": invoice.invoice_url,
+                    "tracking_code": tracking_code,
+                    "invoice_id": invoice.id,
+                    "rate": str(usdt_rate),
+                    "margin_percent": str(_settings.usdt_margin_percent),
+                    "payable_usdt": str(payable_usdt),
+                    "raw_create_response": invoice.model_dump(mode="json"),
+                    "status_source": "created",
+                },
             )
         _texts = texts.get_texts().payment_nowpayments
         text = texts.Texts.format(
             _texts.show_invoice,
             PAYMENT_PROVIDER_TITLE=_settings.menu_title,
-            USDT_RATE=await NobitexMarketAPI.get_price(),
+            USDT_RATE=int(usdt_rate),
             TRANSACTION_ID=transaction.id,
             AMOUNT_TOMAN=transaction.amount - transaction.amount_free_given,
-            AMOUNT_DOLLARS=invoice.price_amount,
+            AMOUNT_DOLLARS=_format_decimal(payable_usdt),
+            TRACKING_CODE=tracking_code,
+            INVOICE_ID=invoice.id,
         )
         if isinstance(qmsg, CallbackQuery):
             return await qmsg.message.edit_text(
                 text=text,
-                reply_markup=PayUrl(url=invoice.invoice_url).as_markup(),
+                reply_markup=PayUrl(
+                    url=invoice.invoice_url, transaction_id=transaction.id
+                ).as_markup(),
             )
         return await qmsg.answer(
-            text=text, reply_markup=PayUrl(url=invoice.invoice_url).as_markup()
+            text=text,
+            reply_markup=PayUrl(
+                url=invoice.invoice_url, transaction_id=transaction.id
+            ).as_markup(),
         )
     except NowPaymentsError as err:
         if isinstance(qmsg, CallbackQuery):
@@ -910,7 +1000,7 @@ async def select_amount(
                 "📍 درحال حاضر امکان پرداخت ارز دیجیتال وجود ندارد! لطفا با پشتیبانی تماس بگیرید."
             )
         raise err
-    except CouldNotGetUSDTPrice as err:
+    except PaymentRateError as err:
         if isinstance(qmsg, CallbackQuery):
             await qmsg.answer(
                 "📍 خطایی در دریافت نرخ ارز رخ داد! لطفا با پشتیبانی تماس بگیرید.",
@@ -921,3 +1011,87 @@ async def select_amount(
                 "📍 خطایی در دریافت نرخ ارز رخ داد! لطفا با پشتیبانی تماس بگیرید."
             )
         raise err
+    except Exception as err:  # noqa: BLE001
+        logger.exception("nowpayments invoice flow failed")
+        if isinstance(qmsg, CallbackQuery):
+            await qmsg.answer(
+                "📍 درحال حاضر امکان پرداخت ارز دیجیتال وجود ندارد! لطفا با پشتیبانی تماس بگیرید.",
+                show_alert=True,
+            )
+        else:
+            await qmsg.answer(
+                "📍 درحال حاضر امکان پرداخت ارز دیجیتال وجود ندارد! لطفا با پشتیبانی تماس بگیرید."
+            )
+        raise err
+
+
+@router.callback_query(NowPaymentsInvoiceAction.filter(F.action == "check"))
+async def check_invoice(
+    query: CallbackQuery,
+    user: User,
+    callback_data: NowPaymentsInvoiceAction,
+):
+    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    if not transaction or transaction.user_id != user.id:
+        return await query.answer("فاکتور پیدا نشد.", show_alert=True)
+    if transaction.status == Transaction.Status.finished:
+        return await query.answer("پرداخت قبلا تایید شده است ✅", show_alert=True)
+    await transaction.fetch_related("crypto_payment")
+    cp = transaction.crypto_payment
+    if not cp or cp.provider != CryptoPayment.Provider.nowpayments:
+        return await query.answer("فاکتور پیدا نشد.", show_alert=True)
+    try:
+        result = await check_nowpayments_transaction(
+            transaction, source="manual_check"
+        )
+    except NowPaymentsError:
+        return await query.answer(
+            "امکان بررسی وضعیت پرداخت در این لحظه وجود ندارد.", show_alert=True
+        )
+
+    if result["result"] in {"completed", "already_finished"}:
+        return await query.answer("پرداخت تایید شد ✅", show_alert=True)
+    if result["result"] == "pending":
+        return await query.answer(
+            "پرداخت هنوز در انتظار تایید شبکه است.", show_alert=True
+        )
+    if result["result"] == "review":
+        return await query.answer(
+            "پرداخت نیاز به بررسی پشتیبانی دارد. کد پیگیری را برای پشتیبانی ارسال کنید.",
+            show_alert=True,
+        )
+    if result["result"] == "failed":
+        return await query.answer(
+            "پرداخت ناموفق، منقضی یا برگشت‌خورده ثبت شده است.", show_alert=True
+        )
+    if result["result"] == "no_payment":
+        return await query.answer(
+            "هنوز پرداختی برای این فاکتور در درگاه ثبت نشده است.", show_alert=True
+        )
+    return await query.answer(
+        "وضعیت پرداخت نامشخص است؛ با پشتیبانی تماس بگیرید.", show_alert=True
+    )
+
+
+@router.callback_query(NowPaymentsInvoiceAction.filter(F.action == "cancel"))
+async def cancel_invoice(
+    query: CallbackQuery,
+    user: User,
+    callback_data: NowPaymentsInvoiceAction,
+):
+    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    if not transaction or transaction.user_id != user.id:
+        return await query.answer("فاکتور پیدا نشد.", show_alert=True)
+    if transaction.status == Transaction.Status.finished:
+        return await query.answer(
+            "این فاکتور قبلا پرداخت و تایید شده است.", show_alert=True
+        )
+    await Transaction.filter(id=transaction.id).update(status=Transaction.Status.canceled)
+    await CryptoPayment.filter(transaction_id=transaction.id).update(
+        payment_status=CryptoPayment.PaymentStatus.failed,
+    )
+    try:
+        await query.message.edit_reply_markup(reply_markup=None)
+    except Exception:  # noqa: BLE001
+        pass
+    return await query.answer("فاکتور لغو شد.", show_alert=True)

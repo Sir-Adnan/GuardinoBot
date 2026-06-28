@@ -14,7 +14,13 @@ from app.models.user import CryptoPayment, Transaction
 from app.plugins.payment import jobs
 from app.utils import helpers, settings
 
-from .clients import PaymentResponse
+from .nowpayments_service import (
+    extract_invoice_id as np_extract_invoice_id,
+    extract_order_id as np_extract_order_id,
+    extract_payment_id as np_extract_payment_id,
+    finalize_nowpayments_payment,
+    find_nowpayments_transaction,
+)
 from .plisio import verify_callback as plisio_verify
 from .plisio_service import (
     extract_order_number,
@@ -124,81 +130,20 @@ async def verify_payment(request: web.Request):
         f"status={data.get('payment_status')}"
     )
 
-    try:
-        payment = PaymentResponse(**data)
-    except Exception as exc:  # noqa: BLE001 - acknowledge but can't act on a bad shape
-        logger.error(f"npipn: could not parse verified payload: {exc}")
-        return web.Response(status=200)
-    transaction = await Transaction.filter(id=payment.order_id).first()
+    transaction = await find_nowpayments_transaction(
+        order_id=np_extract_order_id(data),
+        invoice_id=np_extract_invoice_id(data),
+        payment_id=np_extract_payment_id(data),
+    )
     if not transaction:
-        logger.error(f"npipn: transaction {payment.order_id} not found")
+        logger.error(
+            "npipn: transaction not found "
+            f"order_id={data.get('order_id')} invoice_id={data.get('invoice_id')} "
+            f"payment_id={data.get('payment_id')}"
+        )
         return web.Response(status=200)
 
-    if payment.payment_status == "finished" and (
-        transaction.status
-        not in [Transaction.Status.finished, Transaction.Status.partially_paid]
-    ):
-        async with in_transaction():
-            await transaction.fetch_related("crypto_payment")
-            transaction.status = Transaction.Status.finished
-            transaction.finished_at = dt.now()
-            transaction.amount_paid = (
-                transaction.crypto_payment.usdt_rate * payment.price_amount
-            )
-            await transaction.save()
-            await transaction.refresh_from_db()
-            await transaction.crypto_payment.update_from_dict(
-                {
-                    "payment_id": payment.payment_id,
-                    "pay_currency": payment.pay_currency,
-                    "pay_amount": payment.pay_amount,
-                    "nowpm_updated_at": payment.updated_at,
-                    "payment_status": CryptoPayment.PaymentStatus.finished,
-                    "outcome_amount": payment.outcome_amount,
-                    "outcome_currency": payment.outcome_currency,
-                    "purchase_id": payment.purchase_id,
-                    "pay_address": payment.pay_address,
-                    "fee": payment.fee,
-                }
-            ).save()
-        gateway_title = get_menu_title(
-            provider=transaction.crypto_payment.provider, _settings=_settings
-        )
-        text = f"""
-✅ پرداخت شما از طریق {gateway_title} با موفقیت تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!
-
-💳 شماره فاکتور: <b>{transaction.id}</b>
-💴 مبلغ پرداختی: <b>{transaction.amount_paid:,}</b> تومان
-‌‌
-"""
-        msg = await bot.send_message(transaction.user_id, text)
-        await transaction.fetch_related("crypto_payment")
-        helpers.transaction_log(
-            transaction=transaction, payment=transaction.crypto_payment
-        )
-        jobs.activate_service(transaction, msg)
-    elif (
-        payment.payment_status == "sending"
-        and transaction.status != Transaction.Status.sending
-    ):
-        await Transaction.filter(id=transaction.id).update(
-            status=Transaction.Status.sending
-        )
-        text = f"""
-💠 وضعیت فاکتور پرداخت شما به شماره <code>{transaction.id}</code> به <b>«در حال ارسال»</b> تغییر کرد!
-"""
-        await bot.send_message(transaction.user_id, text)
-    elif (
-        payment.payment_status == "confirming"
-        and transaction.status != Transaction.Status.confirming
-    ):
-        await Transaction.filter(id=transaction.id).update(
-            status=Transaction.Status.confirming
-        )
-        text = f"""
-♻️ وضعیت فاکتور پرداخت شما به شماره <code>{transaction.id}</code> به <b>«در حال تأیید»</b> تغییر کرد!
-"""
-        await bot.send_message(transaction.user_id, text)
+    await finalize_nowpayments_payment(transaction, data, source="callback")
     return web.Response(status=200)
 
 
@@ -214,6 +159,29 @@ async def _read_plisio_payload(request: web.Request) -> dict[str, Any]:
             if wants_json:
                 raise
     return dict(await request.post())
+
+
+@routes.get("/payments/nowpayments/success")
+async def nowpayments_success(request: web.Request):
+    return web.Response(
+        text="وضعیت پرداخت توسط ربات بررسی می‌شود. لطفاً به تلگرام برگردید."
+    )
+
+
+@routes.get("/payments/nowpayments/fail")
+async def nowpayments_fail(request: web.Request):
+    return web.Response(
+        text="پرداخت کامل نشد یا توسط درگاه ناموفق اعلام شد. لطفاً به تلگرام برگردید.",
+        status=200,
+    )
+
+
+@routes.get("/payments/nowpayments/partial")
+async def nowpayments_partial(request: web.Request):
+    return web.Response(
+        text="پرداخت ناقص ثبت شده و نیاز به بررسی پشتیبانی دارد. لطفاً به تلگرام برگردید.",
+        status=200,
+    )
 
 
 @routes.get("/payments/plisio/success")

@@ -17,6 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+import config
 from app.api.clients import bot, redis
 from app.api.deps import require_role
 from app.api.schemas import (
@@ -68,6 +69,10 @@ _GATEWAYS: dict[str, dict] = {
             "min_pay_amount": "int",
             "api_key": "secret",
             "ipn_secret_key": "secret",
+            "rate_provider": "str",
+            "rate_cache_seconds": "int",
+            "usdt_margin_percent": "str",
+            "manual_usdt_toman_rate": "str",
         },
     },
     "payment_plisio": {
@@ -89,6 +94,17 @@ _GATEWAYS: dict[str, dict] = {
             "manual_usdt_toman_rate": "str",
         },
     },
+}
+
+_GATEWAY_DEFAULTS = {
+    "payment_nowpayments": {
+        "api_key": config.NP_API_KEY,
+        "ipn_secret_key": config.NP_IPN_SECRET_KEY,
+        "rate_provider": config.PAYMENT_RATE_PROVIDER,
+        "rate_cache_seconds": config.PAYMENT_RATE_CACHE_SECONDS,
+        "usdt_margin_percent": config.PAYMENT_USDT_MARGIN_PERCENT,
+        "manual_usdt_toman_rate": config.MANUAL_USDT_TOMAN_RATE,
+    }
 }
 
 
@@ -122,6 +138,7 @@ async def _out() -> GatewaysOut:
     gateways = []
     for key, spec in _GATEWAYS.items():
         data = await _read_json(key)
+        data = {**_GATEWAY_DEFAULTS.get(key, {}), **data}
         if key == "payment_plisio":
             data = PlisioSettings(**data).model_dump()
         gateways.append(
@@ -185,6 +202,10 @@ async def update_gateway(
             data[fname] = sv
         else:  # str
             value = (str(v).strip() or None) if v is not None else None
+            if fname == "rate_provider":
+                value = (value or "nobitex").lower()
+                if value not in {"nobitex", "manual"}:
+                    value = "nobitex"
             if body.key == "payment_plisio" and fname == "default_currency":
                 value = value.upper() if value else DEFAULT_INVOICE_CURRENCY
                 if not is_usdt_currency(value):
