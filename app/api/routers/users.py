@@ -49,6 +49,8 @@ async def list_users(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
+    role: Optional[int] = Query(None, ge=0, le=3),
+    blocked: Optional[str] = Query(None),  # "blocked" | "bot" | "active"
 ) -> UsersPage:
     q = _scope(viewer)
     if search:
@@ -57,6 +59,14 @@ async def list_users(
         if s.isdigit():
             cond = cond | Q(id=int(s))
         q = q.filter(cond)
+    if role is not None:
+        q = q.filter(role=role)
+    if blocked == "blocked":
+        q = q.filter(is_blocked=True)
+    elif blocked == "bot":
+        q = q.filter(blocked_bot=True)
+    elif blocked == "active":
+        q = q.filter(is_blocked=False, blocked_bot=False)
     total = await q.count()
     rows = await q.order_by("-created_at").offset((page - 1) * per_page).limit(per_page)
     return UsersPage(items=[_item(u) for u in rows], total=total)

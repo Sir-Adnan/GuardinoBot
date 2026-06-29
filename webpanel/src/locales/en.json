@@ -124,6 +124,10 @@
     "active": "Active",
     "blocked": "Blocked",
     "blockedBot": "Blocked the bot",
+    "r_user": "User",
+    "r_reseller": "Reseller",
+    "r_admin": "Admin",
+    "r_super": "Super-admin",
     "balance": "Balance",
     "verified": "Verified",
     "postpaid": "Postpaid",
@@ -286,7 +290,13 @@
     "service": "Service",
     "user": "User",
     "createdAt": "Created",
-    "search": "Search username…"
+    "search": "Search username…",
+    "price": "Price",
+    "st_active": "Active",
+    "st_disabled": "Disabled",
+    "st_limited": "Limited (quota)",
+    "st_expired": "Expired",
+    "st_on_hold": "On hold"
   },
   "tx": {
     "title": "Payments / Transactions",

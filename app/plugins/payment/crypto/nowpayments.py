@@ -64,15 +64,18 @@ class ChooseAmountText(TextValue):
 
 class ShowInvoiceText(TextValue):
     value: str = """
-🧾 <b>فاکتور پرداخت ارزی</b>
+✅ <b>فاکتور افزایش اعتبار شما ساخته شد!</b>
 
-مبلغ سفارش: <b>{AMOUNT_TOMAN}</b> تومان
-کد پیگیری: <code>{TRACKING_CODE}</code>
-شناسه درگاه: <code>{INVOICE_ID}</code>
+💳 شماره فاکتور: <code>{TRANSACTION_ID}</code>
+💲 مبلغ قابل پرداخت: <b>{AMOUNT_TOMAN}</b> تومان (<b>{AMOUNT_DOLLARS}</b> دلار)
+🔖 کد پیگیری: <code>{TRACKING_CODE}</code>
+🏷 شناسه درگاه: <code>{INVOICE_ID}</code>
+~~~~~~~~~~~~~~~~~~~~~~~~
+🔵 تأیید پرداخت به صورت کاملاً خودکار انجام می‌شود. بعد از پرداخت و تأیید تراکنش در بلاکچین، مبلغ موردنظر به حساب شما اضافه می‌شود!
 
-مبلغ مبنا: <b>{AMOUNT_DOLLARS}</b> USDT
+⚠️ فاکتور پرداخت شما تا ۲ ساعت دیگر معتبر می‌باشد.
 
-در صفحه پرداخت می‌توانید ارز موردنظر را انتخاب کنید. پس از تأیید شبکه، پرداخت به‌صورت خودکار ثبت می‌شود.
+🟩 برای پرداخت روی دکمه زیر کلیک کنید:
 """
     _allowed_variables: dict[str, Callable[[Any], str]] = {
         "PAYMENT_PROVIDER_TITLE": lambda v: v,

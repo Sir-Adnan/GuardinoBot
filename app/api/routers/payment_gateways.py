@@ -339,7 +339,6 @@ async def update_offline(
                     "network": (c.network or "").strip(),
                     "address": addr,
                     "enabled": bool(c.enabled),
-                    "auto_check": bool(c.auto_check),
                 }
             )
         d["coins"] = clean

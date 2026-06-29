@@ -660,7 +660,6 @@ class OfflineCoin(BaseModel):
     network: str = ""
     address: str
     enabled: bool = True
-    auto_check: bool = False
 
 
 class OfflineConfigOut(BaseModel):

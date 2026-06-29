@@ -283,16 +283,19 @@ async def select_amount(
 
         toman = transaction.amount - transaction.amount_free_given
         text = f"""
-🧾 <b>فاکتور پرداخت ارزی</b>
+✅ <b>فاکتور افزایش اعتبار شما ساخته شد!</b>
 
-مبلغ سفارش: <b>{toman:,}</b> تومان
-کد پیگیری: <code>GB-{transaction.id}</code>
-شناسه درگاه: <code>{txn_id}</code>
+💳 شماره فاکتور: <code>{transaction.id}</code>
+💲 مبلغ قابل پرداخت: <b>{toman:,}</b> تومان (<b>{_format_decimal(payable_usdt)}</b> USDT)
+🔖 کد پیگیری: <code>{tracking_code}</code>
+🏷 شناسه درگاه: <code>{txn_id}</code>
+~~~~~~~~~~~~~~~~~~~~~~~~
+🔵 در صفحهٔ پرداخت، ارزِ موردنظر را انتخاب و پرداخت کنید. پس از تأیید شبکه، اعتبار به‌صورت خودکار به حساب شما اضافه می‌شود!
 
-مبلغ مبنا: <b>{_format_decimal(payable_usdt)}</b> USDT
+⚠️ فاکتورِ شما تا <b>{ps.expire_min}</b> دقیقه معتبر است.
+اگر تأیید با تأخیر انجام شد، کدِ پیگیری را برای پشتیبانی بفرستید.
 
-در صفحه پرداخت می‌توانید ارز موردنظر را انتخاب کنید. پس از تأیید شبکه، پرداخت به‌صورت خودکار ثبت می‌شود.
-اگر تأیید با تأخیر انجام شد، کد پیگیری را برای پشتیبانی ارسال کنید.
+🟩 برای پرداخت روی دکمهٔ زیر کلیک کنید:
 """
         markup = PayUrl(url=invoice_url, transaction_id=transaction.id).as_markup()
         if isinstance(qmsg, CallbackQuery):

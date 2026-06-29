@@ -20,11 +20,9 @@ SETTINGS_KEY_PREFIX = "offline"
 class CoinWallet(BaseModel):
     code: str  # stable id, e.g. "usdt_trc20"
     label: str  # shown to the customer, e.g. "USDT (TRON · TRC20)"
-    network: str  # e.g. "TRC20" / "BEP20" / "TON" — used for the (future) on-chain check
+    network: str  # e.g. "TRC20" / "BEP20" / "TON" — shown to the customer
     address: str  # the wallet address the customer pays to
     enabled: bool = True
-    # optional on-chain auto-check (per coin); off by default → manual review.
-    auto_check: bool = False
 
 
 class Settings(BaseSettings):

@@ -26,7 +26,10 @@ _GB = 1024**3
 # fallbacks mirror app/utils/settings.py defaults (the bot owns the real values)
 _WARN_DEFAULT = 1_000_000
 _CRITICAL_DEFAULT = 500_000
-_PING_TIMEOUT = 8  # seconds per panel call
+# Match the panel client's own request timeout (pasarguard/marzban use 15s) so a
+# slow-but-healthy panel isn't falsely flagged "unreachable". Panels are pinged
+# concurrently, so this is the worst-case wait for one dead panel, not the sum.
+_PING_TIMEOUT = 15  # seconds per panel call
 
 
 async def _sum(queryset, field: str = "amount") -> int:

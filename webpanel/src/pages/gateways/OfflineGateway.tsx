@@ -25,7 +25,6 @@ interface Coin {
   network: string;
   address: string;
   enabled: boolean;
-  auto_check?: boolean;
 }
 
 /**

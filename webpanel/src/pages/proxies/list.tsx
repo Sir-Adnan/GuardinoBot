@@ -6,8 +6,10 @@ import {
   Dropdown,
   Input,
   Popconfirm,
+  Select,
   Space,
   Tag,
+  Typography,
 } from "antd";
 import {
   DeleteOutlined,
@@ -16,14 +18,17 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   SafetyOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { useGetIdentity, useInvalidate, useList } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { fmtDate } from "../../utils/format";
+import { fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+
+const { Text } = Typography;
 
 const STATUS_COLORS: Record<string, string> = {
   active: "green",
@@ -32,6 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
   expired: "red",
   on_hold: "blue",
 };
+const STATUSES = ["active", "disabled", "limited", "expired", "on_hold"];
 
 export function ProxyList() {
   const { t } = useTranslation();
@@ -44,16 +50,23 @@ export function ProxyList() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<string | undefined>();
 
   const { data, isLoading } = useList<any>({
     resource: "proxies",
     pagination: { current: page, pageSize },
-    filters: search
-      ? [{ field: "search", operator: "contains", value: search }]
-      : [],
+    filters: [
+      search ? { field: "search", operator: "contains", value: search } : null,
+      status ? { field: "status", operator: "eq", value: status } : null,
+    ].filter(Boolean) as any,
   });
 
   const refresh = () => invalidate({ resource: "proxies", invalidates: ["list"] });
+  const stLabel = (s: string) => {
+    const k = `proxies.st_${s}`;
+    const tr = t(k);
+    return tr === k ? s : tr;
+  };
 
   const act = async (id: number, action: string) => {
     try {
@@ -76,25 +89,48 @@ export function ProxyList() {
   };
 
   const columns = [
-    { title: t("proxies.username"), dataIndex: "username", className: "mono" },
+    {
+      title: t("proxies.username"),
+      dataIndex: "username",
+      render: (v: string, r: any) => (
+        <Space direction="vertical" size={0}>
+          <Text strong copyable className="mono">{v}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {r.custom_name ? `${r.custom_name} · ` : ""}
+            {[r.service_name, r.server_name].filter(Boolean).join(" · ") || "—"}
+          </Text>
+        </Space>
+      ),
+    },
     {
       title: t("proxies.status"),
       dataIndex: "status",
-      render: (v: string) => <Tag color={STATUS_COLORS[v] || "default"}>{v}</Tag>,
+      width: 120,
+      render: (v: string) => <Tag color={STATUS_COLORS[v] || "default"}>{stLabel(v)}</Tag>,
     },
-    { title: t("proxies.server"), dataIndex: "server_name", render: (v: string) => v || "—" },
-    { title: t("proxies.service"), dataIndex: "service_name", render: (v: string) => v || "—" },
+    {
+      title: t("proxies.price"),
+      dataIndex: "cost",
+      width: 130,
+      className: "mono",
+      render: (v: number) => (v ? fmtToman(v) : "—"),
+    },
     {
       title: t("proxies.user"),
       dataIndex: "user_id",
-      className: "mono",
+      width: 90,
       render: (v: number) => (
-        <Button type="link" size="small" onClick={() => navigate(`/users/show/${v}`)}>
+        <Button type="link" size="small" style={{ padding: 0 }} onClick={() => navigate(`/users/show/${v}`)}>
           {v}
         </Button>
       ),
     },
-    { title: t("proxies.createdAt"), dataIndex: "created_at", render: (v: string) => fmtDate(v) },
+    {
+      title: t("proxies.createdAt"),
+      dataIndex: "created_at",
+      width: 150,
+      render: (v: string) => fmtDate(v),
+    },
     {
       title: "",
       key: "actions",
@@ -132,27 +168,38 @@ export function ProxyList() {
 
   return (
     <Card>
-      <PageHeader
-        title={t("proxies.title")}
-        subtitle={t("proxies.subtitle")}
-        extra={
-          <Input.Search
-            placeholder={t("proxies.search")}
-            allowClear
-            onSearch={(v) => {
-              setSearch(v);
-              setPage(1);
-            }}
-            style={{ width: 240 }}
-          />
-        }
-      />
+      <PageHeader title={t("proxies.title")} subtitle={t("proxies.subtitle")} />
+      <Space wrap style={{ marginBottom: 12 }}>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder={t("proxies.search")}
+          value={search}
+          onChange={(e) => {
+            setPage(1);
+            setSearch(e.target.value);
+          }}
+          style={{ width: 240 }}
+        />
+        <Select
+          allowClear
+          placeholder={t("proxies.status")}
+          value={status}
+          onChange={(v) => {
+            setPage(1);
+            setStatus(v);
+          }}
+          style={{ width: 160 }}
+          options={STATUSES.map((s) => ({ value: s, label: stLabel(s) }))}
+        />
+      </Space>
       <ResponsiveTable
+        size="small"
         rowKey="id"
         loading={isLoading}
         dataSource={data?.data ?? []}
         columns={columns}
-        scroll={{ x: 880 }}
+        scroll={{ x: 760 }}
         pagination={{
           current: page,
           pageSize,

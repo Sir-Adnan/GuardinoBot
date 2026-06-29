@@ -77,8 +77,9 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
 3. ✅ **Offline crypto gateway** — wallet-per-coin (`CoinWallet` list, web-configured), customer picks +
    sends TXID(+screenshot, accumulated in any order), super-admin Approve/Reject (stateful card,
    reject-after-approve reverses credit + removes the sub) + a **web pending-review** view; reuses
-   `CryptoPayment`+`Provider.offline` → **no migration**. Remaining (optional): **on-chain auto-check**
-   (TronGrid/BscScan/TON) to auto-confirm a deposit instead of manual review.
+   `CryptoPayment`+`Provider.offline` → **no migration**. (On-chain auto-check **dropped** by owner —
+   not needed; the `auto_check` flag was removed from `CoinWallet`/`OfflineCoin`/web. Crypto-gateway
+   `auto_check_*` polling jobs are unrelated and kept.)
 4. ✅ **Admin glass buttons in the bot** — the 8 `AdminPanel` (⚙️) buttons route through `premium_button`
    with `admin_*` keys → rename/emoji/colour-customizable in the web Buttons editor (new "Admin panel"
    category). (Sub-menu admin keyboards = future extend.)
