@@ -217,6 +217,18 @@ DROP USER IF EXISTS '$2'@'%';
 FLUSH PRIVILEGES;
 SQL
 }
+# Let root connect from the phpMyAdmin container (the image only guarantees
+# root@localhost). With this, logging into phpMyAdmin as root shows ALL the
+# instance databases. Runs via root@localhost (always present), so it also
+# fixes an already-initialized platform. Idempotent.
+ensure_root_remote() {
+    mysql_root <<SQL >/dev/null 2>&1 || warn "Could not grant remote root (phpMyAdmin root login may not work)."
+CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${ROOT_PASS}';
+ALTER USER 'root'@'%' IDENTIFIED BY '${ROOT_PASS}';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+SQL
+}
 
 # ----------------------------------------------------------------------------- platform stack
 ensure_net() { docker network inspect "$NET" >/dev/null 2>&1 || { info "Creating shared network ${NET} ..."; docker network create "$NET" >/dev/null; }; }
@@ -396,9 +408,11 @@ platform_up() {
     info "Starting the shared platform ..."
     dcp up -d
     wait_mariadb
+    ensure_root_remote     # so phpMyAdmin root login can manage ALL instance DBs
     install_cli
     verify_platform
     info "Platform is up (MariaDB · Redis · Caddy · phpMyAdmin)."
+    info "phpMyAdmin: SSH-tunnel 8081, then http://localhost:8081 — login user ${CYAN}root${NC}, password = ROOT_PASS in ${PLATFORM_ENV}."
 }
 
 ensure_platform() {

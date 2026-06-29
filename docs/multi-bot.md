@@ -82,7 +82,10 @@ Dumps the legacy DB (`/opt/GuardinoBot`), imports it into the shared MariaDB, an
 - Shared MariaDB is tuned with `--max-connections=500`; each bot has `mem_limit`s. The shared DB/Redis
   are the only shared components — back up the platform and keep an eye on resources.
 - A **base domain is required** (per-bot HTTPS subdomain) — payment gateways need an HTTPS callback.
-- phpMyAdmin is bound to `127.0.0.1:8081`; reach it over an SSH tunnel
-  (`ssh -L 8081:localhost:8081 root@<server>`).
+- **phpMyAdmin manages ALL bots' databases from one place** (it's a shared platform service, not
+  per-bot). Bound to `127.0.0.1:8081`; reach it over an SSH tunnel
+  (`ssh -L 8081:localhost:8081 root@<server>`), then `http://localhost:8081` — log in as **`root`**
+  with the password in `/opt/guardino/platform/.env.platform` (`ROOT_PASS`) to see every instance DB.
+  (`platform-up` grants `root@'%'` so phpMyAdmin's container can connect as root.)
 - No DB migration and **no core code change** — only the installer. `update` rebuilds the shared image
   once; each bot re-runs `aerich upgrade` on its own DB at start.

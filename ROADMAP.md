@@ -74,9 +74,14 @@ grouping) + payment-method buttons customizable. Details in **Done log** + the *
    (field names only). Web page `pages/gateways` (NowPayments + Plisio: enabled/title/min/api_key/
    currency/rate fields). ⚠️ enabling **Plisio** still needs a bot restart (to load its plugin +
    create the row); setting the **NowPayments IPN secret** here unblocks crypto crediting.
-3. **Offline crypto gateway** — wallet-per-coin (USDT-BEP20/TRX/TON/…), customer picks + sends TXID+screenshot,
-   manual admin confirm + optional on-chain auto-check. (needs a model + additive migration)
-4. **Admin glass buttons in the bot** — fix/extend the ⚙️ admin-panel inline buttons.
+3. ✅ **Offline crypto gateway** — wallet-per-coin (`CoinWallet` list, web-configured), customer picks +
+   sends TXID(+screenshot, accumulated in any order), super-admin Approve/Reject (stateful card,
+   reject-after-approve reverses credit + removes the sub) + a **web pending-review** view; reuses
+   `CryptoPayment`+`Provider.offline` → **no migration**. Remaining (optional): **on-chain auto-check**
+   (TronGrid/BscScan/TON) to auto-confirm a deposit instead of manual review.
+4. ✅ **Admin glass buttons in the bot** — the 8 `AdminPanel` (⚙️) buttons route through `premium_button`
+   with `admin_*` keys → rename/emoji/colour-customizable in the web Buttons editor (new "Admin panel"
+   category). (Sub-menu admin keyboards = future extend.)
 5. Polish leftovers: theme presets/density done; remaining = micro-interactions, broader audit,
    detail-page tabs already done. Deferred infra: brand migration, aiogram 3.4.1 bump, Guardino reserves.
 6. ✅ **Multi-bot per server** — new `installer/guardino.sh` (CLI `guardino`): one shared **platform**
