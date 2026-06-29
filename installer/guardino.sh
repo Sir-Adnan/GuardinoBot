@@ -33,6 +33,8 @@ CADDY_DIR="${PLATFORM_DIR}/caddy"
 DATA_DIR="/var/lib/guardino"
 PLATFORM_DATA="${DATA_DIR}/platform"
 BACKUP_ROOT="${DATA_DIR}/backups"
+BACKUP_CONF="${ROOT_DIR}/backup.conf"      # Telegram-backup config (token/chat/scope/schedule)
+BACKUP_CRON="/etc/cron.d/guardino-backup"  # cron entry for the scheduled backup
 
 NET="guardino_net"
 PLATFORM_PROJECT="guardino-platform"
@@ -645,6 +647,182 @@ do_backup() {
     fi
 }
 
+# ----------------------------------------------------------------------------- backup -> Telegram
+TG_DOC_LIMIT=$((49 * 1024 * 1024))  # Bot API sendDocument cap is 50MB — stay under
+
+_tg_send_doc() { # token chat file caption
+    curl -fsS --max-time 600 \
+        -F "chat_id=${2}" -F "caption=${4}" -F "document=@${3}" \
+        "https://api.telegram.org/bot${1}/sendDocument" >/dev/null 2>&1
+}
+
+# send a file, splitting it into <50MB parts when it's too big for Telegram
+tg_send_file() { # token chat file caption
+    local token="$1" chat="$2" file="$3" caption="$4" sz
+    sz=$(stat -c%s "$file" 2>/dev/null || echo 0)
+    if (( sz <= TG_DOC_LIMIT )); then
+        _tg_send_doc "$token" "$chat" "$file" "$caption" || warn "  Telegram send failed: $(basename "$file")"
+        return
+    fi
+    warn "  $(basename "$file") is $((sz / 1024 / 1024))MB → splitting into parts ..."
+    local prefix="${file}.part_"
+    split -b 49m -- "$file" "$prefix"
+    local parts=( "${prefix}"* ) i=1 n=${#parts[@]}
+    for p in "${parts[@]}"; do
+        _tg_send_doc "$token" "$chat" "$p" "${caption} — part ${i}/${n} (cat *.part_* → reassemble)" \
+            || warn "  Telegram send failed: $(basename "$p")"
+        i=$((i + 1))
+    done
+    rm -f "${prefix}"*
+}
+
+# echo a path to send: an AES-256 copy when a passphrase is set, else the original
+_maybe_encrypt() { # file
+    local pass; pass=$(env_get "$BACKUP_CONF" BACKUP_ENC_PASS)
+    if [[ -n "$pass" ]] && command -v openssl >/dev/null 2>&1; then
+        if openssl enc -aes-256-cbc -pbkdf2 -salt -in "$1" -out "$1.enc" -pass "pass:${pass}" 2>/dev/null; then
+            echo "$1.enc"; return
+        fi
+    fi
+    echo "$1"
+}
+
+# best-effort chat id from getUpdates (user must message the bot first)
+_detect_chat_id() { # token
+    [[ -n "$1" ]] || return 0
+    local r; r=$(curl -fsS --max-time 15 "https://api.telegram.org/bot${1}/getUpdates" 2>/dev/null) || return 0
+    if command -v python3 >/dev/null 2>&1; then
+        printf '%s' "$r" | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: sys.exit()
+ids=[(u.get("message") or u.get("channel_post") or {}).get("chat",{}).get("id") for u in d.get("result",[])]
+ids=[i for i in ids if i is not None]
+print(ids[-1] if ids else "")' 2>/dev/null
+    else
+        printf '%s' "$r" | grep -oE '"chat":\{"id":-?[0-9]+' | grep -oE '\-?[0-9]+' | tail -1
+    fi
+}
+
+_send_one_to_tg() { # token chat name
+    backup_one "$3" >/dev/null
+    local f; f=$(ls -1t "${BACKUP_ROOT}/$3"/*.tar.gz 2>/dev/null | head -1)
+    [[ -f "$f" ]] || { warn "  no backup produced for '$3'"; return; }
+    local snd; snd=$(_maybe_encrypt "$f")
+    tg_send_file "$1" "$2" "$snd" "🗄 ${3} · $(hostname) · $(date '+%Y-%m-%d %H:%M')"
+    [[ "$snd" != "$f" ]] && rm -f "$snd"
+}
+
+# create backups + send to the configured Telegram bot. Used by cron + "send now".
+backup_and_send() {
+    [[ -f "$BACKUP_CONF" ]] || { err "Telegram backup not configured (run: guardino backup-telegram)."; return 1; }
+    local token chat scope
+    token=$(env_get "$BACKUP_CONF" BACKUP_BOT_TOKEN)
+    chat=$(env_get "$BACKUP_CONF" BACKUP_CHAT_ID)
+    scope=$(env_get "$BACKUP_CONF" BACKUP_SCOPE); scope="${scope:-each}"
+    [[ -n "$token" && -n "$chat" ]] || { err "Backup bot token / chat id missing."; return 1; }
+    ensure_platform
+    info "Backup → Telegram (scope: ${scope}) ..."
+    if [[ "$scope" == "combined" ]]; then
+        local n latest rels=() ts combo snd
+        ts=$(date +%Y%m%d-%H%M%S)
+        while IFS= read -r n; do
+            [[ -n "$n" ]] || continue
+            backup_one "$n" >/dev/null
+            latest=$(ls -1t "${BACKUP_ROOT}/$n"/*.tar.gz 2>/dev/null | head -1)
+            [[ -f "$latest" ]] && rels+=( "${n}/$(basename "$latest")" )
+        done < <(reg_names)
+        [[ ${#rels[@]} -gt 0 ]] || { warn "No bots to back up."; return; }
+        combo="/tmp/guardino-all-${ts}.tar.gz"
+        tar -czf "$combo" -C "$BACKUP_ROOT" "${rels[@]}" 2>/dev/null
+        snd=$(_maybe_encrypt "$combo")
+        tg_send_file "$token" "$chat" "$snd" "🗄 GuardinoBot — ALL bots · $(hostname) · ${ts}"
+        [[ "$snd" != "$combo" ]] && rm -f "$snd"
+        rm -f "$combo"
+    elif [[ "$scope" == "each" || "$scope" == "all" ]]; then
+        local n; while IFS= read -r n; do [[ -n "$n" ]] || continue; _send_one_to_tg "$token" "$chat" "$n"; done < <(reg_names)
+    else
+        reg_has "$scope" || { err "Instance '$scope' not found."; return 1; }
+        _send_one_to_tg "$token" "$chat" "$scope"
+    fi
+    info "Backup → Telegram done."
+}
+
+install_backup_cron() { # cron_expr
+    cat > "$BACKUP_CRON" <<CRON
+# GuardinoBot scheduled backup -> Telegram (managed by the installer)
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+${1} root ${BIN_PATH} backup-send >> /var/log/guardino-backup.log 2>&1
+CRON
+    chmod 0644 "$BACKUP_CRON"
+    command -v crond >/dev/null 2>&1 || command -v cron >/dev/null 2>&1 || \
+        warn "cron not found — install it (apt/dnf install cron|cronie) so the schedule runs."
+    info "Scheduled '${1}' (cron). Log: /var/log/guardino-backup.log"
+}
+disable_backup_cron() { rm -f "$BACKUP_CRON"; info "Scheduled Telegram backup disabled."; }
+
+do_backup_telegram() {
+    need_root; ensure_platform
+    mkdir -p "$ROOT_DIR"; umask 077
+    [[ -f "$BACKUP_CONF" ]] || : > "$BACKUP_CONF"
+    chmod 600 "$BACKUP_CONF"
+    [[ -x "$BIN_PATH" ]] || install_cli
+    warn "Backups contain each bot's .env (DB creds, SECRET_KEY_STRING, BOT_TOKEN)."
+    warn "Use a PRIVATE backup bot/chat; consider the encryption passphrase (option 4)."
+    while true; do
+        local tk ch sc sched enc
+        tk=$(env_get "$BACKUP_CONF" BACKUP_BOT_TOKEN); ch=$(env_get "$BACKUP_CONF" BACKUP_CHAT_ID)
+        sc=$(env_get "$BACKUP_CONF" BACKUP_SCOPE); sched=$(env_get "$BACKUP_CONF" BACKUP_SCHEDULE)
+        enc=$(env_get "$BACKUP_CONF" BACKUP_ENC_PASS)
+        echo; hr
+        echo "  ${CYAN}Scheduled backup → Telegram${NC}"
+        hr
+        echo "  bot token: $( [[ -n $tk ]] && echo '✔ set' || echo '✗ unset' )    chat: ${ch:-—}"
+        echo "  scope: ${sc:-each}    schedule: ${sched:-—}    encrypt: $( [[ -n $enc ]] && echo on || echo off )"
+        echo "  cron: $( [[ -f $BACKUP_CRON ]] && echo active || echo off )"
+        hr
+        echo "  1) Set backup bot token + chat id"
+        echo "  2) What to back up (one bot / all-each / all-combined)"
+        echo "  3) Schedule (hourly / 6h / 12h / daily / custom)"
+        echo "  4) Encryption passphrase (optional)"
+        echo "  5) Send a backup now (test)"
+        echo "  6) Disable the schedule"
+        echo "  0) Back"
+        read -rp "Choice: " bc || return
+        case "$bc" in
+            1) read -rp "Backup bot token: " v; [[ -n "$v" ]] && env_set "$BACKUP_CONF" BACKUP_BOT_TOKEN "$v"
+               echo "Send any message to the backup bot, then press Enter to auto-detect (or type the chat id):"
+               read -rp "chat id: " v
+               [[ -z "$v" ]] && { v=$(_detect_chat_id "$(env_get "$BACKUP_CONF" BACKUP_BOT_TOKEN)"); [[ -n "$v" ]] && info "Detected: $v"; }
+               [[ -n "$v" ]] && env_set "$BACKUP_CONF" BACKUP_CHAT_ID "$v" || warn "No chat id set." ;;
+            2) echo "  1) one specific bot   2) all bots, each as its own file   3) all bots, one archive"
+               read -rp "Choice: " v
+               case "$v" in
+                   1) echo "  Bots: $(reg_names | tr '\n' ' ')"; read -rp "Instance: " nm
+                      reg_has "$nm" && env_set "$BACKUP_CONF" BACKUP_SCOPE "$nm" || warn "No such bot." ;;
+                   2) env_set "$BACKUP_CONF" BACKUP_SCOPE "each" ;;
+                   3) env_set "$BACKUP_CONF" BACKUP_SCOPE "combined" ;;
+                   *) warn "Invalid." ;;
+               esac ;;
+            3) echo "  1) hourly   2) every 6h   3) every 12h   4) daily 03:00   5) custom cron"
+               read -rp "Choice: " v; local cron=""
+               case "$v" in
+                   1) cron="0 * * * *";; 2) cron="0 */6 * * *";; 3) cron="0 */12 * * *";;
+                   4) cron="0 3 * * *";; 5) read -rp "Cron (min hour dom mon dow): " cron;;
+                   *) warn "Invalid.";;
+               esac
+               [[ -n "$cron" ]] && { env_set "$BACKUP_CONF" BACKUP_SCHEDULE "$cron"; install_backup_cron "$cron"; } ;;
+            4) read -rsp "Encryption passphrase (empty = disable): " v; echo
+               env_set "$BACKUP_CONF" BACKUP_ENC_PASS "$v"
+               [[ -n "$v" ]] && info "AES-256 on. Restore: openssl enc -d -aes-256-cbc -pbkdf2 -in <f>.enc -out <f> -pass pass:<phrase>" || info "Encryption off." ;;
+            5) backup_and_send ;;
+            6) disable_backup_cron ;;
+            0) return ;;
+            *) warn "Invalid option." ;;
+        esac
+    done
+}
+
 do_restore() { # name file
     need_root; ensure_platform; ensure_images
     local file="${2:-}"
@@ -839,6 +1017,7 @@ menu() {
         echo " 12) Migrate the legacy single install -> a bot"
         echo " 13) Remove a bot"
         echo " 14) Uninstall everything"
+        echo " 15) Scheduled backup → Telegram"
         echo "  0) Exit"
         hr
         read -rp "Choice: " c || exit 0
@@ -860,6 +1039,7 @@ menu() {
             12) ( read -rp "New instance name [main]: " t || true; do_migrate_legacy "${t:-main}" ) || true ;;
             13) ( do_remove ) || true ;;
             14) ( do_uninstall ) || true ;;
+            15) ( do_backup_telegram ) || true ;;
             0)  exit 0 ;;
             *)  warn "Invalid option." ;;
         esac
@@ -874,6 +1054,8 @@ case "${1:-}" in
     update)         shift; do_update "${1:-all}" ;;
     list)           do_list ;;
     backup)         shift; do_backup "${1:-all}" ;;
+    backup-send)    backup_and_send ;;
+    backup-telegram) do_backup_telegram ;;
     restore)        shift; do_restore "${1:-}" "${2:-}" ;;
     logs)           shift; do_logs "${1:-}" "${2:-bot}" ;;
     restart)        shift; do_restart "${1:-}" ;;
@@ -886,5 +1068,5 @@ case "${1:-}" in
     remove)         shift; do_remove "${1:-}" ;;
     uninstall)      do_uninstall ;;
     "")             menu ;;
-    *)              die "Unknown subcommand: ${1}. Try: install|platform-up|add|update|list|backup|restore|logs|restart|stop|start|status|edit-env|domain|migrate-legacy|remove|uninstall" ;;
+    *)              die "Unknown subcommand: ${1}. Try: install|platform-up|add|update|list|backup|backup-send|backup-telegram|restore|logs|restart|stop|start|status|edit-env|domain|migrate-legacy|remove|uninstall" ;;
 esac

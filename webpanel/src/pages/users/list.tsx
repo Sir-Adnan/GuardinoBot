@@ -48,20 +48,33 @@ export function UserList() {
     {
       title: t("users.username"),
       dataIndex: "username",
-      render: (_: string, r: any) => (
-        <Space direction="vertical" size={0}>
-          <Button
-            type="link"
-            size="small"
-            style={{ padding: 0, height: "auto", textAlign: "start" }}
-            onClick={() => navigate(`/users/show/${r.id}`)}
-          >
-            {r.name || (r.username ? `@${r.username}` : `#${r.id}`)}
-          </Button>
-          <Text type="secondary" className="mono" style={{ fontSize: 12 }}>
-            {r.username ? `@${r.username} · ` : ""}ID {r.id}
-          </Text>
-        </Space>
+      render: (_: string, r: any) => {
+        const handle = r.username ? `@${r.username}` : null;
+        const primary = r.name || handle || `#${r.id}`;
+        const secondary = r.name && handle ? handle : null;
+        return (
+          <Space direction="vertical" size={0}>
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0, height: "auto", textAlign: "start" }}
+              onClick={() => navigate(`/users/show/${r.id}`)}
+            >
+              {primary}
+            </Button>
+            {secondary && (
+              <Text type="secondary" style={{ fontSize: 12 }}>{secondary}</Text>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
+      title: t("users.id"),
+      dataIndex: "id",
+      width: 130,
+      render: (v: number) => (
+        <Text className="mono" copyable={{ text: String(v) }}>{v}</Text>
       ),
     },
     {
@@ -149,7 +162,7 @@ export function UserList() {
         loading={isLoading}
         dataSource={data?.data ?? []}
         columns={columns}
-        scroll={{ x: 640 }}
+        scroll={{ x: 760 }}
         pagination={{
           current: page,
           pageSize,

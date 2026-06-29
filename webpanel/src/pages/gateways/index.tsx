@@ -15,6 +15,7 @@ import {
   Switch,
   Tag,
   Typography,
+  theme,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -56,6 +57,7 @@ const flabel = (t: (k: string) => string, name: string) => {
 export function GatewaysPage() {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
+  const { token } = theme.useToken();
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [edits, setEdits] = useState<Record<string, Record<string, any>>>({});
   const [plisioCurrencies, setPlisioCurrencies] = useState<PlisioCurrency[]>([]);
@@ -339,54 +341,73 @@ export function GatewaysPage() {
       <PageHeader title={t("gateways.title")} subtitle={t("gateways.subtitle")} />
       <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t("gateways.hint")} />
       <Row gutter={[16, 16]}>
-        {gateways.map((g) => (
-          <Col xs={24} lg={12} key={g.key}>
-            <Card
-              title={
-                <span>
-                  {g.name} <Tag>{g.type}</Tag>
-                </span>
-              }
-              extra={
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<SaveOutlined />}
-                  loading={savingKey === g.key}
-                  onClick={() => save(g)}
-                >
-                  {t("gateways.save")}
-                </Button>
-              }
-            >
-              <div
+        {gateways.map((g) => {
+          const enabled = !!edits[g.key]?.enabled;
+          const fields = g.fields.filter((f) => f.name !== "enabled");
+          return (
+            <Col xs={24} lg={12} key={g.key}>
+              <Card
                 style={{
-                  display: "grid",
-                  gap: 12,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  alignItems: "start",
+                  height: "100%",
+                  borderTopWidth: 2,
+                  borderTopColor: enabled ? token.colorSuccess : token.colorBorderSecondary,
                 }}
+                title={
+                  <Space size={8} wrap>
+                    <span style={{ fontWeight: 600 }}>{g.name}</span>
+                    <Tag>{g.type}</Tag>
+                    <Tag color={enabled ? "success" : "default"}>
+                      {enabled ? t("gateways.on") : t("gateways.off")}
+                    </Tag>
+                  </Space>
+                }
+                extra={
+                  <Space size={8}>
+                    <Switch
+                      checked={enabled}
+                      onChange={(v) => setField(g.key, "enabled", v)}
+                    />
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<SaveOutlined />}
+                      loading={savingKey === g.key}
+                      onClick={() => save(g)}
+                    >
+                      {t("gateways.save")}
+                    </Button>
+                  </Space>
+                }
               >
-                {g.fields.map((f) => (
-                  <div
-                    key={f.name}
-                    style={{
-                      minWidth: 0,
-                      gridColumn:
-                        f.kind === "secret" ||
-                        f.kind === "list_str" ||
-                        f.name === "allowed_currencies"
-                          ? "1 / -1"
-                          : undefined,
-                    }}
-                  >
-                    {renderField(g, f)}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </Col>
-        ))}
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    alignItems: "start",
+                  }}
+                >
+                  {fields.map((f) => (
+                    <div
+                      key={f.name}
+                      style={{
+                        minWidth: 0,
+                        gridColumn:
+                          f.kind === "secret" ||
+                          f.kind === "list_str" ||
+                          f.name === "allowed_currencies"
+                            ? "1 / -1"
+                            : undefined,
+                      }}
+                    >
+                      {renderField(g, f)}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </Col>
+          );
+        })}
       </Row>
 
       <OfflineGateway />

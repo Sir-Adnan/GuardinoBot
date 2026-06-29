@@ -697,6 +697,8 @@
     "saved": "Gateway settings saved",
     "secret_set": "set",
     "secret_unset": "not set",
+    "on": "On",
+    "off": "Off",
     "secret_ph": "Enter a new value to change (empty = no change)",
     "f_enabled": "Enabled",
     "f_menu_title": "Button title",

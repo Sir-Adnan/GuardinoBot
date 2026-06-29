@@ -23,12 +23,11 @@ class Fields(str, Enum):
     ipn_secret_key = "ipn_secret_key"
 
     text_choose_amount = "text_choose_amount"
-    text_show_invoice = "text_show_invoice"
 
 
 class Settings(BaseSettings):
     _name = SETTINGS_KEY_PREFIX
-    menu_title: str = "💸 ارز دیجیتال"
+    menu_title: str = "🪙 ارز دیجیتال"
 
     api_key: str | None = config.NP_API_KEY
     ipn_secret_key: str | None = config.NP_IPN_SECRET_KEY
@@ -47,54 +46,24 @@ class Settings(BaseSettings):
 
 class ChooseAmountText(TextValue):
     value: str = """
-✔️ شما در حال افزایش اعتبار با {PAYMENT_PROVIDER_TITLE} هستید!
+💎 <b>افزایش اعتبار با {PAYMENT_PROVIDER_TITLE}</b>
 
-❗️اگر اشتباه وارد این بخش شدید دکمه «برگشت» را کلیک کنید
-~~~~~~~~~~~~~~~~~~~~~~~~
-❗️ اگر با نحوه پرداخت به وسیله ارز دیجیتال آشنایی ندارید، حتما روی لینک زیر کلیک کنید و آموزش رو مشاهده کنید:
-❔ <a href='https://t.me'>آموزش شارژ حساب با ارز دیجیتال</a>
-~~~~~~~~~~~~~~~~~~~~~~~~
+مبلغِ موردنظر برای شارژِ حساب را از گزینه‌های زیر انتخاب کنید، یا «مبلغ دلخواه» را بزنید 👇
+
+💱 نرخِ هر تتر: حدودِ <b>{USDT_RATE}</b> تومان
+💰 حداقلِ مبلغِ پرداخت: <b>{MINIMUM_PAY_AMOUNT}</b> تومان
+
+❗️ اگر اشتباه وارد این بخش شدید، دکمهٔ «برگشت» را بزنید.
 """
     _allowed_variables: dict[str, Callable[[Any], str]] = {
         "PAYMENT_PROVIDER_TITLE": str,
-        "USDT_RATE": float,
-        "MINIMUM_PAY_AMOUNT": int,
-    }
-
-
-class ShowInvoiceText(TextValue):
-    value: str = """
-✅ <b>فاکتور افزایش اعتبار شما ساخته شد!</b>
-
-💳 شماره فاکتور: <code>{TRANSACTION_ID}</code>
-💲 مبلغ قابل پرداخت: <b>{AMOUNT_TOMAN}</b> تومان (<b>{AMOUNT_DOLLARS}</b> دلار)
-🔖 کد پیگیری: <code>{TRACKING_CODE}</code>
-🏷 شناسه درگاه: <code>{INVOICE_ID}</code>
-~~~~~~~~~~~~~~~~~~~~~~~~
-🔵 تأیید پرداخت به صورت کاملاً خودکار انجام می‌شود. بعد از پرداخت و تأیید تراکنش در بلاکچین، مبلغ موردنظر به حساب شما اضافه می‌شود!
-
-⚠️ فاکتور پرداخت شما تا ۲ ساعت دیگر معتبر می‌باشد.
-
-🟩 برای پرداخت روی دکمه زیر کلیک کنید:
-"""
-    _allowed_variables: dict[str, Callable[[Any], str]] = {
-        "PAYMENT_PROVIDER_TITLE": lambda v: v,
         "USDT_RATE": format_number,
         "MINIMUM_PAY_AMOUNT": format_number,
-        "TRANSACTION_ID": format_number,
-        "AMOUNT_TOMAN": format_number,
-        # AMOUNT_DOLLARS is a fractional USDT value rendered via _format_decimal
-        # (a pre-formatted string) — format_number's `{:,}` blows up on strings.
-        "AMOUNT_DOLLARS": str,
-        "AMOUNT_RIAL": format_number,
-        "TRACKING_CODE": str,
-        "INVOICE_ID": str,
     }
 
 
 class Texts(BaseTexts):
     choose_amount: ChooseAmountText = ChooseAmountText()
-    show_invoice: ShowInvoiceText = ShowInvoiceText()
 
 
 from typing import Literal
@@ -166,10 +135,6 @@ class SettingsKeyboard(InlineKeyboardBuilder):
         self.button(
             text="ویرایش متن 'انتخاب مبلغ'",
             callback_data=self.Callback(field=Fields.text_choose_amount),
-        )
-        self.button(
-            text="ویرایش متن 'نمایش فاکتور'",
-            callback_data=self.Callback(field=Fields.text_show_invoice),
         )
         self.button(
             text="ویرایش حداقل مبلغ برای اعتبار هدیه",
@@ -277,7 +242,6 @@ class NowpaymentsEditForm(StatesGroup):
     free_after_percent = State()
 
     text_choose_amount = State()
-    text_show_invoice = State()
 
 
 class NowpaymentsCustomAmountForm(StatesGroup):
@@ -369,9 +333,7 @@ async def edit_settings(
 
 
 @router.callback_query(
-    SettingsKeyboard.Callback.filter(
-        F.field.in_([Fields.text_choose_amount, Fields.text_show_invoice])
-    ),
+    SettingsKeyboard.Callback.filter(F.field == Fields.text_choose_amount),
     IsSuperUser(),
 )
 async def edit_settings_texts(
@@ -381,8 +343,6 @@ async def edit_settings_texts(
     ed_text = None
     if callback_data.field == Fields.text_choose_amount:
         ed_text = _texts.payment_nowpayments.choose_amount
-    elif callback_data.field == Fields.text_show_invoice:
-        ed_text = _texts.payment_nowpayments.show_invoice
     else:
         text = f"متن برای {callback_data.field.name} تعریف نشده است!"
         if isinstance(qmsg, CallbackQuery):
@@ -429,8 +389,6 @@ async def texts_reset(
     _texts = texts.get_texts().payment_nowpayments
     if callback_data.field == Fields.text_choose_amount:
         _texts.choose_amount = ChooseAmountText()
-    elif callback_data.field == Fields.text_show_invoice:
-        _texts.show_invoice = ShowInvoiceText()
     else:
         return await query.answer(
             f"بازنشانی متن برای {callback_data.field.name} تعریف نشده است!"
@@ -459,8 +417,6 @@ async def texts_edit(
 ):
     if callback_data.field == Fields.text_choose_amount:
         await state.set_state(NowpaymentsEditForm.text_choose_amount)
-    elif callback_data.field == Fields.text_show_invoice:
-        await state.set_state(NowpaymentsEditForm.text_show_invoice)
     else:
         return await query.answer(
             f"ویرایش متن برای {callback_data.field.name} تعریف نشده است!"
@@ -497,34 +453,6 @@ async def edit_texts_get(message: Message, user: User, state: FSMContext):
         message,
         user,
         callback_data=SettingsKeyboard.Callback(field=Fields.text_choose_amount),
-    )
-
-
-@router.message(
-    NowpaymentsEditForm.text_show_invoice,
-    ~F.text.in_([CancelFormAdmin.cancel]),
-    ~CommandStart(),
-    ~Command("menu"),
-    IsSuperUser(),
-)
-async def edit_texts_get(message: Message, user: User, state: FSMContext):  # noqa: F811
-    _texts = texts.get_texts().payment_nowpayments
-
-    if not await check_texts(_texts.show_invoice, message):
-        return
-    _texts.show_invoice = ShowInvoiceText(value=message.text)
-    await texts.Texts.update(payment_nowpayments=_texts)
-    await texts.reload_texts()
-    text = f"""
-متن show_invoice با موفقیت ویرایش شد!
-==================\n<blockquote>{message.html_text}</blockquote>\n==================
-"""
-    await message.answer(text)
-    await state.clear()
-    await edit_settings_texts(
-        message,
-        user,
-        callback_data=SettingsKeyboard.Callback(field=Fields.text_show_invoice),
     )
 
 
@@ -996,16 +924,22 @@ async def select_amount(
                     "status_source": "created",
                 },
             )
-        _texts = texts.get_texts().payment_nowpayments
-        text = texts.Texts.format(
-            _texts.show_invoice,
-            PAYMENT_PROVIDER_TITLE=_settings.menu_title,
-            USDT_RATE=int(usdt_rate),
-            TRANSACTION_ID=transaction.id,
-            AMOUNT_TOMAN=transaction.amount - transaction.amount_free_given,
-            AMOUNT_DOLLARS=_format_decimal(payable_usdt),
-            TRACKING_CODE=tracking_code,
-            INVOICE_ID=invoice.id,
+        # Inline (built in code, not the editable texts) so it always reflects the
+        # current styling — mirrors the Plisio flow. Keeps the tracking code so a
+        # customer can follow up with support.
+        toman = transaction.amount - transaction.amount_free_given
+        text = (
+            "✅ <b>فاکتور افزایش اعتبار شما ساخته شد!</b>\n\n"
+            f"💳 شماره فاکتور: <code>{transaction.id}</code>\n"
+            f"💲 مبلغ قابل پرداخت: <b>{toman:,}</b> تومان "
+            f"(<b>{_format_decimal(payable_usdt)}</b> دلار)\n"
+            f"🔖 کد پیگیری: <code>{tracking_code}</code>\n"
+            f"🏷 شناسه درگاه: <code>{invoice.id}</code>\n"
+            "~~~~~~~~~~~~~~~~~~~~~~~~\n"
+            "🔵 تأیید پرداخت به صورت کاملاً خودکار انجام می‌شود. بعد از پرداخت و "
+            "تأیید تراکنش در بلاکچین، مبلغ موردنظر به حساب شما اضافه می‌شود!\n\n"
+            "⚠️ فاکتور پرداخت شما تا ۲ ساعت دیگر معتبر می‌باشد.\n\n"
+            "🟩 برای پرداخت روی دکمه زیر کلیک کنید:"
         )
         if isinstance(qmsg, CallbackQuery):
             return await qmsg.message.edit_text(

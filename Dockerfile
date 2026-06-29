@@ -18,4 +18,6 @@ RUN chmod +x prestart.sh
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ./prestart.sh && ./bot.py
+# JSON/exec form (no "JSONArgsRecommended" warning); `exec` makes bot.py the
+# main process so SIGTERM on `docker stop`/restart reaches it → clean on_shutdown.
+CMD ["sh", "-c", "./prestart.sh && exec ./bot.py"]
