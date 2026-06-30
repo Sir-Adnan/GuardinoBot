@@ -1387,35 +1387,40 @@ async def _admin_receipt_text(transaction: Transaction) -> str:
     )
     card_holder = _html(card.card_holder) if card else "ثبت نشده"
 
-    user_bits = [f'<a href="tg://user?id={user.id}">{user.id}</a>']
-    if user.username:
-        user_bits.append(f"@{_html(user.username)}")
-    if user.name or user.custom_name:
-        user_bits.append(_html(user.custom_name or user.name))
-    if user.phone_number:
-        user_bits.append(_html(user.phone_number))
-
-    order_bits = [_invoice_type_label(invoice)]
+    order_items = [f"📦 نوع: <b>{_invoice_type_label(invoice)}</b>"]
     if invoice:
         if invoice.service:
-            order_bits.append(_html(invoice.service.display_name))
+            order_items.append(f"🧩 پلن: <b>{_html(invoice.service.display_name)}</b>")
         if invoice.proxy:
-            order_bits.append(f"اشتراک: {_html(invoice.proxy.username)}")
+            order_items.append(f"🔗 اشتراک: <code>{_html(invoice.proxy.username)}</code>")
+    order_lines = []
+    for index, item in enumerate(order_items):
+        prefix = "└" if index == len(order_items) - 1 else "├"
+        order_lines.append(f"{prefix} {item}")
 
     gift_line = ""
     if transaction.amount_free_given:
-        gift_line = f" + هدیه {transaction.amount_free_given:,}"
+        gift_line = (
+            f"\n├ 🎁 هدیه: <code>{transaction.amount_free_given:,}</code> تومان"
+            f"\n├ 💎 اعتبار نهایی: <code>{transaction.amount:,}</code> تومان"
+        )
 
     return f"""
-🧾 <b>فیش کارت به کارت</b> | {_status_label(transaction.status)}
+🧾 <b>رسید کارت به کارت</b>
+━━━━━━━━━━━━━━
+📌 <b>وضعیت:</b> {_status_label(transaction.status)}
+🔖 <b>کد تراکنش:</b> <code>{transaction.id}</code>
+👤 <b>کاربر:</b> <a href="tg://user?id={user.id}">{user.id}</a>
 
-<b>تراکنش:</b> <code>{transaction.id}</code>
-<b>کاربر:</b> {" | ".join(user_bits)}
-<b>مبلغ:</b> <code>{paid_amount:,}</code>{gift_line} تومان
-<b>سفارش:</b> {" | ".join(order_bits)}
-<b>کارت:</b> <code>{card_number}</code> | <b>{card_holder}</b>
+💳 <b>پرداخت</b>
+├ 💰 مبلغ: <code>{paid_amount:,}</code> تومان{gift_line}
+└ 🏦 کارت مقصد: <code>{card_number}</code>
+   👤 <b>{card_holder}</b>
 
-<a href="https://t.me/{main.get_bot_username()}?start=info_{user.id}">مشاهده اطلاعات کاربر</a>
+🛒 <b>سفارش</b>
+{chr(10).join(order_lines)}
+
+🔎 <a href="https://t.me/{main.get_bot_username()}?start=info_{user.id}">مشاهده اطلاعات کاربر</a>
 """.strip()
 
 
