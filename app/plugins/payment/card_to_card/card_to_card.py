@@ -1382,60 +1382,40 @@ async def _admin_receipt_text(transaction: Transaction) -> str:
     card = card_payment.destination_card if card_payment else None
     paid_amount = transaction.amount - transaction.amount_free_given
 
-    username = f"@{_html(user.username)}" if user.username else "ثبت نشده"
-    user_name = _html(user.custom_name or user.name)
-    phone = _html(user.phone_number)
     card_number = (
         _html(format_card_number(card.card_number)) if card else "ثبت نشده"
     )
     card_holder = _html(card.card_holder) if card else "ثبت نشده"
 
-    order_lines = [
-        f"• نوع درخواست: <b>{_invoice_type_label(invoice)}</b>",
-    ]
+    user_bits = [f'<a href="tg://user?id={user.id}">{user.id}</a>']
+    if user.username:
+        user_bits.append(f"@{_html(user.username)}")
+    if user.name or user.custom_name:
+        user_bits.append(_html(user.custom_name or user.name))
+    if user.phone_number:
+        user_bits.append(_html(user.phone_number))
+
+    order_bits = [_invoice_type_label(invoice)]
     if invoice:
-        order_lines.append(f"• شماره فاکتور داخلی: <code>{invoice.id}</code>")
         if invoice.service:
-            order_lines.append(
-                f"• پلن/تعرفه: <b>{_html(invoice.service.display_name)}</b>"
-            )
+            order_bits.append(_html(invoice.service.display_name))
         if invoice.proxy:
-            order_lines.append(
-                f"• اشتراک مرتبط: <code>{_html(invoice.proxy.username)}</code>"
-            )
-    else:
-        order_lines.append("• پلن/تعرفه: <b>شارژ حساب بدون خرید مستقیم</b>")
+            order_bits.append(f"اشتراک: {_html(invoice.proxy.username)}")
 
     gift_line = ""
     if transaction.amount_free_given:
-        gift_line = (
-            f"\n• هدیه/بونوس: <b>{transaction.amount_free_given:,}</b> تومان"
-            f"\n• اعتبار نهایی: <b>{transaction.amount:,}</b> تومان"
-        )
+        gift_line = f" + هدیه {transaction.amount_free_given:,}"
 
     return f"""
-🧾 <b>فیش جدید کارت به کارت</b>
+🧾 <b>فیش کارت به کارت</b> | {_status_label(transaction.status)}
 
-📌 <b>وضعیت</b>
-• {_status_label(transaction.status)}
-• شماره تراکنش: <code>{transaction.id}</code>
+<b>تراکنش:</b> <code>{transaction.id}</code>
+<b>کاربر:</b> {" | ".join(user_bits)}
+<b>مبلغ:</b> <code>{paid_amount:,}</code>{gift_line} تومان
+<b>سفارش:</b> {" | ".join(order_bits)}
+<b>کارت:</b> <code>{card_number}</code> | <b>{card_holder}</b>
 
-👤 <b>کاربر</b>
-• شناسه: <a href="tg://user?id={user.id}">{user.id}</a>
-• نام: <b>{user_name}</b>
-• یوزرنیم: <code>{username}</code>
-• شماره تماس: <code>{phone}</code>
-
-💳 <b>پرداخت</b>
-• مبلغ پرداختی: <b>{paid_amount:,}</b> تومان{gift_line}
-• کارت مقصد: <code>{card_number}</code>
-• صاحب کارت: <b>{card_holder}</b>
-
-🛒 <b>جزئیات سفارش</b>
-{chr(10).join(order_lines)}
-
-🔎 <b>بررسی کاربر</b>
-https://t.me/{main.get_bot_username()}?start=info_{user.id}
+<a href="https://t.me/{main.get_bot_username()}?start=info_{user.id}">مشاهده اطلاعات کاربر</a>
 """.strip()
 
 
