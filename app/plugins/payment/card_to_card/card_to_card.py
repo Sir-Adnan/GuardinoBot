@@ -3,6 +3,7 @@
 SETTINGS_KEY_PREFIX = "card_to_card"
 
 from enum import Enum
+from html import escape
 from typing import Any, Callable
 
 from app.plugins.payment.utils import BaseSettings, BaseTexts
@@ -114,6 +115,8 @@ from app.utils.filters import AdminAccess, IsSuperUser
 from app.utils.values import admin_edit_texts_format, check_texts
 
 router = Router(name="payment/card_to_card")
+
+_admin_receipt_messages: dict[int, set[tuple[int, int]]] = {}
 
 
 # # Admin settings Start
@@ -1214,20 +1217,30 @@ class CardToCardAdminAccept(InlineKeyboardBuilder):
 
     def __init__(self, transaction: Transaction, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        if transaction.status != Transaction.Status.finished:
+        self.has_buttons = False
+        if transaction.status == Transaction.Status.waiting:
             self.button(
-                text="تأیید",
+                text="✅ تأیید فیش",
                 callback_data=self.Callback(
                     transaction_id=transaction.id, action="accept"
                 ),
             )
-        if transaction.status != Transaction.Status.rejected:
+            self.has_buttons = True
             self.button(
-                text="عدم تأیید",
+                text="❌ رد فیش",
                 callback_data=self.Callback(
                     transaction_id=transaction.id, action="reject"
                 ),
             )
+            self.has_buttons = True
+        elif transaction.status == Transaction.Status.finished:
+            self.button(
+                text="❌ لغو تأیید و حذف سرویس",
+                callback_data=self.Callback(
+                    transaction_id=transaction.id, action="reject"
+                ),
+            )
+            self.has_buttons = True
         self.adjust(1, 1)
 
 
@@ -1250,6 +1263,241 @@ class CardToCardRejectConfirm(InlineKeyboardBuilder):
             ),
         )
         self.adjust(1, 1)
+
+
+def _html(value: object | None, default: str = "ثبت نشده") -> str:
+    text = str(value).strip() if value is not None else ""
+    return escape(text or default, quote=False)
+
+
+def _status_label(status: Transaction.Status) -> str:
+    labels = {
+        Transaction.Status.waiting: "⏳ در انتظار بررسی",
+        Transaction.Status.finished: "✅ تأیید شده",
+        Transaction.Status.rejected: "❌ رد شده",
+        Transaction.Status.failed: "⚠️ ناموفق",
+        Transaction.Status.canceled: "🚫 لغو شده",
+        Transaction.Status.confirming: "🔎 در حال بررسی",
+        Transaction.Status.sending: "📨 در حال ارسال",
+        Transaction.Status.partially_paid: "⚠️ پرداخت ناقص",
+    }
+    return labels.get(status, "نامشخص")
+
+
+def _invoice_type_label(invoice: Invoice | None) -> str:
+    if not invoice:
+        return "شارژ کیف پول"
+    labels = {
+        Invoice.Type.purchase: "خرید سرویس جدید",
+        Invoice.Type.renew_now: "تمدید فوری سرویس",
+        Invoice.Type.renew_reserve: "رزرو تمدید سرویس",
+        Invoice.Type.parent_charged_child: "شارژ زیرمجموعه",
+        Invoice.Type.by_admin: "ثبت توسط ادمین",
+    }
+    return labels.get(invoice.type, "درخواست پرداخت")
+
+
+async def _load_card_to_card_transaction(transaction_id: int) -> Transaction | None:
+    return (
+        await Transaction.filter(
+            id=transaction_id,
+            type=Transaction.PaymentType.card_to_card,
+        )
+        .first()
+        .prefetch_related(
+            "user",
+            "card_to_card_payment",
+            "card_to_card_payment__destination_card",
+        )
+    )
+
+
+async def _load_transaction_invoice(transaction_id: int) -> Invoice | None:
+    return (
+        await Invoice.filter(transaction_id=transaction_id)
+        .first()
+        .prefetch_related("service", "proxy")
+    )
+
+
+def _admin_receipt_markup(transaction: Transaction):
+    builder = CardToCardAdminAccept(transaction=transaction)
+    return builder.as_markup() if builder.has_buttons else None
+
+
+def _message_target(message: Message) -> tuple[int, int]:
+    return message.chat.id, message.message_id
+
+
+async def _remember_admin_receipt_message(
+    transaction_id: int, message: Message
+) -> None:
+    target = _message_target(message)
+    _admin_receipt_messages.setdefault(transaction_id, set()).add(target)
+
+    payment = await CardToCardPayment.filter(transaction_id=transaction_id).first()
+    if not payment:
+        return
+    saved = payment.admin_messages if isinstance(payment.admin_messages, list) else []
+    saved_targets: set[tuple[int, int]] = set()
+    for item in saved:
+        if not isinstance(item, dict):
+            continue
+        try:
+            saved_targets.add((int(item["chat_id"]), int(item["message_id"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if target in saved_targets:
+        return
+    payment.admin_messages = [
+        *saved,
+        {"chat_id": target[0], "message_id": target[1]},
+    ]
+    await payment.save(update_fields=["admin_messages"])
+
+
+async def _admin_receipt_targets(transaction_id: int) -> set[tuple[int, int]]:
+    targets = set(_admin_receipt_messages.get(transaction_id, set()))
+    payment = await CardToCardPayment.filter(transaction_id=transaction_id).first()
+    saved = (
+        payment.admin_messages
+        if payment and isinstance(payment.admin_messages, list)
+        else []
+    )
+    for item in saved:
+        if not isinstance(item, dict):
+            continue
+        try:
+            targets.add((int(item["chat_id"]), int(item["message_id"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return targets
+
+
+async def _admin_receipt_text(transaction: Transaction) -> str:
+    transaction = await _load_card_to_card_transaction(transaction.id) or transaction
+    invoice = await _load_transaction_invoice(transaction.id)
+    user = transaction.user
+    card_payment = transaction.card_to_card_payment
+    card = card_payment.destination_card if card_payment else None
+    paid_amount = transaction.amount - transaction.amount_free_given
+
+    username = f"@{_html(user.username)}" if user.username else "ثبت نشده"
+    user_name = _html(user.custom_name or user.name)
+    phone = _html(user.phone_number)
+    card_number = (
+        _html(format_card_number(card.card_number)) if card else "ثبت نشده"
+    )
+    card_holder = _html(card.card_holder) if card else "ثبت نشده"
+
+    order_lines = [
+        f"• نوع درخواست: <b>{_invoice_type_label(invoice)}</b>",
+    ]
+    if invoice:
+        order_lines.append(f"• شماره فاکتور داخلی: <code>{invoice.id}</code>")
+        if invoice.service:
+            order_lines.append(
+                f"• پلن/تعرفه: <b>{_html(invoice.service.display_name)}</b>"
+            )
+        if invoice.proxy:
+            order_lines.append(
+                f"• اشتراک مرتبط: <code>{_html(invoice.proxy.username)}</code>"
+            )
+    else:
+        order_lines.append("• پلن/تعرفه: <b>شارژ حساب بدون خرید مستقیم</b>")
+
+    gift_line = ""
+    if transaction.amount_free_given:
+        gift_line = (
+            f"\n• هدیه/بونوس: <b>{transaction.amount_free_given:,}</b> تومان"
+            f"\n• اعتبار نهایی: <b>{transaction.amount:,}</b> تومان"
+        )
+
+    return f"""
+🧾 <b>فیش جدید کارت به کارت</b>
+
+📌 <b>وضعیت</b>
+• {_status_label(transaction.status)}
+• شماره تراکنش: <code>{transaction.id}</code>
+
+👤 <b>کاربر</b>
+• شناسه: <a href="tg://user?id={user.id}">{user.id}</a>
+• نام: <b>{user_name}</b>
+• یوزرنیم: <code>{username}</code>
+• شماره تماس: <code>{phone}</code>
+
+💳 <b>پرداخت</b>
+• مبلغ پرداختی: <b>{paid_amount:,}</b> تومان{gift_line}
+• کارت مقصد: <code>{card_number}</code>
+• صاحب کارت: <b>{card_holder}</b>
+
+🛒 <b>جزئیات سفارش</b>
+{chr(10).join(order_lines)}
+
+🔎 <b>بررسی کاربر</b>
+https://t.me/{main.get_bot_username()}?start=info_{user.id}
+""".strip()
+
+
+async def _edit_admin_receipt_message(
+    message: Message,
+    transaction: Transaction,
+    reply_markup=None,
+) -> None:
+    await _remember_admin_receipt_message(transaction.id, message)
+    text = await _admin_receipt_text(transaction)
+    if reply_markup is None:
+        reply_markup = _admin_receipt_markup(transaction)
+    try:
+        await message.edit_text(text=text, reply_markup=reply_markup)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass
+
+
+async def _sync_admin_receipt_messages(
+    bot,
+    transaction: Transaction,
+    current_message: Message | None = None,
+) -> None:
+    transaction = await _load_card_to_card_transaction(transaction.id) or transaction
+    if current_message:
+        await _remember_admin_receipt_message(transaction.id, current_message)
+
+    text = await _admin_receipt_text(transaction)
+    reply_markup = _admin_receipt_markup(transaction)
+    targets = await _admin_receipt_targets(transaction.id)
+    for chat_id, message_id in targets:
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=text,
+                reply_markup=reply_markup,
+            )
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
+
+
+async def _finish_waiting_transaction(transaction: Transaction) -> bool:
+    updated = await Transaction.filter(
+        id=transaction.id,
+        type=Transaction.PaymentType.card_to_card,
+        status=Transaction.Status.waiting,
+    ).update(
+        status=Transaction.Status.finished,
+        finished_at=dt.now(),
+        amount_paid=transaction.amount - transaction.amount_free_given,
+    )
+    return bool(updated)
+
+
+async def _reject_waiting_transaction(transaction: Transaction) -> bool:
+    updated = await Transaction.filter(
+        id=transaction.id,
+        type=Transaction.PaymentType.card_to_card,
+        status=Transaction.Status.waiting,
+    ).update(status=Transaction.Status.rejected)
+    return bool(updated)
 
 
 @router.callback_query(
@@ -1384,20 +1632,7 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
     )
     if not transaction:
         return await message.reply("❌ خطایی رخ داد! لطفا با پشتیبانی تماس بگیرید!")
-    text = f"""
-رسید جدید پرداخت کارت به کارت:
-
-کاربر: <a href='tg://user?id={user.id}'>{user.id}</a>
-شماره تراکنش: <code>{transaction.id}</code>
-مبلغ: <code>{transaction.amount - transaction.amount_free_given:,}</code> تومان
-مبلغ هدیه: <code>{transaction.amount_free_given:,}</code>
-
-کارت مقصد:
-<code>{transaction.card_to_card_payment.destination_card.card_number}</code> @ <b>{transaction.card_to_card_payment.destination_card.card_holder}</b>
-
-برای دریافت اطلاعات پرداخت کننده روی لینک زیر کلیک کنید:
-https://t.me/{main.get_bot_username()}?start=info_{user.id}
-"""
+    text = await _admin_receipt_text(transaction)
 
     async def send_reciept(chats: list[str | int]) -> list[Message]:
         reciept_messages = []
@@ -1406,10 +1641,9 @@ https://t.me/{main.get_bot_username()}?start=info_{user.id}
                 msg = await message.forward(chat)
                 reciept_msg = await msg.reply(
                     text=text,
-                    reply_markup=CardToCardAdminAccept(
-                        transaction=transaction
-                    ).as_markup(),
+                    reply_markup=_admin_receipt_markup(transaction),
                 )
+                await _remember_admin_receipt_message(transaction.id, reciept_msg)
                 reciept_messages.append(reciept_msg)
             except (TelegramBadRequest, TelegramForbiddenError):
                 if chat == _settings.transaction_logs:
@@ -1426,16 +1660,13 @@ https://t.me/{main.get_bot_username()}?start=info_{user.id}
         )
         # accept automatically
         if user.card_to_card_auto_accept:
-            transaction.status = Transaction.Status.finished
-            await transaction.save()
-            await transaction.refresh_from_db()
-            for rm in reciept_messages:
-                await rm.edit_text(
-                    text=text + "\n\n(تأیید خودکار انجام شد!)",
-                    reply_markup=CardToCardAdminAccept(
-                        transaction=transaction
-                    ).as_markup(),
-                )
+            accepted = await _finish_waiting_transaction(transaction)
+            transaction = await _load_card_to_card_transaction(transaction.id)
+            if transaction:
+                await _sync_admin_receipt_messages(message.bot, transaction)
+            if not accepted or not transaction:
+                await state.clear()
+                return await base_handlers.main_menu_handler(message, user)
             text = f"""
 ✅ پرداخت شما از طریق کارت به کارت با موفقیت تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!
 
@@ -1463,15 +1694,10 @@ async def admin_reject_cancel_card_to_card_receipt(
     query: CallbackQuery, user: User, callback_data: CardToCardAdminAccept.Callback
 ):
     """Cancel the reject confirmation: restore the original accept/reject menu."""
-    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    transaction = await _load_card_to_card_transaction(callback_data.transaction_id)
     if not transaction:
         return await query.answer("تراکنش یافت نشد!", show_alert=True)
-    try:
-        await query.message.edit_reply_markup(
-            reply_markup=CardToCardAdminAccept(transaction=transaction).as_markup()
-        )
-    except TelegramBadRequest:
-        pass
+    await _edit_admin_receipt_message(query.message, transaction)
     return await query.answer("لغو شد")
 
 
@@ -1481,14 +1707,11 @@ async def admin_reject_cancel_card_to_card_receipt(
 async def admin_reject_card_to_card_receipt(
     query: CallbackQuery, user: User, callback_data: CardToCardAdminAccept.Callback
 ):
-    transaction = (
-        await Transaction.filter(id=callback_data.transaction_id)
-        .first()
-        .prefetch_related("card_to_card_payment")
-    )
+    transaction = await _load_card_to_card_transaction(callback_data.transaction_id)
     if not transaction:
         return await query.answer("Transaction not found!", show_alert=True)
     if transaction.status == Transaction.Status.rejected:
+        await _sync_admin_receipt_messages(query.bot, transaction, query.message)
         return await query.answer("این تراکنش قبلاً رد شده است!", show_alert=True)
 
     # Already accepted → rejecting now also removes the subscription, so confirm
@@ -1496,29 +1719,42 @@ async def admin_reject_card_to_card_receipt(
     # nothing to undo, so it rejects in one tap as before.
     was_activated = transaction.status == Transaction.Status.finished
     if was_activated and not callback_data.confirmed:
+        await _sync_admin_receipt_messages(query.bot, transaction, query.message)
         await query.answer(
             "⚠️ این تراکنش قبلاً تأیید شده و اشتراک ساخته شده! با رد کردن، اشتراک کاربر حذف و فاکتور باطل می‌شود.",
             show_alert=True,
         )
-        try:
-            await query.message.edit_reply_markup(
-                reply_markup=CardToCardRejectConfirm(
-                    transaction_id=transaction.id
-                ).as_markup()
-            )
-        except TelegramBadRequest:
-            pass
+        await _edit_admin_receipt_message(
+            query.message,
+            transaction,
+            reply_markup=CardToCardRejectConfirm(
+                transaction_id=transaction.id
+            ).as_markup(),
+        )
         return
 
-    summary = await revoke_activated_transaction(transaction)
-    await transaction.refresh_from_db()
-    try:
-        await query.message.edit_text(
-            text=query.message.html_text,
-            reply_markup=CardToCardAdminAccept(transaction=transaction).as_markup(),
+    if not was_activated and transaction.status != Transaction.Status.waiting:
+        await _sync_admin_receipt_messages(query.bot, transaction, query.message)
+        return await query.answer(
+            "وضعیت فعلی این تراکنش اجازه رد کردن ندارد.", show_alert=True
         )
-    except TelegramBadRequest:
-        pass
+
+    if was_activated:
+        summary = await revoke_activated_transaction(transaction)
+        transaction = await _load_card_to_card_transaction(transaction.id)
+    else:
+        updated = await _reject_waiting_transaction(transaction)
+        transaction = await _load_card_to_card_transaction(transaction.id)
+        summary = ""
+        if not updated:
+            if transaction:
+                await _sync_admin_receipt_messages(query.bot, transaction, query.message)
+            return await query.answer(
+                "وضعیت این فیش توسط ادمین دیگری تغییر کرده است.", show_alert=True
+            )
+    if not transaction:
+        return await query.answer("تراکنش یافت نشد!", show_alert=True)
+    await _sync_admin_receipt_messages(query.bot, transaction, query.message)
     await query.answer("تراکنش رد شد!", show_alert=True)
 
     amount = transaction.amount - transaction.amount_free_given
@@ -1547,26 +1783,40 @@ async def admin_reject_card_to_card_receipt(
     CardToCardAdminAccept.Callback.filter(F.action == "accept"), AdminAccess()
 )
 async def admin_accept_card_to_card_receipt(
-    query: CallbackQuery | list[Message],
+    query: CallbackQuery,
     user: User,
     callback_data: CardToCardAdminAccept.Callback,
 ):
-    transaction = await Transaction.filter(id=callback_data.transaction_id).first()
+    transaction = await _load_card_to_card_transaction(callback_data.transaction_id)
     if not transaction:
         return await query.answer("تراکنش یافت نشد!", show_alert=True)
 
     if transaction.status == Transaction.Status.finished:
-        await query.message.edit_text(text=query.message.html_text)
+        await _sync_admin_receipt_messages(query.bot, transaction, query.message)
         return await query.answer("تراکنش از قبل تأیید شده است!", show_alert=True)
 
-    transaction.status = Transaction.Status.finished
-    transaction.finished_at = dt.now()
-    transaction.amount_paid = transaction.amount - transaction.amount_free_given
-    await transaction.save(update_fields=["status", "finished_at", "amount_paid"])
-    await query.message.edit_text(
-        text=query.message.html_text,
-        reply_markup=CardToCardAdminAccept(transaction=transaction).as_markup(),
-    )
+    if transaction.status == Transaction.Status.rejected:
+        await _sync_admin_receipt_messages(query.bot, transaction, query.message)
+        return await query.answer(
+            "این فیش قبلاً رد شده و قابل تأیید مجدد نیست.",
+            show_alert=True,
+        )
+
+    if transaction.status != Transaction.Status.waiting:
+        await _sync_admin_receipt_messages(query.bot, transaction, query.message)
+        return await query.answer(
+            "وضعیت فعلی این تراکنش اجازه تأیید ندارد.", show_alert=True
+        )
+
+    updated = await _finish_waiting_transaction(transaction)
+    transaction = await _load_card_to_card_transaction(transaction.id)
+    if not transaction:
+        return await query.answer("تراکنش یافت نشد!", show_alert=True)
+    await _sync_admin_receipt_messages(query.bot, transaction, query.message)
+    if not updated:
+        return await query.answer(
+            "وضعیت این فیش توسط ادمین دیگری تغییر کرده است.", show_alert=True
+        )
     await query.answer("تراکنش تایید شد!", show_alert=True)
     text = f"""
 ✅ پرداخت شما از طریق کارت به کارت با موفقیت تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!

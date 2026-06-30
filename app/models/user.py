@@ -310,6 +310,7 @@ class CardToCardPayment(TimedBase):
     type = fields.IntEnumField(
         Transaction.PaymentType, default=Transaction.PaymentType.card_to_card
     )
+    admin_messages = fields.JSONField(null=True)
     destination_card: fields.ForeignKeyNullableRelation["Card"] = (
         fields.ForeignKeyField(
             "models.Card",
