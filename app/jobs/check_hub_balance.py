@@ -9,9 +9,8 @@ Anti-spam: we only message when severity gets *worse* than the last alerted
 level (stored per server in Redis); recovery updates the stored level silently.
 """
 
-import config
 from app.jobs import logger
-from app.main import bot, redis, scheduler
+from app.main import redis, scheduler
 from app.models.server import Server
 from app.panels import PanelError
 from app.panels.registry import PanelRegistry
@@ -64,11 +63,11 @@ async def check_hub_balances() -> None:
                     f"موجودی فعلی: <b>{balance:,}</b> تومان\n\n"
                     f"موجودی به زیر {warn:,} تومان رسید؛ لطفاً به‌موقع شارژ کنید."
                 )
-            for uid in config.SUPER_USERS:
-                try:
-                    await bot.send_message(uid, text)
-                except Exception:  # noqa: BLE001 - blocked/invalid chat
-                    pass
+            from app.utils import reports
+
+            reports.report(
+                reports.ReportTopic.misc, text, legacy_super_users=True
+            )
             logger.info(
                 f"hub balance alert ({level}) sent for server {server.id}: {balance}"
             )

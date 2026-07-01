@@ -11,7 +11,6 @@ from typing import Any
 
 from tortoise.transactions import in_transaction
 
-import config
 from app.logger import get_logger
 from app.main import bot, redis
 from app.models.user import CryptoPayment, Transaction
@@ -144,22 +143,21 @@ def _amount_mismatch(cp: CryptoPayment, payload: dict[str, Any]) -> bool:
 async def _alert_review_needed(
     transaction: Transaction, payload: dict[str, Any], reason: str
 ) -> None:
+    from app.utils import reports
+
     payment_id = extract_payment_id(payload) or "-"
     invoice_id = extract_invoice_id(payload) or "-"
-    for uid in config.SUPER_USERS:
-        try:
-            await bot.send_message(
-                uid,
-                "⚠️ پرداخت NowPayments نیاز به بررسی دستی دارد.\n"
-                f"کد پیگیری: <code>{tracking_code(transaction.id)}</code>\n"
-                f"فاکتور داخلی: <code>{transaction.id}</code>\n"
-                f"Invoice: <code>{invoice_id}</code>\n"
-                f"Payment: <code>{payment_id}</code>\n"
-                f"علت: <b>{reason}</b>\n"
-                "این پرداخت به‌صورت خودکار شارژ نشد.",
-            )
-        except Exception:  # noqa: BLE001
-            logger.warning("nowpayments review alert failed for admin %s", uid)
+    reports.report(
+        reports.ReportTopic.misc,
+        "⚠️ پرداخت NowPayments نیاز به بررسی دستی دارد.\n"
+        f"کد پیگیری: <code>{tracking_code(transaction.id)}</code>\n"
+        f"فاکتور داخلی: <code>{transaction.id}</code>\n"
+        f"Invoice: <code>{invoice_id}</code>\n"
+        f"Payment: <code>{payment_id}</code>\n"
+        f"علت: <b>{reason}</b>\n"
+        "این پرداخت به‌صورت خودکار شارژ نشد.",
+        legacy_super_users=True,
+    )
 
 
 def _apply_payment_fields(cp: CryptoPayment, payload: dict[str, Any]) -> None:

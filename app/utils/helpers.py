@@ -1,11 +1,9 @@
 import asyncio
-import json
 import math
 import random
 import uuid
 from datetime import datetime as dt
 from datetime import timedelta as td
-from html import escape
 from typing import Any, Awaitable, Callable, Literal, Union
 
 from aiogram import exceptions
@@ -244,39 +242,109 @@ async def log_sender(
             await asyncio.sleep(err.retry_after)
 
 
+PAYMENT_TYPE_FA = {
+    Transaction.PaymentType.crypto: "ارز دیجیتال",
+    Transaction.PaymentType.card_to_card: "کارت به کارت",
+    Transaction.PaymentType.perfectmoney: "پرفکت مانی",
+    Transaction.PaymentType.rial_gateway: "درگاه ریالی",
+    Transaction.PaymentType.by_admin: "توسط ادمین",
+    Transaction.PaymentType.gift: "هدیه",
+    Transaction.PaymentType.tronseller: "ترون",
+}
+
+TRX_STATUS_FA = {
+    Transaction.Status.waiting: "⏳ در انتظار",
+    Transaction.Status.failed: "❌ ناموفق",
+    Transaction.Status.canceled: "🚫 لغو شده",
+    Transaction.Status.partially_paid: "⚠️ پرداخت ناقص",
+    Transaction.Status.finished: "✅ تأیید شده",
+    Transaction.Status.rejected: "❌ رد شده",
+    Transaction.Status.sending: "📤 در حال ارسال",
+    Transaction.Status.confirming: "♻️ در حال تأیید",
+}
+
+
+async def payment_method_label(
+    transaction: Transaction,
+    payment: Union[
+        CryptoPayment, CardToCardPayment, PerfectMoneyPayment, ByAdminPayment
+    ],
+) -> str:
+    """Human label for the payment route: type + provider + destination card
+    (card-to-card), e.g. 'کارت به کارت (6037...  علی)' / 'ارز دیجیتال (plisio)'."""
+    label = PAYMENT_TYPE_FA.get(transaction.type, transaction.type.name)
+    provider = getattr(payment, "provider", None)
+    if provider is not None:
+        label += f" ({getattr(provider, 'value', provider)})"
+    if isinstance(payment, CardToCardPayment):
+        try:
+            await payment.fetch_related("destination_card")
+            card = payment.destination_card
+        except Exception:  # noqa: BLE001 - label must never break the report
+            card = None
+        if card:
+            label += f"\n💳 کارت مقصد: <code>{card.card_number}</code> ({card.card_holder})"
+    return label
+
+
+async def build_transaction_report(
+    transaction: Transaction,
+    payment: Union[
+        CryptoPayment, CardToCardPayment, PerfectMoneyPayment, ByAdminPayment
+    ],
+    admin: User | str | None = None,
+    note: str | None = None,
+) -> str:
+    """The financial-report text shared by transaction_log and the explicit
+    accept/reject reports (card-to-card / offline)."""
+    method = await payment_method_label(transaction, payment)
+    admin_line = ""
+    if admin is not None:
+        if isinstance(admin, User):
+            admin_line = (
+                f"\n👤 ادمین: <a href='tg://user?id={admin.id}'>"
+                f"{admin.name or admin.id}</a>"
+            )
+        else:
+            admin_line = f"\n👤 ادمین: {admin}"
+    note_line = f"\n📝 توضیح: {note}" if note else ""
+    return f"""
+💳 <b>گزارش تراکنش</b>
+
+وضعیت: <b>{TRX_STATUS_FA.get(transaction.status, transaction.status.name)}</b>
+روش پرداخت: {method}
+
+💰 مبلغ: <code>{transaction.amount:,}</code> تومان
+🎁 مبلغ هدیه: <code>{transaction.amount_free_given:,}</code> تومان
+🧾 شماره فاکتور: <code>{transaction.id}</code>{admin_line}{note_line}
+
+کاربر: <a href='tg://user?id={transaction.user_id}'>{transaction.user_id}</a>
+اطلاعات کاربر:
+https://t.me/{get_bot_username()}?start=info_{transaction.user_id}
+"""
+
+
 @bg_job
 async def transaction_log(
     transaction: Transaction,
     payment: Union[
         CryptoPayment, CardToCardPayment, PerfectMoneyPayment, ByAdminPayment
     ],
+    admin: User | str | None = None,
+    note: str | None = None,
 ) -> None:
+    # Local import: reports pulls settings lazily; avoids an import cycle here.
+    from app.utils import reports
+
     _settings = settings.get_settings()
-    if not _settings.transaction_logs:
+    if not _settings.transaction_logs and not reports.group_configured():
         return
 
-    text = f"""
-تراکنش جدید!
-
-نوع: {transaction.type.name}
-وضعیت: <b>{transaction.status.name}</b>
-
-مبلغ: <code>{transaction.amount:,}</code>
-مبلغ هدیه: <code>{transaction.amount_free_given:,}</code>
-
-کاربر: <a href='tg://user?id={transaction.user_id}'>{transaction.user_id}</a>
-
-برای دریافت اطلاعات کاربر روی لینک زیر کلیک کنید:
-https://t.me/{get_bot_username()}?start=info_{transaction.user_id}
-
-دیتای تراکنش:
-<code>{escape(json.dumps(dict(payment), indent=2, default=str))}</code>
-"""
-    await log_sender(
-        bot.send_message,
-        chat_id=_settings.transaction_logs,
-        text=text,
-        disable_web_page_preview=True,
+    text = await build_transaction_report(transaction, payment, admin=admin, note=note)
+    reports.report(
+        reports.ReportTopic.financial,
+        text,
+        legacy_chat_id=_settings.transaction_logs,
     )
 
 
@@ -325,11 +393,17 @@ async def order_log(
                 user=user,
             )
 
-    if not _settings.orders_logs:
+    from app.utils import reports
+
+    if not _settings.orders_logs and not reports.group_configured():
         return
     await proxy.fetch_related("service")
+    is_test = bool(getattr(service, "is_test_service", False)) or not (
+        amount_paid or proxy.cost
+    )
+    title = "🔑 اکانت تست فعال شد:" if is_test else "🛍 سفارش جدید ثبت شد:"
     text = f"""
-سفارش جدید ثبت شد:
+{title}
 
 نوع: <b>{transalte_order_type.get(type.lower(), type.capitalize())}</b>
 
@@ -346,9 +420,8 @@ User: <a href='tg://user?id={proxy.user_id}'>{proxy.user_id}</a>
 https://t.me/{get_bot_username()}?start=info_{proxy.user_id}
 """
 
-    await log_sender(
-        bot.send_message,
-        chat_id=_settings.orders_logs,
-        text=text,
-        disable_web_page_preview=True,
+    reports.report(
+        reports.ReportTopic.test_accounts if is_test else reports.ReportTopic.orders,
+        text,
+        legacy_chat_id=_settings.orders_logs,
     )

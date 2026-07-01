@@ -33,6 +33,24 @@ class ACLMiddleware(BaseMiddleware):
         except KeyError:
             return await handler(event, data)
 
+    @staticmethod
+    def _report_new_user(db_user: User) -> None:
+        """First contact of a Telegram user -> the reports group's
+        'new users' topic (fire-and-forget; no-op when no group is set)."""
+        try:
+            from app.utils import reports
+
+            reports.report(
+                reports.ReportTopic.new_users,
+                "🎉 یک کاربر جدید ربات را استارت کرد!\n\n"
+                f"نام: <b>{db_user.name or '-'}</b>\n"
+                f"نام کاربری: @{db_user.username or '-'}\n"
+                f"آیدی عددی: <code>{db_user.id}</code>\n"
+                f"پروفایل: <a href='tg://user?id={db_user.id}'>{db_user.id}</a>",
+            )
+        except Exception:  # noqa: BLE001 - reporting must never break updates
+            logger.warning("new-user report failed", exc_info=True)
+
     @contextmanager
     def context(self, user: User) -> Iterator[None]:
         """Set current_user context"""
@@ -58,6 +76,7 @@ class ACLMiddleware(BaseMiddleware):
                 db_user = await User.create(
                     id=user.id, username=user.username, name=user.full_name
                 )
+            self._report_new_user(db_user)
             data["user"] = db_user
             return db_user
 

@@ -39,6 +39,7 @@ class SettingsActions(str, Enum):
     swapino = "swapino"
 
     misc = "misc"
+    reports = "reports"
 
 
 class SettingsKeyboard(InlineKeyboardBuilder):
@@ -105,6 +106,10 @@ class SettingsKeyboard(InlineKeyboardBuilder):
         self.button(
             text="تنظیمات دکمه‌های مبالغ پرداختی",
             callback_data=self.Callback(action=SettingsActions.pay_buttons),
+        )
+        self.button(
+            text=f"گروه گزارشات (تاپیک‌ها) {'✅' if _settings.reports_group_id else '❌'}",
+            callback_data=self.Callback(action=SettingsActions.reports),
         )
         self.button(
             text="تنظیمات دیگر",
@@ -479,4 +484,82 @@ class ConfirmPayAmountSettings(InlineKeyboardBuilder):
             callback_data=SettingsKeyboard.Callback(action=SettingsActions.pay_buttons),
         )
 
+        self.adjust(1, 1)
+
+
+class ReportsSettingsActions(str, Enum):
+    set_group = "set_group"
+    unset_group = "unset_group"
+    toggle_topic = "toggle_topic"
+    edit_backup_interval = "backup_interval"
+    toggle_nightly = "toggle_nightly"
+
+
+class ReportsSettings(InlineKeyboardBuilder):
+    """Topics-group reporting menu (app/utils/reports.py)."""
+
+    class Callback(CallbackData, prefix="rptstg"):
+        action: ReportsSettingsActions
+        topic: str = ""
+        confirmed: bool = False
+
+    def __init__(self, _settings: "settings.Settings", *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        from app.utils.reports import TOPIC_TITLES, ReportTopic
+
+        if not _settings.reports_group_id:
+            self.button(
+                text="🧩 اتصال گروه گزارشات",
+                callback_data=self.Callback(action=ReportsSettingsActions.set_group),
+            )
+        else:
+            disabled = _settings.reports_disabled_topics or []
+            for topic in ReportTopic:
+                self.button(
+                    text=f"{TOPIC_TITLES[topic]} {'✅' if topic.value not in disabled else '❌'}",
+                    callback_data=self.Callback(
+                        action=ReportsSettingsActions.toggle_topic, topic=topic.value
+                    ),
+                )
+            self.button(
+                text=f"🌙 گزارش شبانه: {'✅' if _settings.nightly_report_enabled else '❌'}",
+                callback_data=self.Callback(
+                    action=ReportsSettingsActions.toggle_nightly
+                ),
+            )
+            self.button(
+                text=f"🤖 بازه بکاپ: {f'هر {_settings.backup_interval_hours} ساعت' if _settings.backup_interval_hours else 'خاموش'}",
+                callback_data=self.Callback(
+                    action=ReportsSettingsActions.edit_backup_interval
+                ),
+            )
+            self.button(
+                text="🔁 تغییر گروه",
+                callback_data=self.Callback(action=ReportsSettingsActions.set_group),
+            )
+            self.button(
+                text="🗑 قطع اتصال گروه",
+                callback_data=self.Callback(action=ReportsSettingsActions.unset_group),
+            )
+
+        self.button(
+            text="برگشت",
+            callback_data=AdminPanel.Callback(action=AdminPanelAction.settings),
+        )
+        self.adjust(1, 1)
+
+
+class ReportsConfirm(InlineKeyboardBuilder):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.button(
+            text="تایید",
+            callback_data=ReportsSettings.Callback(
+                action=ReportsSettingsActions.unset_group, confirmed=True
+            ),
+        )
+        self.button(
+            text="لغو",
+            callback_data=SettingsKeyboard.Callback(action=SettingsActions.reports),
+        )
         self.adjust(1, 1)

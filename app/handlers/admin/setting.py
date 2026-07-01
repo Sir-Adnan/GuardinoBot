@@ -20,6 +20,9 @@ from app.keyboards.admin.setting import (
     MSettingsActions,
     PayAmountSetting,
     PayAmountSettingActions,
+    ReportsConfirm,
+    ReportsSettings,
+    ReportsSettingsActions,
     SettingsActions,
     SettingsKeyboard,
     SettingsMisc,
@@ -29,7 +32,7 @@ from app.keyboards.admin.setting import (
 )
 from app.main import bot
 from app.models.user import User
-from app.utils import helpers, settings, texts
+from app.utils import helpers, reports, settings, texts
 from app.utils.filters import IsSuperUser
 from app.utils.values import admin_edit_texts_format, check_texts
 
@@ -1576,3 +1579,199 @@ async def get_pay_buttons(message: Message, user: User, state: FSMContext):
 شکل قرارگیری دکمه‌های انتخاب مبلغ پرداخت:
 """
     return await message.answer(text=text, reply_markup=PayAmountSetting().as_markup())
+
+
+# --- Topics-group reporting settings (app/utils/reports.py) ------------------
+
+
+class EditReportsForm(StatesGroup):
+    group_id = State()
+    backup_interval = State()
+
+
+@router.message(
+    StateFilter(EditReportsForm),
+    IsSuperUser(),
+    F.text.casefold() == CancelFormAdmin.cancel,
+)
+@router.callback_query(
+    SettingsKeyboard.Callback.filter(F.action == SettingsActions.reports),
+    IsSuperUser(),
+)
+async def reports_settings(
+    qmsg: CallbackQuery | Message, user: User, state: FSMContext = None
+):
+    if (state is not None) and (await state.get_state() is not None):
+        await state.clear()
+    _settings = settings.get_settings()
+    if _settings.reports_group_id:
+        text = f"""
+🧩 <b>گروه گزارشات (تاپیک‌ها)</b>
+
+گروه متصل: <code>{_settings.reports_group_id}</code>
+
+گزارش‌های ربات در تاپیک‌های این گروه ثبت می‌شوند. با دکمه‌های زیر می‌توانید هر تاپیک را روشن/خاموش کنید:
+"""
+    else:
+        text = """
+🧩 <b>گروه گزارشات (تاپیک‌ها)</b>
+
+هنوز گروهی متصل نشده — گزارش‌ها طبق روال قبلی (کانال لاگ تراکنش‌ها/سفارشات) ارسال می‌شوند.
+
+با اتصال یک گروه، ربات تاپیک‌های «مالی، خرید، اکانت تست، بکاپ، شبانه، خطاها، کاربران جدید و سایر» را می‌سازد و همه گزارش‌ها را دسته‌بندی‌شده همان‌جا ثبت می‌کند.
+"""
+    markup = ReportsSettings(_settings=_settings).as_markup()
+    if isinstance(qmsg, CallbackQuery):
+        try:
+            return await qmsg.message.edit_text(text, reply_markup=markup)
+        except TelegramBadRequest:  # "message is not modified" on toggle spam
+            return await qmsg.answer()
+    return await qmsg.answer(text, reply_markup=markup)
+
+
+@router.callback_query(
+    ReportsSettings.Callback.filter(F.action == ReportsSettingsActions.set_group),
+    IsSuperUser(),
+)
+async def reports_set_group(
+    query: CallbackQuery, user: User, state: FSMContext
+):
+    await state.set_state(EditReportsForm.group_id)
+    await query.message.reply(
+        """
+آیدی عددی گروه گزارشات را وارد کنید (مثلا <code>-1001234567890</code>).
+
+پیش‌نیازها:
+1️⃣ گروه از نوع سوپرگروه باشد و حالت «تاپیک‌ها» (Topics) در تنظیمات گروه روشن باشد.
+2️⃣ ربات در گروه <b>ادمین</b> باشد با دسترسی «Manage Topics».
+
+ربات پس از اتصال، تاپیک‌های گزارش را خودش می‌سازد.
+""",
+        reply_markup=cancel_form,
+    )
+
+
+@router.message(
+    EditReportsForm.group_id,
+    IsSuperUser(),
+    ~CommandStart(),
+    ~Command("menu"),
+)
+async def get_reports_group_id(message: Message, user: User, state: FSMContext):
+    raw = message.text.strip()
+    try:
+        group_id = int(raw)
+    except ValueError:
+        return await message.reply(
+            f"{raw} نامعتبر است! لطفا آیدی عددی گروه را وارد کنید:"
+        )
+
+    wait_msg = await message.reply("♻️ در حال بررسی گروه و ساخت تاپیک‌ها...")
+    try:
+        mapping = await reports.setup_topics(group_id)
+    except reports.ReportSetupError as exc:
+        return await wait_msg.edit_text(f"❌ {exc}\n\nدوباره تلاش کنید:")
+
+    await settings.Settings.update(
+        reports_group_id=group_id,
+        reports_topics=mapping,
+        reports_disabled_topics=[],
+    )
+    await state.clear()
+    await settings.reload_settings()
+
+    reports.report(
+        reports.ReportTopic.misc,
+        "✅ گروه گزارشات با موفقیت به ربات متصل شد!\nاز این پس گزارش‌ها در تاپیک‌های همین گروه ثبت می‌شوند.",
+    )
+    await wait_msg.edit_text(
+        f"✅ گروه <code>{group_id}</code> متصل شد و {len(mapping)} تاپیک ساخته شد!"
+    )
+    await message.answer("🧩", reply_markup=ReplyKeyboardRemove())
+    await reports_settings(message, user)
+
+
+@router.callback_query(
+    ReportsSettings.Callback.filter(F.action == ReportsSettingsActions.unset_group),
+    IsSuperUser(),
+)
+async def reports_unset_group(
+    query: CallbackQuery, user: User, callback_data: ReportsSettings.Callback
+):
+    if not callback_data.confirmed:
+        return await query.message.edit_text(
+            "گروه گزارشات قطع شود؟ گزارش‌ها به روال قبلی (کانال‌های لاگ) برمی‌گردند.",
+            reply_markup=ReportsConfirm().as_markup(),
+        )
+    await settings.Settings.update(reports_group_id=None, reports_topics={})
+    await settings.reload_settings()
+    await query.answer("گروه گزارشات قطع شد!", show_alert=True)
+    await reports_settings(query, user)
+
+
+@router.callback_query(
+    ReportsSettings.Callback.filter(F.action == ReportsSettingsActions.toggle_topic),
+    IsSuperUser(),
+)
+async def reports_toggle_topic(
+    query: CallbackQuery, user: User, callback_data: ReportsSettings.Callback
+):
+    _settings = settings.get_settings()
+    disabled = list(_settings.reports_disabled_topics or [])
+    if callback_data.topic in disabled:
+        disabled.remove(callback_data.topic)
+    else:
+        disabled.append(callback_data.topic)
+    await settings.Settings.update(reports_disabled_topics=disabled)
+    await settings.reload_settings()
+    await reports_settings(query, user)
+
+
+@router.callback_query(
+    ReportsSettings.Callback.filter(F.action == ReportsSettingsActions.toggle_nightly),
+    IsSuperUser(),
+)
+async def reports_toggle_nightly(
+    query: CallbackQuery, user: User, callback_data: ReportsSettings.Callback
+):
+    await settings.Settings.update(
+        nightly_report_enabled=not settings.get_settings().nightly_report_enabled
+    )
+    await settings.reload_settings()
+    await reports_settings(query, user)
+
+
+@router.callback_query(
+    ReportsSettings.Callback.filter(
+        F.action == ReportsSettingsActions.edit_backup_interval
+    ),
+    IsSuperUser(),
+)
+async def reports_edit_backup_interval(
+    query: CallbackQuery, user: User, state: FSMContext
+):
+    await state.set_state(EditReportsForm.backup_interval)
+    await query.message.reply(
+        "بکاپ دیتابیس هر چند ساعت یک‌بار به تاپیک «بکاپ ربات» ارسال شود؟ (1 تا 24 — برای خاموش کردن 0 را وارد کنید)",
+        reply_markup=cancel_form,
+    )
+
+
+@router.message(
+    EditReportsForm.backup_interval,
+    IsSuperUser(),
+    ~CommandStart(),
+    ~Command("menu"),
+)
+async def get_backup_interval(message: Message, user: User, state: FSMContext):
+    raw = message.text.strip()
+    if not raw.isnumeric() or not (0 <= int(raw) <= 24):
+        return await message.reply("عدد بین 0 تا 24 وارد کنید:")
+    await settings.Settings.update(backup_interval_hours=int(raw))
+    await state.clear()
+    await settings.reload_settings()
+    await message.reply(
+        f"✅ ذخیره شد: {'خاموش' if int(raw) == 0 else f'هر {int(raw)} ساعت'}",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    await reports_settings(message, user)

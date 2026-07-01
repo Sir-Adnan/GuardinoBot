@@ -110,7 +110,7 @@ from app.keyboards.user import payment
 from app.models.setting import Card
 from app.models.user import CardToCardPayment, Invoice, Transaction, User
 from app.plugins.payment.jobs import activate_service, revoke_activated_transaction
-from app.utils import settings, texts
+from app.utils import helpers, settings, texts
 from app.utils.filters import AdminAccess, IsSuperUser
 from app.utils.values import admin_edit_texts_format, check_texts
 
@@ -1619,11 +1619,13 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
         return await message.reply("❌ خطایی رخ داد! لطفا با پشتیبانی تماس بگیرید!")
     text = await _admin_receipt_text(transaction)
 
-    async def send_reciept(chats: list[str | int]) -> list[Message]:
+    async def send_reciept(
+        chats: list[str | int], thread_id: int | None = None
+    ) -> list[Message]:
         reciept_messages = []
         for chat in chats:
             try:
-                msg = await message.forward(chat)
+                msg = await message.forward(chat, message_thread_id=thread_id)
                 reciept_msg = await msg.reply(
                     text=text,
                     reply_markup=_admin_receipt_markup(transaction),
@@ -1631,15 +1633,33 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
                 await _remember_admin_receipt_message(transaction.id, reciept_msg)
                 reciept_messages.append(reciept_msg)
             except (TelegramBadRequest, TelegramForbiddenError):
+                if thread_id is not None:
+                    # topic deleted/closed → legacy chain below
+                    return await send_reciept(
+                        [_settings.transaction_logs]
+                        if _settings.transaction_logs
+                        else config.SUPER_USERS
+                    )
                 if chat == _settings.transaction_logs:
                     return await send_reciept(config.SUPER_USERS)
         return reciept_messages
 
-    if reciept_messages := await send_reciept(
-        [_settings.transaction_logs]
-        if _settings.transaction_logs
-        else config.SUPER_USERS
-    ):
+    # Receipt photos go to the financial topic when the reports group is set,
+    # else to the legacy transaction-logs chat / super-users PV.
+    from app.utils import reports
+
+    _target = reports.topic_target(reports.ReportTopic.financial)
+    if _target:
+        _reciept_dest, _reciept_thread = [_target[0]], _target[1]
+    else:
+        _reciept_dest = (
+            [_settings.transaction_logs]
+            if _settings.transaction_logs
+            else config.SUPER_USERS
+        )
+        _reciept_thread = None
+
+    if reciept_messages := await send_reciept(_reciept_dest, _reciept_thread):
         await message.reply(
             "✅ رسید پرداخت شما ثبت شد! بعد از تأیید مبلغ پرداختی به حساب شما اضافه خواهد شد."
         )
@@ -1660,6 +1680,11 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
 ‌‌
 """
             msg = await message.answer(text=text)
+            helpers.transaction_log(
+                transaction=transaction,
+                payment=transaction.card_to_card_payment,
+                admin="🤖 تأیید خودکار",
+            )
             # Auto-accept must also activate a direct purchase/renew, exactly
             # like the manual-accept path — otherwise the wallet is credited but
             # the subscription is never created/renewed.
@@ -1741,6 +1766,14 @@ async def admin_reject_card_to_card_receipt(
         return await query.answer("تراکنش یافت نشد!", show_alert=True)
     await _sync_admin_receipt_messages(query.bot, transaction, query.message)
     await query.answer("تراکنش رد شد!", show_alert=True)
+    helpers.transaction_log(
+        transaction=transaction,
+        payment=transaction.card_to_card_payment,
+        admin=user,
+        note="فیش قبلاً تأیید و اشتراک ساخته شده بود؛ فعال‌سازی لغو شد."
+        if was_activated
+        else None,
+    )
 
     amount = transaction.amount - transaction.amount_free_given
     if was_activated:
@@ -1811,4 +1844,9 @@ async def admin_accept_card_to_card_receipt(
 ‌‌
 """
     msg = await query.bot.send_message(transaction.user_id, text=text)
+    helpers.transaction_log(
+        transaction=transaction,
+        payment=transaction.card_to_card_payment,
+        admin=user,
+    )
     activate_service(transaction, msg)

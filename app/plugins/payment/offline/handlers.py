@@ -436,7 +436,7 @@ async def _fetch_offline_cp(cp_id: int):
     )
 
 
-async def _approve_offline(cp, bot) -> str:
+async def _approve_offline(cp, bot, admin=None) -> str:
     """Credit + activate a pending offline payment. Idempotent (already-finished
     guard). Returns ``approved`` | ``already``."""
     transaction = cp.transaction
@@ -460,12 +460,12 @@ async def _approve_offline(cp, bot) -> str:
         )
     except Exception:  # noqa: BLE001
         pass
-    helpers.transaction_log(transaction=transaction, payment=cp)
+    helpers.transaction_log(transaction=transaction, payment=cp, admin=admin)
     jobs.activate_service(transaction, msg)
     return "approved"
 
 
-async def _reject_offline(cp, bot) -> tuple[str, str]:
+async def _reject_offline(cp, bot, admin=None) -> tuple[str, str]:
     """Reject a pending offline payment, or REVERSE an already-approved one —
     undo the credit + remove the activated subscription (panel + bot) via
     ``revoke_activated_transaction`` (same helper the card-to-card reject uses).
@@ -498,17 +498,25 @@ async def _reject_offline(cp, bot) -> tuple[str, str]:
             )
     except Exception:  # noqa: BLE001
         pass
+    helpers.transaction_log(
+        transaction=transaction,
+        payment=cp,
+        admin=admin,
+        note="پرداخت قبلاً تأیید و اشتراک فعال شده بود؛ فعال‌سازی لغو شد."
+        if was_activated
+        else None,
+    )
     return ("reverted" if was_activated else "rejected"), summary
 
 
-async def apply_offline_review(cp, action: str, bot) -> str:
+async def apply_offline_review(cp, action: str, bot, admin=None) -> str:
     """Single credit/reverse path shared by the bot's inline review and the
     web→Redis queue. Idempotent. Returns a short status code."""
     if cp is None:
         return "notfound"
     if action == "approve":
-        return await _approve_offline(cp, bot)
-    result, _ = await _reject_offline(cp, bot)
+        return await _approve_offline(cp, bot, admin=admin)
+    result, _ = await _reject_offline(cp, bot, admin=admin)
     return result
 
 
@@ -532,7 +540,9 @@ async def process_offline_review_queue(bot) -> None:
             action = "approve" if item.get("action") == "approve" else "reject"
         except Exception:  # noqa: BLE001
             continue
-        await apply_offline_review(await _fetch_offline_cp(cp_id), action, bot)
+        await apply_offline_review(
+            await _fetch_offline_cp(cp_id), action, bot, admin="🖥 پنل وب"
+        )
 
 
 async def _rerender_card(qmsg: CallbackQuery, cp_id: int, status) -> None:
@@ -553,7 +563,7 @@ async def offline_approve(
     cp = await _fetch_offline_cp(callback_data.cp_id)
     if cp is None:
         return await qmsg.answer("پرداخت یافت نشد!", show_alert=True)
-    result = await _approve_offline(cp, qmsg.bot)
+    result = await _approve_offline(cp, qmsg.bot, admin=user)
     if result == "already":
         return await qmsg.answer("این پرداخت قبلاً تأیید شده است.", show_alert=True)
     await qmsg.answer("تأیید شد ✅", show_alert=True)
@@ -602,7 +612,7 @@ async def offline_reject(
             pass
         return
 
-    _, summary = await _reject_offline(cp, qmsg.bot)
+    _, summary = await _reject_offline(cp, qmsg.bot, admin=user)
     await qmsg.answer("رد شد", show_alert=True)
     await transaction.refresh_from_db()
     await _rerender_card(qmsg, cp.id, transaction.status)

@@ -58,3 +58,56 @@ async def server_error_handler(event: ErrorEvent, qmsg: Message | CallbackQuery)
     return await qmsg.answer(
         "😬 خطایی در روند اتصال به سرور رخ داد! لطفا کمی بعد دوباره تلاش کنید (کد ۱۶)...",
     )
+
+
+@main.dp.error()
+async def unhandled_error_handler(event: ErrorEvent):
+    """Last-resort net (after the specific handlers above): log + report every
+    unhandled handler exception to the reports group's errors topic. The user
+    gets a generic Persian message; internals are never shown (§11) and the
+    report text is sanitized (no tokens/DSN). No-op report when no group is
+    configured — same as before this handler existed."""
+    from app.utils import reports
+
+    exc = event.exception
+    logger.exception("unhandled error in update handler", exc_info=exc)
+
+    # Frequent, harmless Telegram noise: log only, don't flood the errors topic.
+    _noise = ("message is not modified", "query is too old", "message to edit not found")
+    if any(n in str(exc).lower() for n in _noise):
+        return True
+
+    update = event.update
+    qmsg = None
+    tg_user = None
+    where = "-"
+    if update.callback_query:
+        qmsg, tg_user = update.callback_query, update.callback_query.from_user
+        where = f"callback: <code>{(update.callback_query.data or '')[:64]}</code>"
+    elif update.message:
+        qmsg, tg_user = update.message, update.message.from_user
+        where = f"message: <code>{(update.message.text or update.message.content_type or '')[:64]}</code>"
+
+    user_line = (
+        f"\nکاربر: <a href='tg://user?id={tg_user.id}'>{tg_user.id}</a>"
+        f" (@{tg_user.username or '-'})"
+        if tg_user
+        else ""
+    )
+    reports.report(
+        reports.ReportTopic.errors,
+        "⭕️ خطای هندل‌نشده در ربات!\n\n"
+        f"نوع خطا: <code>{type(exc).__name__}</code>\n"
+        f"متن خطا: <code>{reports.sanitize(str(exc))[:800]}</code>\n"
+        f"محل: {where}{user_line}",
+    )
+
+    text = "😬 خطایی رخ داد! لطفا کمی بعد دوباره تلاش کنید."
+    try:
+        if isinstance(qmsg, CallbackQuery):
+            await qmsg.answer(text, show_alert=True)
+        elif qmsg is not None:
+            await qmsg.answer(text)
+    except Exception:  # noqa: BLE001 - answering is best-effort
+        pass
+    return True

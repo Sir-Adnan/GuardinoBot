@@ -439,6 +439,15 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
 ---
 
 ## Done log (compact — don't rebuild these)
+- ✅ **Topics-group reporting** — `app/utils/reports.py` (`ReportTopic` ×8: financial/orders/test/
+  backup/nightly/errors/new-users/misc) routes all admin reports into a forum supergroup, one topic
+  each; admin setup in bot settings ("گروه گزارشات") auto-creates topics; group **replaces** legacy
+  transaction/orders-log channels when set (legacy behavior when unset — safe update, settings are
+  key-value → no migration). Financial reports show method/provider/destination-card/admin +
+  accept/reject (card-to-card, offline, gateways). New jobs: `nightly_report` (23:59 Tehran, pinned
+  summary: orders/renews/volume/money-by-method/top-buyers/per-server) + `backup_report`
+  (mysqldump→gzip→topic on a settings interval; needs mariadb-client in the image → rebuild).
+  Catch-all `dp.error` + FastAPI 500 handler feed the errors topic (sanitized).
 - ✅ **Multi-panel adapter** (`app/panels/`, `docs/panels.md`) — Marzban (legacy) + **PasarGuard complete**
   (data-plane + admin UI + webhook). New code never imports a panel client directly.
 - ✅ **Guardino Hub** (panel adapter, phase 2) — id-based, GB/days, hub pricing. Stages 0–4: model +

@@ -61,6 +61,55 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Guardino-Bot Web Panel API", version="0.1.0", lifespan=lifespan)
 
+
+@app.exception_handler(Exception)
+async def report_unhandled_exception(request, exc):
+    """500s → the reports group's errors topic (best-effort, sanitized).
+
+    Self-contained on purpose: this process must not import ``app.main``, so it
+    can't use app.utils.reports; it reads the group/topic straight from the
+    bot_settings key-value rows and sends with the API's own send-only bot."""
+    import json as _json
+    import logging
+
+    from fastapi.responses import JSONResponse
+
+    logging.getLogger("api/errors").exception("unhandled API error", exc_info=exc)
+    try:
+        from app.models.setting import BotSetting
+
+        group_row = await BotSetting.filter(_key="reports_group_id").first()
+        group_id = int(group_row._value) if group_row and group_row._value else None
+        if group_id:
+            topics_row = await BotSetting.filter(_key="reports_topics").first()
+            disabled_row = await BotSetting.filter(
+                _key="reports_disabled_topics"
+            ).first()
+            topics = _json.loads(topics_row._value) if topics_row and topics_row._value else {}
+            disabled = (
+                _json.loads(disabled_row._value)
+                if disabled_row and disabled_row._value
+                else []
+            )
+            if "errors" not in disabled:
+                detail = str(exc)
+                for secret in (config.BOT_TOKEN, config.DATABASE_URL):
+                    if secret:
+                        detail = detail.replace(str(secret), "***")
+                thread = topics.get("errors")
+                await bot.send_message(
+                    group_id,
+                    "⭕️ خطای هندل‌نشده در پنل وب!\n\n"
+                    f"مسیر: <code>{request.method} {request.url.path}</code>\n"
+                    f"نوع خطا: <code>{type(exc).__name__}</code>\n"
+                    f"متن خطا: <code>{detail[:800]}</code>",
+                    message_thread_id=int(thread) if thread else None,
+                    parse_mode="HTML",
+                )
+    except Exception:  # noqa: BLE001 - reporting must never mask the 500
+        pass
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 _origins = (
     ["*"]
     if config.WEB_CORS_ORIGINS.strip() == "*"

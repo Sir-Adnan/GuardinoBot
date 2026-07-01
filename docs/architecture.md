@@ -27,9 +27,12 @@ app/
                      # offline/, card_to_card, perfect_money, rial_gateway (zarinpal/zibal/payping/aqaye_pardakht), tronseller
     referral/
   jobs/              # check_reserves, del_unpaid_payments, refresh_proxies, remind_invoices,
-                     # proxy_alerts, check_hub_balance, sync_settings
+                     # proxy_alerts, check_hub_balance, sync_settings,
+                     # nightly_report (23:59 Tehran), backup_report (mysqldump → backup topic)
   middlewares/       # acl, rate_limit
-  utils/             # helpers, settings, texts, encryption, proxy_management, qr, broadcast, ...
+  utils/             # helpers, settings, texts, encryption, proxy_management, qr, broadcast,
+                     # reports (Topics-group reporting: ReportTopic + report(); legacy-channel
+                     # fallback when no group is configured), ...
   views/             # aiohttp: status, notifications (panel webhook)
   templates/         # jinja2 (currently only payment.html)
 webpanel/            # ★ React+TS+Vite+Refine+AntD web panel frontend (docs/webpanel.md) — src/{pages,components,...}

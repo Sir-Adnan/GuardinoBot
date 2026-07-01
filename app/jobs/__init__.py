@@ -6,9 +6,11 @@ logger = get_logger("jobs")
 
 
 from app.jobs import (
+    backup_report,
     check_hub_balance,
     check_reserves,
     del_unpaid_payments,
+    nightly_report,
     proxy_alerts,
     refresh_proxies,
     remind_invoices,

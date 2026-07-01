@@ -9,6 +9,9 @@ COPY ./requirements.txt /app/
 
 WORKDIR /app
 
+# mariadb-client: mysqldump for the in-bot backup job (app/jobs/backup_report.py)
+RUN apk add --no-cache mariadb-client
+
 RUN pip install -r requirements.txt
 
 COPY . /app

@@ -27,6 +27,7 @@ from app.plugins.payment.rial_gateway import (
 from app.plugins.payment.tronseller import tronado
 
 list_of_int_adapter = TypeAdapter(list[int])
+list_of_str_adapter = TypeAdapter(list[str])
 dict_of_str_str_adapter = TypeAdapter(dict[str, str])
 list_of_list_str_adapter = TypeAdapter(list[list[str]])
 
@@ -89,6 +90,15 @@ class Settings(BaseModel):
 
     transaction_logs: str | int | None = config.TRANSACTION_LOGS
     orders_logs: str | int | None = config.ORDERS_LOGS
+
+    # --- Topics-group reporting (app/utils/reports.py) ---
+    # Forum supergroup id; None = feature off (legacy channels above keep
+    # working). When set, reports go ONLY to the group topics.
+    reports_group_id: int | None = None
+    reports_topics: dict[str, str] = {}  # ReportTopic value -> thread_id
+    reports_disabled_topics: list[str] = []  # per-topic mute (ReportTopic values)
+    backup_interval_hours: int = 0  # 0 = backups to topic off
+    nightly_report_enabled: bool = True  # 23:59 Tehran daily summary
 
     referral_discount_percent: int = 20
 
@@ -218,8 +228,34 @@ class Settings(BaseModel):
                 return {}
         return v
 
+    @field_validator("reports_group_id", mode="before")
+    def _validate_reports_group_id(cls, v: Any, info: ValidationInfo) -> int | None:
+        # KeyValueBase stores None as "" — map it (and 0) back to None.
+        if v in (None, "", 0, "0"):
+            return None
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("reports_disabled_topics", mode="before")
+    def _validate_disabled_topics(cls, v: Any, info: ValidationInfo) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return list_of_str_adapter.validate_json(v)
+            except ValidationError:
+                return []
+        return v
+
     @field_validator(
-        "button_labels", "button_icons", "button_styles", "button_texts", mode="before"
+        "button_labels",
+        "button_icons",
+        "button_styles",
+        "button_texts",
+        "reports_topics",
+        mode="before",
     )
     def _validate_str_dict(cls, v: Any, info: ValidationInfo) -> dict[str, str]:
         if v is None:
