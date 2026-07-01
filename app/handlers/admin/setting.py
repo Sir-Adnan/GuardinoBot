@@ -30,6 +30,7 @@ from app.keyboards.admin.setting import (
     SettingsTextsActions,
     SettingsTextsEdit,
 )
+from app.logger import get_logger
 from app.main import bot
 from app.models.user import User
 from app.utils import helpers, reports, settings, texts
@@ -37,6 +38,8 @@ from app.utils.filters import IsSuperUser
 from app.utils.values import admin_edit_texts_format, check_texts
 
 from . import router
+
+logger = get_logger("handlers/admin/setting")
 
 cancel_form = CancelFormAdmin().as_markup(resize_keyboard=True, one_time_only=True)
 
@@ -1636,16 +1639,20 @@ async def reports_settings(
 async def reports_set_group(
     query: CallbackQuery, user: User, state: FSMContext
 ):
+    logger.info("reports set_group opened by %s", user.id)
+    await query.answer()
     await state.set_state(EditReportsForm.group_id)
     await query.message.reply(
         """
-آیدی عددی گروه گزارشات را وارد کنید (مثلا <code>-1001234567890</code>).
+🧩 دو روش برای اتصال گروه:
+
+<b>روش ساده (پیشنهادی):</b> ربات را به گروه اضافه کنید و <b>ادمین</b> کنید (با دسترسی Manage Topics) — ربات خودش دکمه اتصال را داخل گروه می‌فرستد؛ همان را بزنید.
+
+<b>روش دستی:</b> آیدی عددی گروه را همین‌جا وارد کنید (مثلا <code>-1001234567890</code>).
 
 پیش‌نیازها:
-1️⃣ گروه از نوع سوپرگروه باشد و حالت «تاپیک‌ها» (Topics) در تنظیمات گروه روشن باشد.
+1️⃣ گروه سوپرگروه باشد و حالت «تاپیک‌ها» (Topics) روشن باشد.
 2️⃣ ربات در گروه <b>ادمین</b> باشد با دسترسی «Manage Topics».
-
-ربات پس از اتصال، تاپیک‌های گزارش را خودش می‌سازد.
 """,
         reply_markup=cancel_form,
     )

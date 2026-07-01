@@ -10,6 +10,47 @@ from app.utils import settings, texts
 SETTINGS_DIRTY_KEY = "settings:dirty"  # app/api/routers/settings.py
 TEXTS_DIRTY_KEY = "texts:dirty"  # app/api/routers/texts.py
 ALERTS_RUN_KEY = "alerts:run_now"  # app/api/routers/automation.py (run-now button)
+REPORTS_ACTIONS_KEY = "reports:web:actions"  # reports-group test/run-now queue
+
+
+async def _process_reports_actions() -> None:
+    """Drain web-panel reports-group actions (test message / nightly / backup).
+    They must run in the BOT process — the API can't reach the reports
+    pipeline (separate process, no app.main)."""
+    import json
+
+    from app.utils import reports
+
+    for _ in range(10):  # bounded drain per tick
+        raw = await redis.lpop(REPORTS_ACTIONS_KEY)
+        if not raw:
+            break
+        try:
+            item = json.loads(raw)
+            action = item.get("action")
+        except (ValueError, TypeError):
+            continue
+        if action == "test_topic":
+            try:
+                topic = reports.ReportTopic(item.get("topic"))
+            except ValueError:
+                continue
+            reports.report(
+                topic,
+                f"🧪 پیام تست تاپیک «{reports.TOPIC_TITLES[topic]}»\n"
+                "این پیام از وب‌پنل برای بررسی سلامت گزارش‌دهی ارسال شد. ✅",
+            )
+            logger.info("reports test message queued for %s", topic.value)
+        elif action == "nightly":
+            from app.jobs.nightly_report import nightly_report  # local: no cycle
+
+            asyncio.create_task(nightly_report(force=True))
+            logger.info("nightly report triggered (web run-now)")
+        elif action == "backup":
+            from app.jobs.backup_report import run_backup  # local: no cycle
+
+            asyncio.create_task(run_backup())
+            logger.info("backup triggered (web run-now)")
 
 
 async def sync_settings() -> None:
@@ -54,6 +95,7 @@ async def sync_settings() -> None:
         await process_nowpayments_review_queue()
         await auto_check_plisio_payments()
         await auto_check_nowpayments_payments()
+        await _process_reports_actions()
     except Exception as exc:  # noqa: BLE001
         logger.error("sync_settings failed: %s", exc)
 

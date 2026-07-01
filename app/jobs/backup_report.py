@@ -79,6 +79,7 @@ async def _dump_database() -> tuple[bytes | None, str]:
 
 
 async def backup_tick() -> None:
+    """Scheduled gate: run a backup when the configured interval has elapsed."""
     from app.utils import reports
 
     _settings = settings.get_settings()
@@ -94,8 +95,19 @@ async def backup_tick() -> None:
     now = time.time()
     if now - last < interval * 3600 - 90:  # 90s slack so ticks don't drift a slot
         return
-    # Mark BEFORE dumping: a failing dump alerts once per interval, not per tick.
-    await redis.set(_LAST_TS_KEY, now)
+    await run_backup()
+
+
+async def run_backup() -> None:
+    """Dump + send one backup now (used by the tick above and by the web
+    panel's "backup now" action). Requires a configured group; marks the
+    last-run timestamp BEFORE dumping so a failing dump alerts once per
+    interval, not on every tick."""
+    from app.utils import reports
+
+    if not reports.group_configured():
+        return
+    await redis.set(_LAST_TS_KEY, time.time())
 
     data, error = await _dump_database()
     if data is None:

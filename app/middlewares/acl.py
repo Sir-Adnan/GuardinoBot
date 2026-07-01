@@ -25,13 +25,30 @@ class ACLMiddleware(BaseMiddleware):
     ) -> Any:
         logger.debug(f"New event: {event}")
         logger.debug(f"New event data: {data}")
-        try:
-            user: types.User = data["event_from_user"]
-            if await self.setup_chat(data, user):
-                with self.context(user=data["user"]):
-                    return await handler(event, data)
-        except KeyError:
+        # NOTE: deliberately no try/except KeyError around the handler call — a
+        # KeyError raised INSIDE a handler must propagate (the old pattern
+        # re-executed the whole handler, which can double-run purchases).
+        user: types.User | None = data.get("event_from_user")
+        if user is None:
             return await handler(event, data)
+        # The bot's conversational surface is private-chat only. In groups and
+        # channels it must stay silent for plain messages (no "command not
+        # found" spam / main menu in groups) and only react to inline buttons
+        # (admin receipt review, reports-group connect) and to membership
+        # changes (my_chat_member → reports-group connect offer).
+        event_chat = data.get("event_chat")
+        if (
+            event_chat is not None
+            and event_chat.type != "private"
+            and (
+                getattr(event, "message", None) is not None
+                or getattr(event, "edited_message", None) is not None
+            )
+        ):
+            return
+        if await self.setup_chat(data, user):
+            with self.context(user=data["user"]):
+                return await handler(event, data)
 
     @staticmethod
     def _report_new_user(db_user: User) -> None:

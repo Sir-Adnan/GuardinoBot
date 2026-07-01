@@ -689,6 +689,28 @@
     "empty": "No channels set — forced join is off.",
     "saved": "Forced-join channels saved"
   },
+  "reportsGroup": {
+    "title": "Reports group (Topics)",
+    "subtitle": "Categorized bot reports in the topics of a Telegram supergroup",
+    "connected": "Connected",
+    "not_connected": "Not connected",
+    "group_id": "Group id",
+    "connect_hint": "To connect: add the bot to a Topics-enabled supergroup and promote it to admin (with Manage Topics) — the bot posts a one-tap connect button in the group. A manual path also exists in the bot's settings.",
+    "topics": "Topics",
+    "topic_enabled_hint": "Disabled topics receive no reports.",
+    "nightly": "Nightly report (00:15 — previous day's stats)",
+    "backup_interval": "Auto-backup interval (hours — 0 = off)",
+    "test": "Test reporting",
+    "test_hint": "Runs in the bot process; lands in the group within ~15s.",
+    "test_topic": "Send test message",
+    "test_topic_ph": "Pick a topic",
+    "run_nightly": "Run nightly report now",
+    "run_backup": "Backup now",
+    "queued": "Queued; it will be sent to the group within ~15s.",
+    "disconnect": "Disconnect group",
+    "disconnect_confirm": "Disconnect the reports group? Reports fall back to the legacy log channels.",
+    "saved": "Reports settings saved"
+  },
   "gateways": {
     "title": "Payment Gateways",
     "subtitle": "Configure payment gateways (keys are stored masked).",

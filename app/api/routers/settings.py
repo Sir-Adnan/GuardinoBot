@@ -192,3 +192,161 @@ async def update_force_join(
     return ForceJoinOut(
         chats=[ForceJoinChat(id=k, username=v) for k, v in chats.items()]
     )
+
+
+# --- Topics-group reporting (app/utils/reports.py) ---------------------------
+# The API process can't import app.utils.reports (→ app.main), so topic keys +
+# Persian titles are mirrored here — keep in sync with reports.ReportTopic.
+
+from pydantic import BaseModel, Field  # noqa: E402
+
+REPORT_TOPICS: list[tuple[str, str]] = [
+    ("financial", "💰 گزارش مالی"),
+    ("orders", "🛍 گزارش خرید و تمدید"),
+    ("test_accounts", "🔑 اکانت تست"),
+    ("backup", "🤖 بکاپ ربات"),
+    ("nightly", "🌙 گزارش شبانه"),
+    ("errors", "❌ گزارش خطاها"),
+    ("new_users", "🎉 کاربران جدید"),
+    ("misc", "⚙️ سایر گزارشات"),
+]
+_TOPIC_KEYS = {k for k, _ in REPORT_TOPICS}
+# Consumed by the bot's 15s sync poll — app/jobs/sync_settings.py.
+REPORTS_ACTIONS_KEY = "reports:web:actions"
+
+
+class ReportTopicOut(BaseModel):
+    key: str
+    title: str
+    thread_id: Optional[int] = None
+    enabled: bool = True
+
+
+class ReportsGroupOut(BaseModel):
+    connected: bool
+    group_id: Optional[int] = None
+    topics: list[ReportTopicOut]
+    backup_interval_hours: int = 0
+    nightly_report_enabled: bool = True
+
+
+class ReportsGroupUpdateIn(BaseModel):
+    disabled_topics: Optional[list[str]] = None
+    backup_interval_hours: Optional[int] = Field(default=None, ge=0, le=24)
+    nightly_report_enabled: Optional[bool] = None
+    disconnect: bool = False
+
+
+class ReportsTestIn(BaseModel):
+    action: str  # "topic" | "nightly" | "backup"
+    topic: Optional[str] = None
+
+
+async def _kv(key: str) -> str:
+    row = await BotSetting.filter(_key=key).values("_value")
+    return (row[0]["_value"] if row else "") or ""
+
+
+async def _read_reports_group() -> ReportsGroupOut:
+    raw_gid = await _kv("reports_group_id")
+    try:
+        group_id = int(raw_gid) if raw_gid not in ("", "0") else None
+    except ValueError:
+        group_id = None
+    try:
+        topics_map = json.loads(await _kv("reports_topics") or "{}")
+    except ValueError:
+        topics_map = {}
+    try:
+        disabled = json.loads(await _kv("reports_disabled_topics") or "[]")
+    except ValueError:
+        disabled = []
+    try:
+        backup_h = int(await _kv("backup_interval_hours") or 0)
+    except ValueError:
+        backup_h = 0
+    nightly = await _kv("nightly_report_enabled") not in ("", "0", "false", "False")
+    return ReportsGroupOut(
+        connected=bool(group_id),
+        group_id=group_id,
+        topics=[
+            ReportTopicOut(
+                key=k,
+                title=title,
+                thread_id=int(topics_map[k]) if topics_map.get(k) else None,
+                enabled=k not in disabled,
+            )
+            for k, title in REPORT_TOPICS
+        ],
+        backup_interval_hours=backup_h,
+        nightly_report_enabled=nightly,
+    )
+
+
+@router.get("/reports-group", response_model=ReportsGroupOut)
+async def get_reports_group(
+    _: User = Depends(require_role(User.Role.super_user)),
+) -> ReportsGroupOut:
+    return await _read_reports_group()
+
+
+@router.patch("/reports-group", response_model=ReportsGroupOut)
+async def update_reports_group(
+    body: ReportsGroupUpdateIn,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> ReportsGroupOut:
+    changes: dict = {}
+    if body.disconnect:
+        changes["reports_group_id"] = None
+        changes["reports_topics"] = {}
+    if body.disabled_topics is not None:
+        bad = [k for k in body.disabled_topics if k not in _TOPIC_KEYS]
+        if bad:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown topics: {bad}"
+            )
+        changes["reports_disabled_topics"] = body.disabled_topics
+    if body.backup_interval_hours is not None:
+        changes["backup_interval_hours"] = body.backup_interval_hours
+    if body.nightly_report_enabled is not None:
+        changes["nightly_report_enabled"] = body.nightly_report_enabled
+    if changes:
+        await BotSetting.update(**changes)
+        await redis.set(_DIRTY, "1")  # bot reloads within ~15s
+        await record_audit(
+            action="settings.reports_group",
+            actor=actor,
+            target_type="settings",
+            detail={"changed": list(changes)},
+        )
+    return await _read_reports_group()
+
+
+@router.post("/reports-group/test")
+async def test_reports_group(
+    body: ReportsTestIn,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> dict:
+    """Queue a test action; the BOT process executes it within ~15s (the API
+    must not send via the reports pipeline itself — different process)."""
+    current = await _read_reports_group()
+    if not current.connected:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "هنوز گروه گزارشاتی متصل نشده است."
+        )
+    if body.action == "topic":
+        if body.topic not in _TOPIC_KEYS:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown topic")
+        item = {"action": "test_topic", "topic": body.topic, "by": actor.id}
+    elif body.action in ("nightly", "backup"):
+        item = {"action": body.action, "by": actor.id}
+    else:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown action")
+    await redis.rpush(REPORTS_ACTIONS_KEY, json.dumps(item))
+    await record_audit(
+        action="settings.reports_test",
+        actor=actor,
+        target_type="settings",
+        detail=item,
+    )
+    return {"queued": True}

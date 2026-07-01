@@ -49,6 +49,7 @@ handlers = [
     "setting",
     "payment",
     "discount",
+    "reports_group",
 ]
 
 

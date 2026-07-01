@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { PageHeader } from "../../components/PageHeader";
 import { ForceJoinEditor } from "./ForceJoin";
+import { ReportsGroupEditor } from "./ReportsGroup";
 
 const SWITCHES = [
   "access_only",
@@ -241,6 +242,10 @@ export function SettingsPage() {
             {t("settings.save")}
           </Button>
         </Form>
+      </Card>
+
+      <Card style={{ marginTop: 16 }} title={t("reportsGroup.title")}>
+        <ReportsGroupEditor />
       </Card>
 
       <Card style={{ marginTop: 16 }} title={t("forceJoin.title")}>

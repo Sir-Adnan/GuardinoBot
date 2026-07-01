@@ -444,10 +444,18 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
   each; admin setup in bot settings ("گروه گزارشات") auto-creates topics; group **replaces** legacy
   transaction/orders-log channels when set (legacy behavior when unset — safe update, settings are
   key-value → no migration). Financial reports show method/provider/destination-card/admin +
-  accept/reject (card-to-card, offline, gateways). New jobs: `nightly_report` (23:59 Tehran, pinned
-  summary: orders/renews/volume/money-by-method/top-buyers/per-server) + `backup_report`
-  (mysqldump→gzip→topic on a settings interval; needs mariadb-client in the image → rebuild).
-  Catch-all `dp.error` + FastAPI 500 handler feed the errors topic (sanitized).
+  accept/reject (card-to-card, offline, gateways). New jobs: `nightly_report` (00:15 Tehran,
+  previous-day stats, pinned: orders/renews/volume/money-by-method/top-buyers/per-server) +
+  `backup_report` (mysqldump→gzip→topic on a settings interval; needs mariadb-client in the
+  image → rebuild). Catch-all `dp.error` + FastAPI 500 handler feed the errors topic (sanitized).
+  **Connect UX**: primary = one-tap — promote the bot to admin in a forum group → it posts a
+  connect button (`handlers/admin/reports_group.py`, my_chat_member); manual group-id entry stays
+  as fallback. **Bot is now silent in groups** (ACL drops non-private message updates; callbacks +
+  my_chat_member still pass — needed for receipt review & connect). ACL's KeyError-double-run bug
+  fixed in the same change. **Web panel**: settings page card (GET/PATCH `/settings/reports-group`,
+  per-topic switches, nightly toggle, backup interval, disconnect) + test actions (test message per
+  topic / run-nightly / backup-now) via POST `/settings/reports-group/test` → Redis queue
+  `reports:web:actions` drained by the bot's 15s sync poll.
 - ✅ **Multi-panel adapter** (`app/panels/`, `docs/panels.md`) — Marzban (legacy) + **PasarGuard complete**
   (data-plane + admin UI + webhook). New code never imports a panel client directly.
 - ✅ **Guardino Hub** (panel adapter, phase 2) — id-based, GB/days, hub pricing. Stages 0–4: model +

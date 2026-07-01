@@ -1,12 +1,15 @@
-"""Nightly summary → the reports group's 🌙 topic, 23:59 Tehran time.
+"""Nightly summary → the reports group's 🌙 topic, 00:15 Tehran time.
 
-Aggregates the Tehran-day activity: purchases/renews/reserves (PurchaseLog),
-sold traffic, received money per payment method (finished Transactions), test
-accounts, new users, top buyers and a per-server breakdown. No-op when the
-reports group is not configured or the nightly switch is off.
+Runs just after midnight and reports the PREVIOUS Tehran day (a complete
+24h window): purchases/renews/reserves (PurchaseLog), sold traffic, received
+money per payment method (finished Transactions), test accounts, new users,
+top buyers and a per-server breakdown. No-op when the reports group is not
+configured or the nightly switch is off (``force=True`` — the web panel's
+"run now" — skips the switch, not the group requirement).
 """
 
 from datetime import datetime as dt
+from datetime import timedelta as td
 
 from jdatetime import datetime as jdt
 from pytz import timezone
@@ -28,23 +31,28 @@ _TYPE_TITLES = {
 }
 
 
-def _today_range_utc() -> tuple[dt, dt]:
-    """[Tehran midnight, now) as naive-UTC bounds matching created_at storage."""
+def _yesterday_range() -> tuple[dt, dt, str]:
+    """(start, end, jalali-date-label) of the previous full Tehran day, as
+    aware datetimes matching the UTC-stored created_at."""
     now_tehran = dt.now(TEHRAN)
-    start_tehran = now_tehran.replace(hour=0, minute=0, second=0, microsecond=0)
-    return start_tehran.astimezone(timezone("UTC")), now_tehran.astimezone(
-        timezone("UTC")
+    midnight = TEHRAN.localize(
+        dt(now_tehran.year, now_tehran.month, now_tehran.day)
     )
+    start = midnight - td(days=1)
+    date_fa = jdt.fromgregorian(datetime=start).strftime("%Y/%m/%d")
+    return start.astimezone(timezone("UTC")), midnight.astimezone(timezone("UTC")), date_fa
 
 
-async def nightly_report() -> None:
+async def nightly_report(force: bool = False) -> None:
     from app.utils import reports
 
     _settings = settings.get_settings()
-    if not _settings.nightly_report_enabled or not reports.group_configured():
+    if not reports.group_configured():
+        return
+    if not _settings.nightly_report_enabled and not force:
         return
 
-    start, end = _today_range_utc()
+    start, end, date_fa = _yesterday_range()
     in_day = Q(created_at__gte=start) & Q(created_at__lt=end)
 
     # --- orders (PurchaseLog) -------------------------------------------------
@@ -92,7 +100,6 @@ async def nightly_report() -> None:
         )
     )
 
-    date_fa = jdt.now(tz=TEHRAN).strftime("%Y/%m/%d")
     lines = [f"🌙 <b>گزارش روزانه ربات</b> — <code>{date_fa}</code>", ""]
 
     for ptype, title in _TYPE_TITLES.items():
@@ -150,8 +157,8 @@ async def nightly_report() -> None:
 scheduler.add_job(
     nightly_report,
     "cron",
-    hour=23,
-    minute=59,
+    hour=0,
+    minute=15,
     timezone=TEHRAN,
     id="nightly_report",
     replace_existing=True,
