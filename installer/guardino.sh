@@ -575,6 +575,7 @@ do_update() {
     need_root; ensure_platform
     local target="${1:-all}"
     clone_or_update_src
+    install_cli repo
     build_images
     local n
     if [[ "$target" == "all" ]]; then
@@ -623,7 +624,11 @@ backup_one() { # name -> path
     ts="$(date +%Y%m%d-%H%M%S)"; tmp="$(mktemp -d)"
     mkdir -p "${BACKUP_ROOT}/${n}"
     info "Backing up '${n}' (db ${db}) ..."
-    dump_db "$db" > "${tmp}/database.sql" 2>/dev/null || warn "  DB dump failed (is the platform up?)."
+    if ! dump_db "$db" > "${tmp}/database.sql" 2>/dev/null; then
+        warn "  DB dump failed for '${n}' (backup was not created)."
+        rm -rf "$tmp"
+        return 1
+    fi
     cp -f "$(inst_env "$n")"     "${tmp}/.env"               2>/dev/null || true
     cp -f "$(inst_compose "$n")" "${tmp}/docker-compose.yml" 2>/dev/null || true
     reg_row "$n" > "${tmp}/meta" 2>/dev/null || true
@@ -651,9 +656,24 @@ do_backup() {
 TG_DOC_LIMIT=$((49 * 1024 * 1024))  # Bot API sendDocument cap is 50MB — stay under
 
 _tg_send_doc() { # token chat file caption
-    curl -fsS --max-time 600 \
+    local body errf code desc
+    body="$(mktemp)"; errf="$(mktemp)"
+    code="$(curl -sS --max-time 600 -w '%{http_code}' -o "$body" \
         -F "chat_id=${2}" -F "caption=${4}" -F "document=@${3}" \
-        "https://api.telegram.org/bot${1}/sendDocument" >/dev/null 2>&1
+        "https://api.telegram.org/bot${1}/sendDocument" 2>"$errf")" || {
+        desc="$(head -c 300 "$errf" 2>/dev/null || true)"
+        warn "  Telegram send failed: ${desc:-curl error}"
+        rm -f "$body" "$errf"
+        return 1
+    }
+    if [[ "$code" =~ ^2 ]] && grep -q '"ok"[[:space:]]*:[[:space:]]*true' "$body" 2>/dev/null; then
+        rm -f "$body" "$errf"
+        return 0
+    fi
+    desc="$(sed -nE 's/.*"description"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "$body" | head -c 300)"
+    warn "  Telegram send failed (${code:-no-http-code}): ${desc:-unknown Bot API error}"
+    rm -f "$body" "$errf"
+    return 1
 }
 
 # send a file, splitting it into <50MB parts when it's too big for Telegram
@@ -661,19 +681,21 @@ tg_send_file() { # token chat file caption
     local token="$1" chat="$2" file="$3" caption="$4" sz
     sz=$(stat -c%s "$file" 2>/dev/null || echo 0)
     if (( sz <= TG_DOC_LIMIT )); then
-        _tg_send_doc "$token" "$chat" "$file" "$caption" || warn "  Telegram send failed: $(basename "$file")"
-        return
+        _tg_send_doc "$token" "$chat" "$file" "$caption"
+        return $?
     fi
     warn "  $(basename "$file") is $((sz / 1024 / 1024))MB → splitting into parts ..."
     local prefix="${file}.part_"
-    split -b 49m -- "$file" "$prefix"
+    split -b 49m -- "$file" "$prefix" || { warn "  Could not split $(basename "$file")."; return 1; }
     local parts=( "${prefix}"* ) i=1 n=${#parts[@]}
+    local failed=0
     for p in "${parts[@]}"; do
         _tg_send_doc "$token" "$chat" "$p" "${caption} — part ${i}/${n} (cat *.part_* → reassemble)" \
-            || warn "  Telegram send failed: $(basename "$p")"
+            || failed=1
         i=$((i + 1))
     done
     rm -f "${prefix}"*
+    return "$failed"
 }
 
 # echo a path to send: an AES-256 copy when a passphrase is set, else the original
@@ -704,11 +726,17 @@ print(ids[-1] if ids else "")' 2>/dev/null
 }
 
 _send_one_to_tg() { # token chat name
-    backup_one "$3" >/dev/null
-    local f; f=$(ls -1t "${BACKUP_ROOT}/$3"/*.tar.gz 2>/dev/null | head -1)
-    [[ -f "$f" ]] || { warn "  no backup produced for '$3'"; return; }
+    if ! backup_one "$3" >/dev/null; then
+        warn "  backup failed for '$3'; Telegram send skipped."
+        return 1
+    fi
+    local f; f=$(ls -1t "${BACKUP_ROOT}/$3"/*.tar.gz 2>/dev/null | head -1 || true)
+    [[ -f "$f" ]] || { warn "  no backup produced for '$3'"; return 1; }
     local snd; snd=$(_maybe_encrypt "$f")
-    tg_send_file "$1" "$2" "$snd" "🗄 ${3} · $(hostname) · $(date '+%Y-%m-%d %H:%M')"
+    tg_send_file "$1" "$2" "$snd" "🗄 ${3} · $(hostname) · $(date '+%Y-%m-%d %H:%M')" || {
+        [[ "$snd" != "$f" ]] && rm -f "$snd"
+        return 1
+    }
     [[ "$snd" != "$f" ]] && rm -f "$snd"
 }
 
@@ -722,32 +750,49 @@ backup_and_send() {
     [[ -n "$token" && -n "$chat" ]] || { err "Backup bot token / chat id missing."; return 1; }
     ensure_platform
     info "Backup → Telegram (scope: ${scope}) ..."
+    local failed=0
     if [[ "$scope" == "combined" ]]; then
         local n latest rels=() ts combo snd
         ts=$(date +%Y%m%d-%H%M%S)
         while IFS= read -r n; do
             [[ -n "$n" ]] || continue
-            backup_one "$n" >/dev/null
-            latest=$(ls -1t "${BACKUP_ROOT}/$n"/*.tar.gz 2>/dev/null | head -1)
-            [[ -f "$latest" ]] && rels+=( "${n}/$(basename "$latest")" )
+            if backup_one "$n" >/dev/null; then
+                latest=$(ls -1t "${BACKUP_ROOT}/$n"/*.tar.gz 2>/dev/null | head -1 || true)
+                [[ -f "$latest" ]] && rels+=( "${n}/$(basename "$latest")" )
+            else
+                failed=1
+            fi
         done < <(reg_names)
         [[ ${#rels[@]} -gt 0 ]] || { warn "No bots to back up."; return; }
         combo="/tmp/guardino-all-${ts}.tar.gz"
         tar -czf "$combo" -C "$BACKUP_ROOT" "${rels[@]}" 2>/dev/null
         snd=$(_maybe_encrypt "$combo")
-        tg_send_file "$token" "$chat" "$snd" "🗄 GuardinoBot — ALL bots · $(hostname) · ${ts}"
+        tg_send_file "$token" "$chat" "$snd" "🗄 GuardinoBot — ALL bots · $(hostname) · ${ts}" || failed=1
         [[ "$snd" != "$combo" ]] && rm -f "$snd"
         rm -f "$combo"
     elif [[ "$scope" == "each" || "$scope" == "all" ]]; then
-        local n; while IFS= read -r n; do [[ -n "$n" ]] || continue; _send_one_to_tg "$token" "$chat" "$n"; done < <(reg_names)
+        local n; while IFS= read -r n; do [[ -n "$n" ]] || continue; _send_one_to_tg "$token" "$chat" "$n" || failed=1; done < <(reg_names)
     else
         reg_has "$scope" || { err "Instance '$scope' not found."; return 1; }
-        _send_one_to_tg "$token" "$chat" "$scope"
+        _send_one_to_tg "$token" "$chat" "$scope" || failed=1
     fi
+    (( failed == 0 )) || { err "Backup → Telegram finished with errors."; return 1; }
     info "Backup → Telegram done."
 }
 
+valid_cron_expr() { [[ "$(awk '{print NF}' <<<"$1")" -eq 5 && "$1" != *$'\n'* ]]; }
+
+ensure_cron_service() {
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl enable --now cron >/dev/null 2>&1 || systemctl enable --now crond >/dev/null 2>&1 || true
+    elif command -v service >/dev/null 2>&1; then
+        service cron start >/dev/null 2>&1 || service crond start >/dev/null 2>&1 || true
+    fi
+}
+
 install_backup_cron() { # cron_expr
+    valid_cron_expr "$1" || die "Invalid cron expression. Use exactly 5 fields: min hour dom mon dow."
+    install_cli auto
     cat > "$BACKUP_CRON" <<CRON
 # GuardinoBot scheduled backup -> Telegram (managed by the installer)
 SHELL=/bin/bash
@@ -755,6 +800,7 @@ PATH=/usr/local/bin:/usr/bin:/bin
 ${1} root ${BIN_PATH} backup-send >> /var/log/guardino-backup.log 2>&1
 CRON
     chmod 0644 "$BACKUP_CRON"
+    ensure_cron_service
     command -v crond >/dev/null 2>&1 || command -v cron >/dev/null 2>&1 || \
         warn "cron not found — install it (apt/dnf install cron|cronie) so the schedule runs."
     info "Scheduled '${1}' (cron). Log: /var/log/guardino-backup.log"
@@ -766,7 +812,7 @@ do_backup_telegram() {
     mkdir -p "$ROOT_DIR"; umask 077
     [[ -f "$BACKUP_CONF" ]] || : > "$BACKUP_CONF"
     chmod 600 "$BACKUP_CONF"
-    [[ -x "$BIN_PATH" ]] || install_cli
+    install_cli auto
     warn "Backups contain each bot's .env (DB creds, SECRET_KEY_STRING, BOT_TOKEN)."
     warn "Use a PRIVATE backup bot/chat; consider the encryption passphrase (option 4)."
     while true; do
@@ -980,13 +1026,36 @@ do_uninstall() {
     fi
 }
 
-install_cli() {
-    if [[ -f "${SRC_DIR}/installer/guardino.sh" ]]; then
-        install -m 0755 -D "${SRC_DIR}/installer/guardino.sh" "$BIN_PATH" 2>/dev/null || true
+install_cli() { # [auto|repo|current]
+    local mode="${1:-auto}" src="" self="${BASH_SOURCE[0]:-$0}"
+    case "$mode" in
+        repo)
+            [[ -f "${SRC_DIR}/installer/guardino.sh" ]] && src="${SRC_DIR}/installer/guardino.sh"
+            ;;
+        current)
+            [[ -r "$self" ]] && src="$self"
+            ;;
+        auto|"")
+            if [[ -r "$self" && "$self" != "$BIN_PATH" ]]; then
+                src="$self"
+            elif [[ -f "${SRC_DIR}/installer/guardino.sh" ]]; then
+                src="${SRC_DIR}/installer/guardino.sh"
+            fi
+            ;;
+        *)
+            die "Unknown install_cli mode: $mode"
+            ;;
+    esac
+    if [[ -n "$src" ]] && install -m 0755 -D "$src" "$BIN_PATH" 2>/dev/null; then
+        :
+    elif [[ "$src" != "${SRC_DIR}/installer/guardino.sh" && -f "${SRC_DIR}/installer/guardino.sh" ]] \
+        && install -m 0755 -D "${SRC_DIR}/installer/guardino.sh" "$BIN_PATH" 2>/dev/null; then
+        :
     else
-        curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$BIN_PATH" 2>/dev/null && chmod 0755 "$BIN_PATH" || true
+        curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$BIN_PATH" || die "Could not download management command."
+        chmod 0755 "$BIN_PATH" || die "Could not chmod ${BIN_PATH}."
     fi
-    [[ -f "$BIN_PATH" ]] && info "Management command installed: ${CYAN}guardino${NC}"
+    info "Management command installed: ${CYAN}guardino${NC}"
 }
 
 # ----------------------------------------------------------------------------- first-time install
