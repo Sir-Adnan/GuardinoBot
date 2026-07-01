@@ -35,6 +35,7 @@ PLATFORM_DATA="${DATA_DIR}/platform"
 BACKUP_ROOT="${DATA_DIR}/backups"
 BACKUP_CONF="${ROOT_DIR}/backup.conf"      # Telegram-backup config (token/chat/scope/schedule)
 BACKUP_CRON="/etc/cron.d/guardino-bot-backup"  # cron entry for the scheduled backup
+BACKUP_LOG="/var/log/guardino-bot-backup.log"
 
 NET="guardino-bot-net"
 PLATFORM_PROJECT="guardino-bot-platform"
@@ -57,7 +58,9 @@ info() { echo "${GREEN}[+]${NC} $*"; }
 warn() { echo "${YELLOW}[!]${NC} $*"; }
 err()  { echo "${RED}[x]${NC} $*" >&2; }
 die()  { err "$*"; exit 1; }
-hr()   { echo "${BLUE}--------------------------------------------------${NC}"; }
+hr()   { echo "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
+title(){ echo; hr; echo "  ${CYAN}$*${NC}"; hr; }
+menu_item() { printf "  ${CYAN}%2s)${NC} %s\n" "$1" "$2"; }
 
 # ----------------------------------------------------------------------------- preflight
 need_root() { [[ "$(id -u)" -eq 0 ]] || die "This script must run as root. Use sudo."; }
@@ -126,13 +129,13 @@ dns_check() { # <domain>
 # ----------------------------------------------------------------------------- env file helpers (KEY = "value")
 env_get() { # <file> <key>
     [[ -f "$1" ]] || return 0
-    grep -E "^\s*$2\s*=" "$1" 2>/dev/null | head -1 | sed -E 's/^[^=]*=\s*"?([^"]*)"?\s*$/\1/' || true
+    grep -E "^[[:space:]]*$2[[:space:]]*=" "$1" 2>/dev/null | head -1 | sed -E 's/^[^=]*=[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/' || true
 }
 env_set() { # <file> <key> <value>
     local f="$1" key="$2" val="$3" esc
     esc="${val//\\/\\\\}"; esc="${esc//|/\\|}"; esc="${esc//&/\\&}"
-    if grep -qE "^\s*${key}\s*=" "$f" 2>/dev/null; then
-        sed -i -E "s|^\s*${key}\s*=.*|${key} = \"${esc}\"|" "$f"
+    if grep -qE "^[[:space:]]*${key}[[:space:]]*=" "$f" 2>/dev/null; then
+        sed -i -E "s|^[[:space:]]*${key}[[:space:]]*=.*|${key} = \"${esc}\"|" "$f"
     else
         printf '%s = "%s"\n' "$key" "$val" >> "$f"
     fi
@@ -165,6 +168,59 @@ reg_del()   { reg_ensure; awk -F'\t' -v n="$1" '$1!=n' "$REGISTRY" > "${REGISTRY
 reg_add()   { # name domain db user redisdb
     reg_del "$1"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$(date +%Y-%m-%dT%H:%M:%S)" >> "$REGISTRY"
+}
+instance_count() { [[ -f "$REGISTRY" ]] && grep -c . "$REGISTRY" 2>/dev/null || echo 0; }
+
+print_instance_choices() { # include_all[yes|no] stream[out|err]
+    local include_all="${1:-no}" stream="${2:-out}" i=1 n domain redis
+    if [[ "$include_all" == "yes" ]]; then
+        if [[ "$stream" == "err" ]]; then printf >&2 "  ${CYAN}%2s)${NC} %s\n" "a" "All bots"; else printf "  ${CYAN}%2s)${NC} %s\n" "a" "All bots"; fi
+    fi
+    while IFS= read -r n; do
+        [[ -n "$n" ]] || continue
+        domain="$(reg_field "$n" 2)"
+        redis="$(reg_field "$n" 5)"
+        if [[ "$stream" == "err" ]]; then
+            printf >&2 "  ${CYAN}%2d)${NC} %-18s %s  Redis:%s\n" "$i" "$n" "$domain" "$redis"
+        else
+            printf "  ${CYAN}%2d)${NC} %-18s %s  Redis:%s\n" "$i" "$n" "$domain" "$redis"
+        fi
+        i=$((i + 1))
+    done < <(reg_names)
+    if (( i == 1 )) && [[ "$include_all" != "yes" ]]; then
+        if [[ "$stream" == "err" ]]; then printf >&2 "  No bot instances found.\n"; else printf "  No bot instances found.\n"; fi
+    fi
+}
+
+choice_to_instance() { # choice -> stdout name or empty
+    local choice="$1" n
+    if [[ "$choice" =~ ^[0-9]+$ ]]; then
+        (( choice > 0 )) || return 1
+        n="$(reg_names | sed -n "${choice}p")"
+    else
+        n="$(clean_name "$choice")"
+    fi
+    [[ -n "$n" ]] && reg_has "$n" || return 1
+    echo "$n"
+}
+
+backup_scope_label() {
+    case "${1:-each}" in
+        each|all) echo "All bots · separate files" ;;
+        combined) echo "All bots · single archive" ;;
+        *) echo "Bot: $1" ;;
+    esac
+}
+
+schedule_label() {
+    case "${1:-}" in
+        "0 * * * *") echo "Hourly" ;;
+        "0 */6 * * *") echo "Every 6 hours" ;;
+        "0 */12 * * *") echo "Every 12 hours" ;;
+        "0 3 * * *") echo "Daily at 03:00" ;;
+        "") echo "Off" ;;
+        *) echo "$1" ;;
+    esac
 }
 alloc_redis_db() { # lowest free index in 0..63
     reg_ensure
@@ -569,20 +625,62 @@ do_update() {
     info "Update complete (migrations applied on start)."
 }
 
+do_update_menu() {
+    ensure_platform
+    local target; target="$(pick_instance_or_all "")"
+    do_update "$target"
+}
+
 do_list() {
     ensure_platform
-    hr; printf "%-16s %-30s %-18s %-8s\n" "NAME" "DOMAIN" "DB" "REDIS_DB"; hr
+    title "🤖 Guardino-Bot instances"
+    printf "%-18s %-34s %-24s %-8s\n" "NAME" "DOMAIN" "DB" "REDIS_DB"; hr
     local n
     while IFS= read -r n; do
         [[ -n "$n" ]] || continue
-        printf "%-16s %-30s %-18s %-8s\n" "$n" "$(reg_field "$n" 2)" "$(reg_field "$n" 3)" "$(reg_field "$n" 5)"
+        printf "%-18s %-34s %-24s %-8s\n" "$n" "$(reg_field "$n" 2)" "$(reg_field "$n" 3)" "$(reg_field "$n" 5)"
     done < <(reg_names)
     hr
 }
 
 pick_instance() { # echoes a chosen instance name (arg or prompt)
-    local name="${1:-}"
-    [[ -n "$name" ]] || { echo "Instances: $(reg_names | tr '\n' ' ')" >&2; read -rp "Instance name: " name; }
+    local name="${1:-}" choice
+    if [[ -z "$name" ]]; then
+        [[ "$(instance_count)" -gt 0 ]] || die "No bot instances found."
+        echo >&2
+        hr >&2
+        echo "  ${CYAN}Select bot instance${NC}" >&2
+        hr >&2
+        print_instance_choices no err
+        read -rp "Bot number/name: " choice
+        name="$(choice_to_instance "$choice")" || die "Invalid bot selection."
+    else
+        name="$(clean_name "$name")"
+    fi
+    reg_has "$name" || die "No instance '$name'."
+    echo "$name"
+}
+
+pick_instance_or_all() { # echoes "all" or a chosen instance name
+    local name="${1:-}" choice
+    case "$name" in
+        all|ALL|a|A) echo "all"; return 0 ;;
+    esac
+    if [[ -z "$name" ]]; then
+        [[ "$(instance_count)" -gt 0 ]] || die "No bot instances found."
+        echo >&2
+        hr >&2
+        echo "  ${CYAN}Select target bot${NC}" >&2
+        hr >&2
+        print_instance_choices yes err
+        read -rp "Bot number/name/all: " choice
+        case "$choice" in
+            all|ALL|a|A) echo "all"; return 0 ;;
+        esac
+        name="$(choice_to_instance "$choice")" || die "Invalid bot selection."
+    else
+        name="$(clean_name "$name")"
+    fi
     reg_has "$name" || die "No instance '$name'."
     echo "$name"
 }
@@ -593,15 +691,56 @@ do_logs() {
     dci "$n" logs -f --tail=200 "$svc"
 }
 
-do_restart() { ensure_platform; local n; n="$(pick_instance "${1:-}")"; dci "$n" restart; info "Restarted '$n'."; }
-do_stop()    { ensure_platform; local n; n="$(pick_instance "${1:-}")"; dci "$n" down; info "Stopped '$n'."; }
-do_start()   { ensure_platform; local n; n="$(pick_instance "${1:-}")"; dci "$n" up -d; info "Started '$n'."; }
+run_instance_action() { # restart|stop|start target
+    local action="$1" target="$2" n
+    if [[ "$target" == "all" ]]; then
+        while IFS= read -r n; do
+            [[ -n "$n" ]] || continue
+            run_instance_action "$action" "$n"
+        done < <(reg_names)
+        return 0
+    fi
+    case "$action" in
+        restart) dci "$target" restart; info "Restarted '$target'." ;;
+        stop)    dci "$target" down;    info "Stopped '$target'." ;;
+        start)   dci "$target" up -d;   info "Started '$target'." ;;
+        *)       die "Unknown action: $action" ;;
+    esac
+}
+
+do_restart() { ensure_platform; local n; n="$(pick_instance_or_all "${1:-}")"; run_instance_action restart "$n"; }
+do_stop()    { ensure_platform; local n; n="$(pick_instance_or_all "${1:-}")"; run_instance_action stop "$n"; }
+do_start()   { ensure_platform; local n; n="$(pick_instance_or_all "${1:-}")"; run_instance_action start "$n"; }
 do_status()  { ensure_platform; info "Platform:"; dcp ps; local n; while IFS= read -r n; do [[ -n "$n" ]] || continue; echo; info "Instance ${n}:"; dci "$n" ps; done < <(reg_names); }
 do_edit_env(){ ensure_platform; local n; n="$(pick_instance "${1:-}")"; "${EDITOR:-nano}" "$(inst_env "$n")"; warn "Restart the bot to apply: guardino-bot restart $n"; }
 
+do_control_menu() {
+    ensure_platform
+    while true; do
+        title "⚙️ Bot controls"
+        printf "  Active instances: %s\n" "$(instance_count)"
+        hr
+        menu_item 1 "Restart bot(s)"
+        menu_item 2 "Stop bot(s)"
+        menu_item 3 "Start bot(s)"
+        menu_item 0 "Back"
+        local act target
+        read -rp "Choice: " act || return
+        case "$act" in
+            1) target="$(pick_instance_or_all "")"; run_instance_action restart "$target" ;;
+            2) target="$(pick_instance_or_all "")"; run_instance_action stop "$target" ;;
+            3) target="$(pick_instance_or_all "")"; run_instance_action start "$target" ;;
+            0) return ;;
+            *) warn "Invalid option." ;;
+        esac
+    done
+}
+
 backup_one() { # name -> path
     local n="$1" db ts out tmp
+    reg_has "$n" || { warn "No instance '$n'."; return 1; }
     db="$(reg_field "$n" 3)"
+    [[ -n "$db" ]] || { warn "No database registered for '${n}'."; return 1; }
     ts="$(date +%Y%m%d-%H%M%S)"; tmp="$(mktemp -d)"
     mkdir -p "${BACKUP_ROOT}/${n}"
     info "Backing up '${n}' (db ${db}) ..."
@@ -614,7 +753,11 @@ backup_one() { # name -> path
     cp -f "$(inst_compose "$n")" "${tmp}/docker-compose.yml" 2>/dev/null || true
     reg_row "$n" > "${tmp}/meta" 2>/dev/null || true
     out="${BACKUP_ROOT}/${n}/guardino-bot-${n}-${ts}.tar.gz"
-    tar -czf "$out" -C "$tmp" . 2>/dev/null
+    if ! tar -czf "$out" -C "$tmp" . 2>/dev/null; then
+        warn "  Archive creation failed for '${n}'."
+        rm -rf "$tmp"; rm -f "$out"
+        return 1
+    fi
     rm -rf "$tmp"
     # retention: keep last 10 per instance
     ls -1t "${BACKUP_ROOT}/${n}"/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
@@ -631,6 +774,12 @@ do_backup() {
     else
         n="$(pick_instance "$target")"; backup_one "$n"
     fi
+}
+
+do_backup_menu() {
+    ensure_platform
+    local target; target="$(pick_instance_or_all "")"
+    do_backup "$target"
 }
 
 # ----------------------------------------------------------------------------- backup -> Telegram
@@ -671,7 +820,9 @@ tg_send_file() { # token chat file caption
     local parts=( "${prefix}"* ) i=1 n=${#parts[@]}
     local failed=0
     for p in "${parts[@]}"; do
-        _tg_send_doc "$token" "$chat" "$p" "${caption} — part ${i}/${n} (cat *.part_* → reassemble)" \
+        _tg_send_doc "$token" "$chat" "$p" "${caption}
+📦 Part: ${i}/${n}
+🔧 Restore: cat *.part_* > backup.tar.gz" \
             || failed=1
         i=$((i + 1))
     done
@@ -688,6 +839,16 @@ _maybe_encrypt() { # file
         fi
     fi
     echo "$1"
+}
+
+backup_caption() { # instance|ALL mode
+    local target="$1" mode="${2:-Single bot}" now
+    now="$(date '+%Y-%m-%d %H:%M')"
+    printf '🗄 Guardino-Bot Backup\n'
+    printf '📌 Scope: %s\n' "$target"
+    printf '🧩 Mode: %s\n' "$mode"
+    printf '🖥 Server: %s\n' "$(hostname)"
+    printf '🕒 Time: %s' "$now"
 }
 
 # best-effort chat id from getUpdates (user must message the bot first)
@@ -707,18 +868,21 @@ print(ids[-1] if ids else "")' 2>/dev/null
 }
 
 _send_one_to_tg() { # token chat name
-    if ! backup_one "$3" >/dev/null; then
-        warn "  backup failed for '$3'; Telegram send skipped."
+    local name="$3"
+    if ! backup_one "$name"; then
+        warn "  backup failed for '${name}'; Telegram send skipped."
         return 1
     fi
-    local f; f=$(ls -1t "${BACKUP_ROOT}/$3"/*.tar.gz 2>/dev/null | head -1 || true)
-    [[ -f "$f" ]] || { warn "  no backup produced for '$3'"; return 1; }
+    local f; f=$(ls -1t "${BACKUP_ROOT}/${name}"/*.tar.gz 2>/dev/null | head -1 || true)
+    [[ -f "$f" ]] || { warn "  no backup produced for '${name}'"; return 1; }
     local snd; snd=$(_maybe_encrypt "$f")
-    tg_send_file "$1" "$2" "$snd" "🗄 ${3} · $(hostname) · $(date '+%Y-%m-%d %H:%M')" || {
+    tg_send_file "$1" "$2" "$snd" "$(backup_caption "$name" "Separate file")" || {
         [[ "$snd" != "$f" ]] && rm -f "$snd"
         return 1
     }
     [[ "$snd" != "$f" ]] && rm -f "$snd"
+    info "  Telegram sent: ${name}"
+    return 0
 }
 
 # create backups + send to the configured Telegram bot. Used by cron + "send now".
@@ -730,40 +894,74 @@ backup_and_send() {
     scope=$(env_get "$BACKUP_CONF" BACKUP_SCOPE); scope="${scope:-each}"
     [[ -n "$token" && -n "$chat" ]] || { err "Backup bot token / chat id missing."; return 1; }
     ensure_platform
-    info "Backup → Telegram (scope: ${scope}) ..."
-    local failed=0
+    info "Backup → Telegram ($(backup_scope_label "$scope")) ..."
+    local failed=0 sent=0 attempted=0
     if [[ "$scope" == "combined" ]]; then
         local n latest rels=() ts combo snd
         ts=$(date +%Y%m%d-%H%M%S)
         while IFS= read -r n; do
             [[ -n "$n" ]] || continue
-            if backup_one "$n" >/dev/null; then
+            attempted=$((attempted + 1))
+            if backup_one "$n"; then
                 latest=$(ls -1t "${BACKUP_ROOT}/$n"/*.tar.gz 2>/dev/null | head -1 || true)
                 [[ -f "$latest" ]] && rels+=( "${n}/$(basename "$latest")" )
             else
-                failed=1
+                failed=$((failed + 1))
             fi
         done < <(reg_names)
-        [[ ${#rels[@]} -gt 0 ]] || { warn "No bots to back up."; return; }
+        [[ ${#rels[@]} -gt 0 ]] || { warn "No bots were backed up."; return 1; }
         combo="/tmp/guardino-bot-all-${ts}.tar.gz"
-        tar -czf "$combo" -C "$BACKUP_ROOT" "${rels[@]}" 2>/dev/null
+        if ! tar -czf "$combo" -C "$BACKUP_ROOT" "${rels[@]}" 2>/dev/null; then
+            rm -f "$combo"
+            err "Combined backup archive creation failed."
+            return 1
+        fi
         snd=$(_maybe_encrypt "$combo")
-        tg_send_file "$token" "$chat" "$snd" "🗄 Guardino-Bot — ALL bots · $(hostname) · ${ts}" || failed=1
+        if tg_send_file "$token" "$chat" "$snd" "$(backup_caption "All bots" "Single archive")"; then
+            sent=1
+        else
+            failed=$((failed + 1))
+        fi
         [[ "$snd" != "$combo" ]] && rm -f "$snd"
         rm -f "$combo"
     elif [[ "$scope" == "each" || "$scope" == "all" ]]; then
-        local n; while IFS= read -r n; do [[ -n "$n" ]] || continue; _send_one_to_tg "$token" "$chat" "$n" || failed=1; done < <(reg_names)
+        local n
+        while IFS= read -r n; do
+            [[ -n "$n" ]] || continue
+            attempted=$((attempted + 1))
+            if _send_one_to_tg "$token" "$chat" "$n"; then
+                sent=$((sent + 1))
+            else
+                failed=$((failed + 1))
+            fi
+        done < <(reg_names)
+        (( attempted > 0 )) || { warn "No bot instances found to back up."; return 1; }
     else
         reg_has "$scope" || { err "Instance '$scope' not found."; return 1; }
-        _send_one_to_tg "$token" "$chat" "$scope" || failed=1
+        attempted=1
+        if _send_one_to_tg "$token" "$chat" "$scope"; then
+            sent=1
+        else
+            failed=1
+        fi
     fi
-    (( failed == 0 )) || { err "Backup → Telegram finished with errors."; return 1; }
-    info "Backup → Telegram done."
+    (( failed == 0 )) || { err "Backup → Telegram finished with errors (${sent} sent, ${failed} failed)."; return 1; }
+    info "Backup → Telegram done (${sent} sent)."
 }
 
 valid_cron_expr() { [[ "$(awk '{print NF}' <<<"$1")" -eq 5 && "$1" != *$'\n'* ]]; }
 
 ensure_cron_service() {
+    if ! command -v cron >/dev/null 2>&1 && ! command -v crond >/dev/null 2>&1; then
+        detect_pkg_manager
+        info "Installing cron service ..."
+        case "$PKG" in
+            apt) DEBIAN_FRONTEND=noninteractive apt-get install -y cron >/dev/null 2>&1 || true ;;
+            dnf) dnf install -y cronie >/dev/null 2>&1 || true ;;
+            yum) yum install -y cronie >/dev/null 2>&1 || true ;;
+            *)   warn "cron is not installed; install cron/cronie manually." ;;
+        esac
+    fi
     if command -v systemctl >/dev/null 2>&1; then
         systemctl enable --now cron >/dev/null 2>&1 || systemctl enable --now crond >/dev/null 2>&1 || true
     elif command -v service >/dev/null 2>&1; then
@@ -778,13 +976,14 @@ install_backup_cron() { # cron_expr
 # Guardino-Bot scheduled backup -> Telegram (managed by the installer)
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
-${1} root ${BIN_PATH} backup-send >> /var/log/guardino-bot-backup.log 2>&1
+${1} root ${BIN_PATH} backup-send >> ${BACKUP_LOG} 2>&1
 CRON
     chmod 0644 "$BACKUP_CRON"
+    touch "$BACKUP_LOG" 2>/dev/null || true
     ensure_cron_service
     command -v crond >/dev/null 2>&1 || command -v cron >/dev/null 2>&1 || \
         warn "cron not found — install it (apt/dnf install cron|cronie) so the schedule runs."
-    info "Scheduled '${1}' (cron). Log: /var/log/guardino-bot-backup.log"
+    info "Scheduled '${1}' ($(schedule_label "$1")). Log: ${BACKUP_LOG}"
 }
 disable_backup_cron() { rm -f "$BACKUP_CRON"; info "Scheduled Telegram backup disabled."; }
 
@@ -795,26 +994,25 @@ do_backup_telegram() {
     chmod 600 "$BACKUP_CONF"
     install_cli auto
     warn "Backups contain each bot's .env (DB creds, SECRET_KEY_STRING, BOT_TOKEN)."
-    warn "Use a PRIVATE backup bot/chat; consider the encryption passphrase (option 4)."
+    warn "Use a PRIVATE backup bot/chat; consider the encryption passphrase."
     while true; do
-        local tk ch sc sched enc
+        local tk ch sc sched enc v nm
         tk=$(env_get "$BACKUP_CONF" BACKUP_BOT_TOKEN); ch=$(env_get "$BACKUP_CONF" BACKUP_CHAT_ID)
         sc=$(env_get "$BACKUP_CONF" BACKUP_SCOPE); sched=$(env_get "$BACKUP_CONF" BACKUP_SCHEDULE)
         enc=$(env_get "$BACKUP_CONF" BACKUP_ENC_PASS)
-        echo; hr
-        echo "  ${CYAN}Scheduled backup → Telegram${NC}"
+        title "🗄 Telegram backup"
+        printf "  Destination : %s   Chat: %s\n" "$( [[ -n $tk ]] && echo 'set' || echo 'not set' )" "${ch:-not set}"
+        printf "  Scope       : %s\n" "$(backup_scope_label "${sc:-each}")"
+        printf "  Schedule    : %s   Cron: %s\n" "$(schedule_label "$sched")" "$( [[ -f $BACKUP_CRON ]] && echo active || echo off )"
+        printf "  Encryption  : %s\n" "$( [[ -n $enc ]] && echo enabled || echo disabled )"
         hr
-        echo "  bot token: $( [[ -n $tk ]] && echo '✔ set' || echo '✗ unset' )    chat: ${ch:-—}"
-        echo "  scope: ${sc:-each}    schedule: ${sched:-—}    encrypt: $( [[ -n $enc ]] && echo on || echo off )"
-        echo "  cron: $( [[ -f $BACKUP_CRON ]] && echo active || echo off )"
-        hr
-        echo "  1) Set backup bot token + chat id"
-        echo "  2) What to back up (one bot / all-each / all-combined)"
-        echo "  3) Schedule (hourly / 6h / 12h / daily / custom)"
-        echo "  4) Encryption passphrase (optional)"
-        echo "  5) Send a backup now (test)"
-        echo "  6) Disable the schedule"
-        echo "  0) Back"
+        menu_item 1 "Set Telegram bot token + chat id"
+        menu_item 2 "Choose backup scope"
+        menu_item 3 "Set schedule"
+        menu_item 4 "Encryption passphrase"
+        menu_item 5 "Send backup now"
+        menu_item 6 "Disable schedule"
+        menu_item 0 "Back"
         read -rp "Choice: " bc || return
         case "$bc" in
             1) read -rp "Backup bot token: " v; [[ -n "$v" ]] && env_set "$BACKUP_CONF" BACKUP_BOT_TOKEN "$v"
@@ -822,16 +1020,23 @@ do_backup_telegram() {
                read -rp "chat id: " v
                [[ -z "$v" ]] && { v=$(_detect_chat_id "$(env_get "$BACKUP_CONF" BACKUP_BOT_TOKEN)"); [[ -n "$v" ]] && info "Detected: $v"; }
                [[ -n "$v" ]] && env_set "$BACKUP_CONF" BACKUP_CHAT_ID "$v" || warn "No chat id set." ;;
-            2) echo "  1) one specific bot   2) all bots, each as its own file   3) all bots, one archive"
+            2) title "📦 Backup scope"
+               menu_item 1 "One selected bot"
+               menu_item 2 "All bots · separate files"
+               menu_item 3 "All bots · single archive"
                read -rp "Choice: " v
                case "$v" in
-                   1) echo "  Bots: $(reg_names | tr '\n' ' ')"; read -rp "Instance: " nm
-                      reg_has "$nm" && env_set "$BACKUP_CONF" BACKUP_SCOPE "$nm" || warn "No such bot." ;;
+                   1) nm="$(pick_instance "")" && env_set "$BACKUP_CONF" BACKUP_SCOPE "$nm" ;;
                    2) env_set "$BACKUP_CONF" BACKUP_SCOPE "each" ;;
                    3) env_set "$BACKUP_CONF" BACKUP_SCOPE "combined" ;;
                    *) warn "Invalid." ;;
                esac ;;
-            3) echo "  1) hourly   2) every 6h   3) every 12h   4) daily 03:00   5) custom cron"
+            3) title "⏱ Backup schedule"
+               menu_item 1 "Hourly"
+               menu_item 2 "Every 6 hours"
+               menu_item 3 "Every 12 hours"
+               menu_item 4 "Daily at 03:00"
+               menu_item 5 "Custom cron expression"
                read -rp "Choice: " v; local cron=""
                case "$v" in
                    1) cron="0 * * * *";; 2) cron="0 */6 * * *";; 3) cron="0 */12 * * *";;
@@ -990,38 +1195,36 @@ do_install() {
 # ----------------------------------------------------------------------------- menu
 menu() {
     while true; do
-        echo; hr
-        echo "  ${CYAN}${APP_NAME}${NC} — multi-bot manager"
+        title "🛡 ${APP_NAME} Manager"
+        printf "  Instances: %s   Root: %s\n" "$(instance_count)" "$ROOT_DIR"
         hr
-        echo "  1) Install / init platform (prereqs + build + platform-up)"
-        echo "  2) Add a bot"
-        echo "  3) Update (all or one) — rebuild shared image + restart"
-        echo "  4) List bots"
-        echo "  5) Backup (all or one)"
-        echo "  6) Restore a bot from backup"
-        echo "  7) Logs"
-        echo "  8) Restart / Stop / Start a bot"
-        echo "  9) Status"
-        echo " 10) Edit a bot's .env"
-        echo " 11) Set / change base domain"
-        echo " 12) Remove a bot"
-        echo " 13) Uninstall everything"
-        echo " 14) Scheduled backup → Telegram"
-        echo "  0) Exit"
-        hr
+        menu_item 1 "🚀 Install / initialize platform"
+        menu_item 2 "➕ Add new bot"
+        menu_item 3 "⬆️  Update bots"
+        menu_item 4 "📋 List bots"
+        menu_item 5 "💾 Create local backup"
+        menu_item 6 "♻️  Restore backup"
+        menu_item 7 "📜 View logs"
+        menu_item 8 "⚙️  Start / stop / restart bots"
+        menu_item 9 "📊 Status"
+        menu_item 10 "📝 Edit bot .env"
+        menu_item 11 "🌐 Base domain"
+        menu_item 12 "🗑 Remove bot"
+        menu_item 13 "⚠️  Uninstall"
+        menu_item 14 "🗄 Telegram backups"
+        menu_item 0 "Exit"
         read -rp "Choice: " c || exit 0
         # each action runs in a subshell so a failure (die) returns to the menu
         # instead of dropping the user back to the shell.
         case "$c" in
             1)  ( do_install ) || true ;;
             2)  ( do_add ) || true ;;
-            3)  ( read -rp "Instance [all]: " t || true; do_update "${t:-all}" ) || true ;;
+            3)  ( do_update_menu ) || true ;;
             4)  ( do_list ) || true ;;
-            5)  ( read -rp "Instance [all]: " t || true; do_backup "${t:-all}" ) || true ;;
+            5)  ( do_backup_menu ) || true ;;
             6)  ( do_restore ) || true ;;
             7)  ( do_logs ) || true ;;
-            8)  ( read -rp "Action (restart/stop/start): " act || true; read -rp "Instance: " t || true
-                  case "$act" in restart) do_restart "$t";; stop) do_stop "$t";; start) do_start "$t";; *) warn "Unknown action.";; esac ) || true ;;
+            8)  ( do_control_menu ) || true ;;
             9)  ( do_status ) || true ;;
             10) ( do_edit_env ) || true ;;
             11) ( ensure_platform; prompt_base_domain ) || true ;;
