@@ -1147,9 +1147,17 @@ usable_self_source() { # file
     valid_cli_script "$p"
 }
 
-install_cli() { # [auto|repo|current]
-    local mode="${1:-auto}" src="" self="${BASH_SOURCE[0]:-$0}" repo_script="${SRC_DIR}/installer/guardino-bot.sh"
+download_cli_script() { # output-file
+    curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$1" || return 1
+    valid_cli_script "$1"
+}
+
+install_cli() { # [auto|repo|current|remote]
+    local mode="${1:-auto}" src="" self="${BASH_SOURCE[0]:-$0}" repo_script="${SRC_DIR}/installer/guardino-bot.sh" force_remote=0
     case "$mode" in
+        remote)
+            force_remote=1
+            ;;
         repo)
             valid_cli_script "$repo_script" && src="$repo_script"
             ;;
@@ -1157,7 +1165,10 @@ install_cli() { # [auto|repo|current]
             usable_self_source "$self" && src="$self"
             ;;
         auto|"")
-            if [[ "$self" != "$BIN_PATH" ]] && usable_self_source "$self"; then
+            if [[ "$self" == "$BIN_PATH" ]] && valid_cli_script "$BIN_PATH"; then
+                info "Management command is already installed: ${CYAN}guardino-bot${NC}"
+                return 0
+            elif [[ "$self" != "$BIN_PATH" ]] && usable_self_source "$self"; then
                 src="$self"
             elif valid_cli_script "$repo_script"; then
                 src="$repo_script"
@@ -1167,21 +1178,35 @@ install_cli() { # [auto|repo|current]
             die "Unknown install_cli mode: $mode"
             ;;
     esac
-    if [[ -n "$src" ]] && install -m 0755 -D "$src" "$BIN_PATH" 2>/dev/null; then
+    if [[ "$force_remote" -eq 0 && -n "$src" ]] && install -m 0755 -D "$src" "$BIN_PATH" 2>/dev/null; then
         :
-    elif [[ "$src" != "$repo_script" ]] && valid_cli_script "$repo_script" \
+    elif [[ "$force_remote" -eq 0 && "$src" != "$repo_script" ]] && valid_cli_script "$repo_script" \
         && install -m 0755 -D "$repo_script" "$BIN_PATH" 2>/dev/null; then
         :
     else
         local tmp
         tmp="$(mktemp)"
-        curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$tmp" || { rm -f "$tmp"; die "Could not download management command."; }
-        valid_cli_script "$tmp" || { rm -f "$tmp"; die "Downloaded management command is invalid."; }
+        download_cli_script "$tmp" || { rm -f "$tmp"; die "Could not download a valid management command."; }
         install -m 0755 -D "$tmp" "$BIN_PATH" || { rm -f "$tmp"; die "Could not install ${BIN_PATH}."; }
         rm -f "$tmp"
     fi
     valid_cli_script "$BIN_PATH" || die "Installed management command is invalid: ${BIN_PATH}"
     info "Management command installed: ${CYAN}guardino-bot${NC}"
+}
+
+is_stream_invocation() {
+    local self="${BASH_SOURCE[0]:-$0}"
+    [[ "$self" == "$BIN_PATH" ]] && return 1
+    case "$self" in
+        /dev/fd/*|/proc/*/fd/*) return 0 ;;
+    esac
+    return 1
+}
+
+sync_cli_for_remote_run() {
+    is_stream_invocation || return 0
+    need_root
+    install_cli remote
 }
 
 # ----------------------------------------------------------------------------- first-time install
@@ -1238,6 +1263,7 @@ menu() {
 }
 
 # ----------------------------------------------------------------------------- dispatch
+sync_cli_for_remote_run
 case "${1:-}" in
     install)        do_install ;;
     platform-up)    do_platform_up ;;
@@ -1247,7 +1273,7 @@ case "${1:-}" in
     backup)         shift; do_backup "${1:-all}" ;;
     backup-send)    backup_and_send ;;
     backup-telegram) do_backup_telegram ;;
-    repair-cli)     need_root; install_cli ;;
+    repair-cli)     need_root; install_cli remote ;;
     restore)        shift; do_restore "${1:-}" "${2:-}" ;;
     logs)           shift; do_logs "${1:-}" "${2:-bot}" ;;
     restart)        shift; do_restart "${1:-}" ;;
