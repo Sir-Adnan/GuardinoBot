@@ -23,7 +23,7 @@ router = Router(name="start")
 @router.message(Command("version"))
 async def version_info(message: Message, user: User):
     text = f"""
-GuardinoBot <code>v{__version__}</code> Developed by <a href='https://github.com/Sir-Adnan/GuardinoBot'>UnknownZero</a>
+Guardino-Bot <code>v{__version__}</code> Developed by <a href='https://github.com/Sir-Adnan/GuardinoBot'>UnknownZero</a>
 """
     await message.reply(text=text)
 

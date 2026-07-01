@@ -1,4 +1,4 @@
-"""GuardinoBot web-panel API (FastAPI, §9).
+"""Guardino-Bot web-panel API (FastAPI, §9).
 
 A separate service beside the bot, sharing the same DB/Redis and the §6 adapter
 layer. Auth is Telegram one-time-code → JWT. Run with:
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="GuardinoBot Web Panel API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Guardino-Bot Web Panel API", version="0.1.0", lifespan=lifespan)
 
 _origins = (
     ["*"]

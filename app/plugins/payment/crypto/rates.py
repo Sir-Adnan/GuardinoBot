@@ -1,6 +1,6 @@
 """Crypto payment rate helpers.
 
-Amounts inside GuardinoBot stay in toman. Crypto gateways can use this module
+Amounts inside Guardino-Bot stay in toman. Crypto gateways can use this module
 to convert a toman invoice to a USDT amount without floats.
 """
 

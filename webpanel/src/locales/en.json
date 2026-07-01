@@ -1,5 +1,5 @@
 {
-  "app": { "title": "GuardinoBot", "subtitle": "Sales Admin Panel" },
+  "app": { "title": "Guardino-Bot", "subtitle": "Sales Admin Panel" },
   "nav": {
     "sales": "Sales",
     "system": "System",

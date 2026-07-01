@@ -46,7 +46,7 @@ scheduler = AsyncIOScheduler(
     timezone="UTC",
 )
 
-logger = get_logger("guardinobot")
+logger = get_logger("guardino-bot")
 
 
 def get_bot_username() -> str:

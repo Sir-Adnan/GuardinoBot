@@ -6,7 +6,7 @@ routes = web.RouteTableDef()
 
 
 @routes.get("/")
-async def guardinobot_healthcheck_endpoint(request: web.Request):
+async def guardino_bot_healthcheck_endpoint(request: web.Request):
     return web.json_response({"status": "ok"})
 
 
