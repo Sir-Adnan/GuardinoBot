@@ -926,20 +926,36 @@ do_uninstall() {
     fi
 }
 
+valid_cli_script() { # file
+    [[ -s "${1:-}" ]] || return 1
+    grep -q 'guardino-bot' "$1" || return 1
+    grep -q 'backup-send)' "$1" || return 1
+    bash -n "$1" >/dev/null 2>&1 || return 1
+}
+
+usable_self_source() { # file
+    local p="${1:-}"
+    [[ -n "$p" && -r "$p" && -f "$p" ]] || return 1
+    case "$p" in
+        /dev/fd/*|/proc/*/fd/*) return 1 ;;
+    esac
+    valid_cli_script "$p"
+}
+
 install_cli() { # [auto|repo|current]
-    local mode="${1:-auto}" src="" self="${BASH_SOURCE[0]:-$0}"
+    local mode="${1:-auto}" src="" self="${BASH_SOURCE[0]:-$0}" repo_script="${SRC_DIR}/installer/guardino-bot.sh"
     case "$mode" in
         repo)
-            [[ -f "${SRC_DIR}/installer/guardino-bot.sh" ]] && src="${SRC_DIR}/installer/guardino-bot.sh"
+            valid_cli_script "$repo_script" && src="$repo_script"
             ;;
         current)
-            [[ -r "$self" ]] && src="$self"
+            usable_self_source "$self" && src="$self"
             ;;
         auto|"")
-            if [[ -r "$self" && "$self" != "$BIN_PATH" ]]; then
+            if [[ "$self" != "$BIN_PATH" ]] && usable_self_source "$self"; then
                 src="$self"
-            elif [[ -f "${SRC_DIR}/installer/guardino-bot.sh" ]]; then
-                src="${SRC_DIR}/installer/guardino-bot.sh"
+            elif valid_cli_script "$repo_script"; then
+                src="$repo_script"
             fi
             ;;
         *)
@@ -948,13 +964,18 @@ install_cli() { # [auto|repo|current]
     esac
     if [[ -n "$src" ]] && install -m 0755 -D "$src" "$BIN_PATH" 2>/dev/null; then
         :
-    elif [[ "$src" != "${SRC_DIR}/installer/guardino-bot.sh" && -f "${SRC_DIR}/installer/guardino-bot.sh" ]] \
-        && install -m 0755 -D "${SRC_DIR}/installer/guardino-bot.sh" "$BIN_PATH" 2>/dev/null; then
+    elif [[ "$src" != "$repo_script" ]] && valid_cli_script "$repo_script" \
+        && install -m 0755 -D "$repo_script" "$BIN_PATH" 2>/dev/null; then
         :
     else
-        curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$BIN_PATH" || die "Could not download management command."
-        chmod 0755 "$BIN_PATH" || die "Could not chmod ${BIN_PATH}."
+        local tmp
+        tmp="$(mktemp)"
+        curl -fsSL --ipv4 "$RAW_SCRIPT" -o "$tmp" || { rm -f "$tmp"; die "Could not download management command."; }
+        valid_cli_script "$tmp" || { rm -f "$tmp"; die "Downloaded management command is invalid."; }
+        install -m 0755 -D "$tmp" "$BIN_PATH" || { rm -f "$tmp"; die "Could not install ${BIN_PATH}."; }
+        rm -f "$tmp"
     fi
+    valid_cli_script "$BIN_PATH" || die "Installed management command is invalid: ${BIN_PATH}"
     info "Management command installed: ${CYAN}guardino-bot${NC}"
 }
 
@@ -1023,6 +1044,7 @@ case "${1:-}" in
     backup)         shift; do_backup "${1:-all}" ;;
     backup-send)    backup_and_send ;;
     backup-telegram) do_backup_telegram ;;
+    repair-cli)     need_root; install_cli ;;
     restore)        shift; do_restore "${1:-}" "${2:-}" ;;
     logs)           shift; do_logs "${1:-}" "${2:-bot}" ;;
     restart)        shift; do_restart "${1:-}" ;;
@@ -1034,5 +1056,5 @@ case "${1:-}" in
     remove)         shift; do_remove "${1:-}" ;;
     uninstall)      do_uninstall ;;
     "")             menu ;;
-    *)              die "Unknown subcommand: ${1}. Try: install|platform-up|add|update|list|backup|backup-send|backup-telegram|restore|logs|restart|stop|start|status|edit-env|domain|remove|uninstall" ;;
+    *)              die "Unknown subcommand: ${1}. Try: install|platform-up|add|update|list|backup|backup-send|backup-telegram|repair-cli|restore|logs|restart|stop|start|status|edit-env|domain|remove|uninstall" ;;
 esac
