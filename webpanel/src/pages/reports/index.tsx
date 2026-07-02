@@ -9,7 +9,6 @@ import {
   Segmented,
   Skeleton,
   Space,
-  Table,
   Tooltip,
   Typography,
   theme,
@@ -39,6 +38,9 @@ import { formatDay } from "../../utils/datetime";
 import { PageHeader } from "../../components/PageHeader";
 import { StatCard } from "../../components/StatCard";
 import { JalaliRangePicker } from "../../components/JalaliRangePicker";
+import { FilterBar } from "../../components/FilterBar";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { ColorModeContext } from "../../contexts/color-mode";
 
 const { RangePicker } = DatePicker;
@@ -71,6 +73,7 @@ export function ReportsPage() {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { calendar } = useContext(ColorModeContext);
+  const isMobile = useIsMobile();
   const [days, setDays] = useState(30);
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
 
@@ -125,10 +128,14 @@ export function ReportsPage() {
   const STATUS_ORDER = ["active", "on_hold", "disabled", "limited", "expired"];
 
   const series: any[] = d?.revenue_series ?? [];
-  const maxAmount = Math.max(1, ...series.map((p) => p.amount));
   const seriesSum = series.reduce((s, p) => s + (p.amount || 0), 0);
-  const seriesAvg = series.length ? seriesSum / series.length : 0;
-  const lastIdx = series.length - 1;
+  // Mobile: cap at the last 30 points — 60 hair-thin bars are untappable on a
+  // phone. Scale/average/labels follow the SHOWN slice so bars stay readable.
+  const shown = isMobile ? series.slice(-30) : series;
+  const maxAmount = Math.max(1, ...shown.map((p) => p.amount));
+  const shownSum = shown.reduce((s, p) => s + (p.amount || 0), 0);
+  const seriesAvg = shown.length ? shownSum / shown.length : 0;
+  const lastIdx = shown.length - 1;
 
   const breakdown: any[] = d?.payment_breakdown ?? [];
   const breakdownTotal = Math.max(1, breakdown.reduce((s, r) => s + r.amount, 0));
@@ -247,8 +254,8 @@ export function ReportsPage() {
     { title: t("reports.amount"), dataIndex: "amount", className: "mono", width: 130, render: (v: number) => fmtToman(v) },
   ];
 
-  const axisLabels = series.length
-    ? [series[0], series[Math.floor(series.length / 2)], series[series.length - 1]]
+  const axisLabels = shown.length
+    ? [shown[0], shown[Math.floor(shown.length / 2)], shown[shown.length - 1]]
     : [];
 
   const kpiSkeleton = (n: number) =>
@@ -266,35 +273,40 @@ export function ReportsPage() {
         title={t("reports.title")}
         subtitle={d?.start ? `${formatDay(d.start)} – ${formatDay(d.end)}` : t("reports.subtitle")}
         extra={
-          <Space wrap>
-            <Segmented
-              value={range ? "" : days}
-              onChange={(v) => {
-                setRange(null);
-                setDays(v as number);
-              }}
-              options={[
-                { label: t("reports.d7"), value: 7 },
-                { label: t("reports.d30"), value: 30 },
-                { label: t("reports.d90"), value: 90 },
-              ]}
-            />
-            {calendar === "jalali" ? (
-              <JalaliRangePicker value={range} onChange={setRange} maxDate={dayjs()} />
-            ) : (
-              <RangePicker
-                value={range as any}
-                onChange={(v) => setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)}
-                allowClear
-                maxDate={dayjs()}
-              />
-            )}
-            <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={!d}>
-              {t("reports.export")}
-            </Button>
-          </Space>
+          <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={!d}>
+            {t("reports.export")}
+          </Button>
         }
       />
+      <FilterBar>
+        <Segmented
+          block={isMobile}
+          style={isMobile ? { flex: "1 1 100%" } : undefined}
+          value={range ? "" : days}
+          onChange={(v) => {
+            setRange(null);
+            setDays(v as number);
+          }}
+          options={[
+            { label: t("reports.d7"), value: 7 },
+            { label: t("reports.d30"), value: 30 },
+            { label: t("reports.d90"), value: 90 },
+          ]}
+        />
+        <div style={{ flex: isMobile ? "1 1 100%" : "0 1 auto", minWidth: 0 }}>
+          {calendar === "jalali" ? (
+            <JalaliRangePicker value={range} onChange={setRange} maxDate={dayjs()} />
+          ) : (
+            <RangePicker
+              style={{ width: "100%" }}
+              value={range as any}
+              onChange={(v) => setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)}
+              allowClear
+              maxDate={dayjs()}
+            />
+          )}
+        </div>
+      </FilterBar>
 
       {isLoading ? (
         <>
@@ -326,7 +338,7 @@ export function ReportsPage() {
               )
             }
           >
-            {series.length === 0 ? (
+            {shown.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <>
@@ -337,8 +349,14 @@ export function ReportsPage() {
                       style={{ bottom: `${Math.min(96, Math.round((seriesAvg / maxAmount) * 100))}%` }}
                     />
                   )}
-                  <div className="bars" style={{ height: 190, gap: series.length > 40 ? 3 : 6 }}>
-                    {series.map((p, i) => (
+                  <div
+                    className="bars"
+                    style={{
+                      height: isMobile ? 150 : 190,
+                      gap: shown.length > 40 ? 3 : isMobile ? 4 : 6,
+                    }}
+                  >
+                    {shown.map((p, i) => (
                       <Tooltip key={i} title={`${formatDay(p.date)} — ${fmtToman(p.amount)}`}>
                         <div className="barcol">
                           <div
@@ -365,6 +383,31 @@ export function ReportsPage() {
                     </Text>
                   ))}
                 </div>
+                {isMobile && (
+                  // tooltips need a long-press on touch — surface the two key
+                  // numbers of the visible window directly instead
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginTop: 8,
+                      padding: "6px 10px",
+                      borderRadius: 10,
+                      background: token.colorFillQuaternary,
+                      fontSize: 11.5,
+                    }}
+                  >
+                    <Text type="secondary" style={{ fontSize: 11.5 }}>
+                      {t("reports.chart_max")}:{" "}
+                      <Text strong style={{ fontSize: 11.5 }}>{fmtToman(maxAmount)}</Text>
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11.5 }}>
+                      {t("reports.chart_avg")}:{" "}
+                      <Text strong style={{ fontSize: 11.5 }}>{fmtToman(Math.round(seriesAvg))}</Text>
+                    </Text>
+                  </div>
+                )}
               </>
             )}
           </Card>
@@ -372,7 +415,7 @@ export function ReportsPage() {
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={24} lg={13}>
               <Card className="gb-lift" style={{ borderRadius: 16, height: "100%" }} title={t("reports.paymentBreakdown")}>
-                <Table
+                <ResponsiveTable
                   rowKey="type"
                   size="small"
                   pagination={false}
@@ -385,7 +428,7 @@ export function ReportsPage() {
             </Col>
             <Col xs={24} lg={11}>
               <Card className="gb-lift" style={{ borderRadius: 16, height: "100%" }} title={t("reports.orders_by_type")}>
-                <Table
+                <ResponsiveTable
                   rowKey="type"
                   size="small"
                   pagination={false}
@@ -410,7 +453,7 @@ export function ReportsPage() {
                   </Space>
                 }
               >
-                <Table
+                <ResponsiveTable
                   rowKey="id"
                   size="small"
                   dataSource={topServices}
@@ -436,7 +479,7 @@ export function ReportsPage() {
                   </Space>
                 }
               >
-                <Table
+                <ResponsiveTable
                   rowKey="user_id"
                   size="small"
                   pagination={false}
@@ -452,7 +495,7 @@ export function ReportsPage() {
           <SectionTitle>{t("reports.allTime")}</SectionTitle>
           <Row gutter={[16, 16]}>
             {allTimeCards.map((c) => (
-              <Col xs={12} sm={8} md={8} lg={4} xl={4} key={c.k} flex="1">
+              <Col xs={12} sm={8} md={8} lg={4} xl={4} key={c.k}>
                 <StatCard label={t(`reports.${c.k}`)} value={c.v} icon={c.icon} />
               </Col>
             ))}
@@ -460,11 +503,11 @@ export function ReportsPage() {
 
           <SectionTitle>{t("reports.subsStats")}</SectionTitle>
           <Row gutter={[16, 16]}>
-            <Col xs={12} sm={8} md={8} lg={4} flex="1">
+            <Col xs={12} sm={8} md={8} lg={4}>
               <StatCard label={t("reports.proxies_total")} value={fmtNum(d?.proxies_total)} icon={<ClusterOutlined />} />
             </Col>
             {STATUS_ORDER.map((st) => (
-              <Col xs={12} sm={8} md={8} lg={4} key={st} flex="1">
+              <Col xs={12} sm={8} md={8} lg={4} key={st}>
                 <StatCard
                   label={t(`reports.st_${st}`)}
                   value={fmtNum(byStatus[st] ?? 0)}

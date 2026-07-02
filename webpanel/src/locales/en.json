@@ -348,6 +348,8 @@
     "revenue": "Revenue",
     "avg_order": "Avg order value",
     "success_rate": "Payment success rate",
+    "chart_max": "Best day",
+    "chart_avg": "Daily average",
     "method": "Method",
     "count": "Count",
     "amount": "Amount",

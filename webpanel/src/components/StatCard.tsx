@@ -38,7 +38,7 @@ export function StatCard({
         {icon && <span className="stat-icon">{icon}</span>}
         <span style={{ color: token.colorTextSecondary, fontSize: 12.5, fontWeight: 500 }}>{label}</span>
       </div>
-      <div style={{ fontWeight: 700, fontSize: 21, lineHeight: 1.1, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>
+      <div style={{ fontWeight: 700, fontSize: "clamp(16px, 4.5vw, 21px)", lineHeight: 1.1, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em", overflowWrap: "anywhere" }}>
         {value}
       </div>
       {sub != null && <div style={{ color: token.colorTextTertiary, fontSize: 11.5, marginTop: -6 }}>{sub}</div>}

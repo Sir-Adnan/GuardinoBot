@@ -120,7 +120,31 @@ Recently fixed (2026-07-02):
   initial avatars. Services: Guardino `pricing_mode` free-text → **Select (bundle|per_node,
   matches the hub spec)** + coloured panel-type tags. PanelHealth → radius 16 + `gb-lift`.
   Menus/gateways/settings/automation verified: already on Skeleton/table-loading patterns —
-  global radius token covers them. **Sweep complete.**
+  global radius token covers them.
+- ✅ **Batch 3 (final):** Automation = raw `Statistic`s → **StatCard** trio (success/fails/total,
+  token-coloured), preview bubbles → theme tokens + Telegram corner, modal Spin → Skeleton.
+  Discounts = usage column gained a **mini progress bar** (used/max) + % as a success Tag.
+  Services = bold price. Servers reviewed — already complete (coloured panel tags, health,
+  enable switch).
+- ✅ **Batch 4 — the shell (header + sidebar) + service menus.** Theme `components.Menu` tokens →
+  sidebar nav items are **rounded pills with a soft accent selected state** (light + dark);
+  header = **glass** (blur + translucent bg); logo chip = accent gradient + glow; sidebar user
+  chip bordered; mobile content padding 16→12 (more room on phones). Menus page = **hierarchy
+  view** (DFS-ordered rows, indented `└` children, accent folder icons, orphans kept) + count
+  Tags. **Redesign sweep complete — every page + the shell.**
+- ✅ **Reports — mobile pass (owner: unusable on phones).** Root cause: the all-time +
+  subscription-stat rows still had the legacy `flex="1"` Col prop, which overrides `xs={12}` and
+  crushed 5–6 KPI cards into one phone row — removed. Plus: period/range controls moved from the
+  header into a full-width FilterBar (block Segmented, 100% RangePicker); the chart shows the
+  **last 30 points on mobile** (scale/avg/axis follow the slice; 60 hair-thin bars were
+  untappable); all four analytics tables → **ResponsiveTable** (stacked cards on phones, no
+  horizontal scroll); StatCard value font → `clamp(16px…21px)` + `overflowWrap` so long toman
+  values fit 2-col phone grids app-wide.
+- ✅ **Full mobile audit (all 19 shell+pages).** Repo-wide sweeps: `flex="1"` Col bug → 0 left;
+  raw `<Table` → only OfflinePending remained, swapped to ResponsiveTable; fixed header widths
+  verified ≤240px (fit 320px phones); OfflineGateway/coin rows verified responsive (xs=24).
+  Reports chart gained a mobile-only **max/avg summary strip** under the axis (tooltips need
+  long-press on touch) — `chart_max`/`chart_avg` keys.
 
 ---
 

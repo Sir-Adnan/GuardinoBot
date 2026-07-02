@@ -9,6 +9,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Progress,
   Space,
   Switch,
   Tag,
@@ -133,7 +134,7 @@ export function DiscountList() {
       title: t("discounts.percentage"),
       dataIndex: "percentage",
       className: "mono",
-      render: (v: number) => `${v}%`,
+      render: (v: number) => <Tag color="success">{v}%</Tag>,
     },
     {
       title: t("discounts.active"),
@@ -162,8 +163,17 @@ export function DiscountList() {
       title: t("discounts.usage"),
       key: "usage",
       className: "mono",
-      render: (_: any, r: any) =>
-        `${fmtNum(r.used_times)} / ${r.use_counts == null ? "∞" : fmtNum(r.use_counts)}`,
+      render: (_: any, r: any) => {
+        const label = `${fmtNum(r.used_times)} / ${r.use_counts == null ? "∞" : fmtNum(r.use_counts)}`;
+        if (r.use_counts == null) return label;
+        const pct = Math.min(100, Math.round((r.used_times / Math.max(1, r.use_counts)) * 100));
+        return (
+          <div style={{ minWidth: 110 }}>
+            <span style={{ fontSize: 12 }}>{label}</span>
+            <Progress percent={pct} size="small" showInfo={false} />
+          </div>
+        );
+      },
     },
     {
       title: t("discounts.expiresAt"),

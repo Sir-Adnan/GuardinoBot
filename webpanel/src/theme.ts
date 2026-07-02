@@ -73,5 +73,20 @@ export function makeTheme(
         ? { colorBgLayout: "#13161c", colorBgContainer: "#1b1f27" }
         : { colorBgLayout: "#f6f7f9" }),
     },
+    components: {
+      // Sidebar nav: rounded pill items with a soft accent selected state
+      // (both Menu themes — the sider switches theme with the mode).
+      Menu: {
+        itemBorderRadius: 10,
+        itemMarginInline: 6,
+        itemMarginBlock: 4,
+        itemSelectedBg: `${primary}1a`,
+        itemSelectedColor: primary,
+        darkItemBg: "transparent",
+        darkSubMenuItemBg: "transparent",
+        darkItemSelectedBg: `${primary}26`,
+        darkItemSelectedColor: primary,
+      },
+    },
   };
 }

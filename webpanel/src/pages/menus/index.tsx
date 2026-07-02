@@ -11,10 +11,12 @@ import {
   Space,
   Switch,
   Tag,
+  theme,
 } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
+  FolderOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -36,6 +38,7 @@ interface Menu {
 
 export function MenusPage() {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const { message } = AntdApp.useApp();
   const [form] = Form.useForm();
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -138,8 +141,47 @@ export function MenusPage() {
     }
   };
 
+  // Flat list → DFS tree order with depth, so nesting is visible at a glance.
+  // Orphans (missing parent) are appended so nothing ever disappears.
+  const ordered = (() => {
+    const byParent = new Map<number | null, Menu[]>();
+    menus.forEach((m) => {
+      const k = m.parent_id ?? null;
+      byParent.set(k, [...(byParent.get(k) ?? []), m]);
+    });
+    const out: (Menu & { depth: number })[] = [];
+    const walk = (pid: number | null, depth: number) => {
+      (byParent.get(pid) ?? []).forEach((m) => {
+        out.push({ ...m, depth });
+        walk(m.id, depth + 1);
+      });
+    };
+    walk(null, 0);
+    const seen = new Set(out.map((m) => m.id));
+    menus.filter((m) => !seen.has(m.id)).forEach((m) => out.push({ ...m, depth: 0 }));
+    return out;
+  })();
+
   const columns = [
-    { title: t("menus.titleCol"), dataIndex: "title" },
+    {
+      title: t("menus.titleCol"),
+      dataIndex: "title",
+      render: (v: string, m: any) => (
+        <span
+          style={{
+            paddingInlineStart: (m.depth ?? 0) * 18,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          {(m.depth ?? 0) > 0 && <span style={{ opacity: 0.4 }}>└</span>}
+          <FolderOutlined style={{ color: token.colorPrimary }} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{v}</span>
+        </span>
+      ),
+    },
     {
       title: t("menus.parent"),
       dataIndex: "parent_id",
@@ -160,13 +202,13 @@ export function MenusPage() {
       title: t("menus.services"),
       dataIndex: "services_count",
       width: 90,
-      className: "mono",
+      render: (v: number) => <Tag color={v ? "processing" : "default"}>{v}</Tag>,
     },
     {
       title: t("menus.children"),
       dataIndex: "children_count",
       width: 90,
-      className: "mono",
+      render: (v: number) => <Tag color={v ? "processing" : "default"}>{v}</Tag>,
     },
     {
       title: "",
@@ -205,7 +247,7 @@ export function MenusPage() {
       <ResponsiveTable
         rowKey="id"
         loading={loading}
-        dataSource={menus}
+        dataSource={ordered}
         columns={columns}
         scroll={{ x: 760 }}
         pagination={false}

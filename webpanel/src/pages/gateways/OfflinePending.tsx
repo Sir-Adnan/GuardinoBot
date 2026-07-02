@@ -6,7 +6,6 @@ import {
   Image,
   Popconfirm,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -18,6 +17,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
+import { ResponsiveTable } from "../../components/ResponsiveTable";
 import { fmtDate, fmtToman } from "../../utils/format";
 
 const { Text } = Typography;
@@ -144,7 +144,7 @@ export function OfflinePending() {
         </Button>
       }
     >
-      <Table
+      <ResponsiveTable
         rowKey="cp_id"
         size="small"
         loading={loading}

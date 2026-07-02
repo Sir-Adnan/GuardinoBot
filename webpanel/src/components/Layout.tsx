@@ -277,7 +277,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sideContent = (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: mini ? "center" : "flex-start", gap: 11, padding: mini ? "18px 0 14px" : "18px 18px 14px" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 11, background: token.colorPrimary, color: "#fff", display: "grid", placeItems: "center", flex: "none", fontSize: 22 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${token.colorPrimary}, ${token.colorPrimary}bb)`, boxShadow: `0 6px 16px ${token.colorPrimary}44`, color: "#fff", display: "grid", placeItems: "center", flex: "none", fontSize: 22 }}>
           <SafetyCertificateOutlined />
         </div>
         {!mini && (
@@ -299,7 +299,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       />
 
       <div style={{ padding: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: mini ? "center" : "flex-start", gap: 10, padding: mini ? 6 : "8px 10px", borderRadius: 11, background: mini ? "transparent" : token.colorFillTertiary }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: mini ? "center" : "flex-start", gap: 10, padding: mini ? 6 : "8px 10px", borderRadius: 12, background: mini ? "transparent" : token.colorFillTertiary, border: mini ? "none" : `1px solid ${token.colorBorderSecondary}` }}>
           <Avatar style={{ background: token.colorPrimary, flex: "none" }}>{initial}</Avatar>
           {!mini && (
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -349,7 +349,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
             alignItems: "center",
             gap: 8,
             padding: isMobile ? "0 12px" : "0 18px",
-            background: token.colorBgContainer,
+            background:
+              mode === "dark" ? "rgba(27, 31, 39, 0.82)" : "rgba(255, 255, 255, 0.82)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
@@ -378,7 +381,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Tooltip>
         </Header>
 
-        <Content style={{ padding: isMobile ? 16 : 24, overflow: "auto" }}>{children}</Content>
+        <Content style={{ padding: isMobile ? 12 : 24, overflow: "auto" }}>{children}</Content>
 
         <Footer style={{ textAlign: "center", background: token.colorBgLayout, borderTop: `1px solid ${token.colorBorderSecondary}`, color: token.colorTextTertiary, fontSize: 12, padding: "14px 24px" }}>
           {t("app.title")} · {t("footer.tagline")}

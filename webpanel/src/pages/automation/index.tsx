@@ -10,14 +10,16 @@ import {
   Progress,
   Row,
   Skeleton,
-  Spin,
-  Statistic,
   Tag,
   Typography,
+  theme,
 } from "antd";
 import {
   BellOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
   EyeOutlined,
+  SendOutlined,
   StopOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
@@ -26,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { ROLE_SUPER, fmtDate, fmtNum } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
+import { StatCard } from "../../components/StatCard";
 import { AlertConfig } from "./AlertConfig";
 
 const { Text } = Typography;
@@ -50,6 +53,7 @@ const ALERT_STATUS_COLORS: Record<string, string> = {
 
 export function AutomationPage() {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const { message } = AntdApp.useApp();
   const { data: me } = useGetIdentity<any>();
   const isSuper = (me?.role ?? 0) >= ROLE_SUPER;
@@ -143,27 +147,23 @@ export function AutomationPage() {
               />
             ) : null}
 
-            <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-              <Col xs={8}>
-                <Statistic
-                  title={t("automation.success")}
-                  value={fmtNum(d?.success)}
-                  valueStyle={{ ...NUM_STYLE, color: "#10b981" }}
+            <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+              <Col xs={24} sm={8}>
+                <StatCard
+                  label={t("automation.success")}
+                  value={<span style={{ color: token.colorSuccess }}>{fmtNum(d?.success)}</span>}
+                  icon={<CheckCircleOutlined />}
                 />
               </Col>
-              <Col xs={8}>
-                <Statistic
-                  title={t("automation.fails")}
-                  value={fmtNum(d?.fails)}
-                  valueStyle={{ ...NUM_STYLE, color: "#ef4444" }}
+              <Col xs={24} sm={8}>
+                <StatCard
+                  label={t("automation.fails")}
+                  value={<span style={{ color: token.colorError }}>{fmtNum(d?.fails)}</span>}
+                  icon={<CloseCircleOutlined />}
                 />
               </Col>
-              <Col xs={8}>
-                <Statistic
-                  title={t("automation.total")}
-                  value={fmtNum(d?.total)}
-                  valueStyle={NUM_STYLE}
-                />
+              <Col xs={24} sm={8}>
+                <StatCard label={t("automation.total")} value={fmtNum(d?.total)} icon={<SendOutlined />} />
               </Col>
             </Row>
 
@@ -227,9 +227,7 @@ export function AutomationPage() {
         width={560}
       >
         {previewItems === null ? (
-          <div style={{ display: "grid", placeItems: "center", minHeight: 160 }}>
-            <Spin />
-          </div>
+          <Skeleton active paragraph={{ rows: 5 }} />
         ) : previewItems.length === 0 ? (
           <Empty />
         ) : (
@@ -244,9 +242,9 @@ export function AutomationPage() {
                 </div>
                 <div
                   style={{
-                    background: "rgba(16,185,129,0.10)",
-                    border: "1px solid rgba(16,185,129,0.25)",
-                    borderRadius: 12,
+                    background: token.colorPrimaryBg,
+                    border: `1px solid ${token.colorPrimaryBorder}`,
+                    borderRadius: "14px 14px 4px 14px",
                     padding: "10px 14px",
                     whiteSpace: "pre-wrap",
                     wordBreak: "break-word",

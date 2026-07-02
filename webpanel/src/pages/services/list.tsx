@@ -297,7 +297,7 @@ export function ServiceList() {
       title: t("services.price"),
       dataIndex: "price",
       className: "mono",
-      render: (v: number) => fmtToman(v),
+      render: (v: number) => <Text strong>{fmtToman(v)}</Text>,
     },
     {
       title: t("services.status"),
