@@ -109,15 +109,68 @@ a:hover {
   height: 100%;
 }
 .chart-bar {
-  border-radius: 6px 6px 0 0;
-  transition: opacity 0.15s ease, filter 0.15s ease;
+  border-radius: 999px;
+  transition: opacity 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+  transform-origin: bottom;
 }
 .bars:hover .barcol .chart-bar {
   opacity: 0.28;
 }
 .bars .barcol:hover .chart-bar {
   opacity: 1;
-  filter: brightness(1.14) saturate(1.1);
+  filter: brightness(1.12) saturate(1.08);
+  transform: scaleY(1.03);
+}
+
+/* ---------- Dashboard: hover-lift cards + gradient hero + minimal chart ----
+   Accent comes in via CSS vars (--gbd-*) set on the page wrapper (token aware). */
+.gb-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.gb-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(16, 24, 40, 0.12);
+  border-color: var(--gbd-a);
+}
+.gb-hero {
+  position: relative;
+  overflow: hidden;
+}
+.gb-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--gbd-a-soft) 0%, transparent 55%),
+    linear-gradient(135deg, var(--gbd-a-faint) 0%, transparent 60%);
+}
+.gb-hero-num {
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(90deg, var(--gbd-a), var(--gbd-a-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  width: fit-content;
+}
+.gb-grid {
+  position: relative;
+  border-radius: 10px;
+  background-image: repeating-linear-gradient(
+    to top,
+    transparent 0 43px,
+    var(--gbd-grid) 43px 44px
+  );
+}
+.gb-avg {
+  position: absolute;
+  inset-inline: 0;
+  border-top: 2px dashed var(--gbd-a-40);
+  pointer-events: none;
 }
 
 /* ---------- Login page: aurora gradient + glass card ----------

@@ -14,23 +14,20 @@ export function StatCard({
   value,
   icon,
   sub,
-  accent,
 }: {
   label: ReactNode;
   value: ReactNode;
   icon?: ReactNode;
   sub?: ReactNode;
-  /** attention tint (e.g. token.colorWarning): colours the icon chip + hover */
-  accent?: string;
 }) {
   const { token } = theme.useToken();
   const { mode } = useContext(ColorModeContext);
   const vars = {
     "--sc-bg": token.colorBgContainer,
     "--sc-border": token.colorBorderSecondary,
-    "--sc-chip-bg": accent ? `${accent}26` : token.colorFillTertiary,
-    "--sc-chip-fg": accent || token.colorTextSecondary,
-    "--sc-accent": accent || token.colorPrimary,
+    "--sc-chip-bg": token.colorFillTertiary,
+    "--sc-chip-fg": token.colorTextSecondary,
+    "--sc-accent": token.colorPrimary,
     "--sc-shadow": mode === "dark" ? "0 1px 3px rgba(0,0,0,.4)" : "0 1px 3px rgba(16,24,40,.06)",
     "--sc-shadow-hover": mode === "dark" ? "0 14px 30px rgba(0,0,0,.5)" : "0 14px 30px rgba(16,24,40,.13)",
   } as CSSProperties;

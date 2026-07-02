@@ -86,9 +86,12 @@ Recently fixed (2026-07-02):
   2-col grid (xl+), per-tab dirty badges, theme-aware Telegram-bubble preview, **Save all** bar.
   Audit = filter toolbar (mobile-stacking), verb-coloured action tags, signed-amount colouring,
   `showTotal`, styled JSON detail. +7 locale keys (fa+en).
-- ✅ **Dashboard polish** — Spin → Skeleton layout, 14-day total in the chart-card header
-  (`sum14` key), `StatCard` gained an optional `accent` prop → pending-payments (warning) and
-  blocked-users (error) KPIs get a tinted icon chip when non-zero.
+- ✅ **Dashboard redesign v2 (2026 minimal)** — Spin → Skeleton layout; summary card = **gradient
+  hero** (accent radial+linear wash, gradient-text income number); chart = **pill bars** with
+  subtle horizontal gridlines, dashed **average line**, today's bar emphasized (solid + glow),
+  hover scale + sibling fade; both top cards equal-height with hover-lift (`gb-lift`); 14-day
+  total in the chart header (`sum14` key). ⚠️ The tinted-KPI `accent` experiment was **reverted**
+  (owner: clashed) — KPI cards stay uniform; `.chart-bar` pill radius applies to reports too.
 - ✅ **Bot copy tightened** (owner: the polished texts got too long) — proxy_help default, detail
   hints, activation + reserve-activated messages are now short one-liners with emoji («لمس =
   کپی» pattern); no explanatory paragraphs.

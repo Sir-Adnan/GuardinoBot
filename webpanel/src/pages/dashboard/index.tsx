@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Card, Col, Empty, Row, Segmented, Skeleton, Tooltip, Typography, theme } from "antd";
 import {
   ApartmentOutlined,
@@ -38,24 +38,35 @@ export function DashboardPage() {
   const d = data?.data ?? {};
   const primary = token.colorPrimary;
 
+  // Accent-derived CSS vars for .gb-hero / .gb-lift / .gb-grid (index.css) —
+  // follows the picked theme accent in both light & dark modes.
+  const dashVars = {
+    "--gbd-a": primary,
+    "--gbd-a-2": `${primary}99`,
+    "--gbd-a-soft": `${primary}2e`,
+    "--gbd-a-faint": `${primary}14`,
+    "--gbd-a-40": `${primary}66`,
+    "--gbd-grid": token.colorFillSecondary,
+  } as CSSProperties;
+
   if (isLoading) {
     return (
       <div>
         <PageHeader title={t("dashboard.title")} subtitle={t("dashboard.subtitle")} />
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={15}>
-            <Card style={{ borderRadius: 14 }}>
+            <Card style={{ borderRadius: 16 }}>
               <Skeleton active paragraph={{ rows: 5 }} />
             </Card>
           </Col>
           <Col xs={24} lg={9}>
-            <Card style={{ borderRadius: 14 }}>
+            <Card style={{ borderRadius: 16 }}>
               <Skeleton active paragraph={{ rows: 5 }} />
             </Card>
           </Col>
           {[0, 1, 2, 3].map((i) => (
             <Col xs={12} sm={12} md={8} lg={6} key={i}>
-              <Card style={{ borderRadius: 14 }}>
+              <Card style={{ borderRadius: 16 }}>
                 <Skeleton active title={false} paragraph={{ rows: 2 }} />
               </Card>
             </Col>
@@ -68,6 +79,7 @@ export function DashboardPage() {
   const spark: number[] = d.revenue_spark ?? [];
   const sparkMax = Math.max(1, ...spark);
   const sparkSum = spark.reduce((a, b) => a + (b || 0), 0);
+  const sparkAvg = spark.length ? sparkSum / spark.length : 0;
   const today = new Date();
   const dayLabel = (back: number) => {
     const dt = new Date(today);
@@ -91,29 +103,22 @@ export function DashboardPage() {
     { l: "proxiesActive", v: `${fmtNum(d.proxies_active)} / ${fmtNum(d.proxies_total)}`, i: <ThunderboltOutlined /> },
     { l: "resellersTotal", v: fmtNum(d.resellers_total), i: <ApartmentOutlined /> },
     { l: "servers", v: `${fmtNum(d.servers_enabled)} / ${fmtNum(d.servers_total)}`, i: <CloudServerOutlined /> },
-    {
-      l: "pendingPayments",
-      v: fmtNum(d.pending_payments),
-      i: <ClockCircleOutlined />,
-      a: (d.pending_payments ?? 0) > 0 ? token.colorWarning : undefined,
-    },
-    {
-      l: "blockedUsers",
-      v: fmtNum(d.blocked_users),
-      i: <StopOutlined />,
-      a: (d.blocked_users ?? 0) > 0 ? token.colorError : undefined,
-    },
+    { l: "pendingPayments", v: fmtNum(d.pending_payments), i: <ClockCircleOutlined /> },
+    { l: "blockedUsers", v: fmtNum(d.blocked_users), i: <StopOutlined /> },
   ];
 
+  const last = spark.length - 1;
+
   return (
-    <div>
+    <div style={dashVars}>
       <PageHeader title={t("dashboard.title")} subtitle={t("dashboard.subtitle")} />
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={15}>
           <Card
+            className="gb-lift"
             title={t("dashboard.last14")}
-            style={{ borderRadius: 14 }}
+            style={{ borderRadius: 16, height: "100%" }}
             styles={{ body: { paddingBottom: 12 } }}
             extra={
               sparkSum > 0 && (
@@ -127,21 +132,33 @@ export function DashboardPage() {
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <>
-                <div className="bars" style={{ height: 172 }}>
-                  {spark.map((v, i) => (
-                    <Tooltip key={i} title={`${dayLabel(spark.length - 1 - i)} — ${fmtToman(v)}`}>
-                      <div className="barcol">
-                        <div
-                          className="chart-bar"
-                          style={{
-                            height: `${Math.max(v > 0 ? 4 : 1, Math.round((v / sparkMax) * 100))}%`,
-                            background: `linear-gradient(180deg, ${primary}, ${primary}88)`,
-                            opacity: v > 0 ? 1 : 0.25,
-                          }}
-                        />
-                      </div>
-                    </Tooltip>
-                  ))}
+                <div className="gb-grid">
+                  {sparkAvg > 0 && (
+                    <div
+                      className="gb-avg"
+                      style={{ bottom: `${Math.min(96, Math.round((sparkAvg / sparkMax) * 100))}%` }}
+                    />
+                  )}
+                  <div className="bars" style={{ height: 176, gap: 7 }}>
+                    {spark.map((v, i) => (
+                      <Tooltip key={i} title={`${dayLabel(last - i)} — ${fmtToman(v)}`}>
+                        <div className="barcol">
+                          <div
+                            className="chart-bar"
+                            style={{
+                              height: `${Math.max(v > 0 ? 5 : 2, Math.round((v / sparkMax) * 100))}%`,
+                              background:
+                                i === last
+                                  ? `linear-gradient(180deg, ${primary}, ${primary}aa)`
+                                  : `linear-gradient(180deg, ${primary}cc, ${primary}44)`,
+                              boxShadow: i === last ? `0 0 14px ${primary}55` : undefined,
+                              opacity: v > 0 ? 1 : 0.25,
+                            }}
+                          />
+                        </div>
+                      </Tooltip>
+                    ))}
+                  </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
                   <Text type="secondary" style={{ fontSize: 11 }}>{dayLabel(13)}</Text>
@@ -155,8 +172,9 @@ export function DashboardPage() {
 
         <Col xs={24} lg={9}>
           <Card
+            className="gb-lift gb-hero"
             title={t("dashboard.summary")}
-            style={{ borderRadius: 14, height: "100%" }}
+            style={{ borderRadius: 16, height: "100%" }}
             extra={
               <Segmented
                 size="small"
@@ -171,10 +189,18 @@ export function DashboardPage() {
             }
           >
             <Text type="secondary" style={{ fontSize: 12 }}>{t("dashboard.income")}</Text>
-            <div style={{ fontWeight: 800, fontSize: 28, lineHeight: 1.15, color: primary, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", marginBottom: 12 }}>
+            <div className="gb-hero-num" style={{ marginBottom: 14 }}>
               {fmtToman(p.income)}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", border: sep, borderRadius: 12 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                border: sep,
+                borderRadius: 12,
+                background: token.colorBgContainer,
+              }}
+            >
               <SummaryCell label={t("dashboard.sales")} value={fmtToman(p.sales)} />
               <SummaryCell label={t("dashboard.orders")} value={fmtNum(p.orders)} border />
               <SummaryCell label={t("dashboard.gbSold")} value={`${fmtNum(p.gb)} GB`} border />
@@ -187,13 +213,7 @@ export function DashboardPage() {
       <Row gutter={[16, 16]}>
         {ops.map((c) => (
           <Col xs={12} sm={12} md={8} lg={6} xl={6} key={c.l}>
-            <StatCard
-              label={t(`dashboard.${c.l}`)}
-              value={c.v}
-              icon={c.i}
-              sub={(c as any).s}
-              accent={(c as any).a}
-            />
+            <StatCard label={t(`dashboard.${c.l}`)} value={c.v} icon={c.i} sub={(c as any).s} />
           </Col>
         ))}
       </Row>
