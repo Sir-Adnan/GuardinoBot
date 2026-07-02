@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Card, Col, Empty, Row, Segmented, Spin, Tooltip, Typography, theme } from "antd";
+import { Card, Col, Empty, Row, Segmented, Skeleton, Tooltip, Typography, theme } from "antd";
 import {
   ApartmentOutlined,
   BankOutlined,
@@ -40,14 +40,34 @@ export function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div style={{ display: "grid", placeItems: "center", minHeight: 240 }}>
-        <Spin />
+      <div>
+        <PageHeader title={t("dashboard.title")} subtitle={t("dashboard.subtitle")} />
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={15}>
+            <Card style={{ borderRadius: 14 }}>
+              <Skeleton active paragraph={{ rows: 5 }} />
+            </Card>
+          </Col>
+          <Col xs={24} lg={9}>
+            <Card style={{ borderRadius: 14 }}>
+              <Skeleton active paragraph={{ rows: 5 }} />
+            </Card>
+          </Col>
+          {[0, 1, 2, 3].map((i) => (
+            <Col xs={12} sm={12} md={8} lg={6} key={i}>
+              <Card style={{ borderRadius: 14 }}>
+                <Skeleton active title={false} paragraph={{ rows: 2 }} />
+              </Card>
+            </Col>
+          ))}
+        </Row>
       </div>
     );
   }
 
   const spark: number[] = d.revenue_spark ?? [];
   const sparkMax = Math.max(1, ...spark);
+  const sparkSum = spark.reduce((a, b) => a + (b || 0), 0);
   const today = new Date();
   const dayLabel = (back: number) => {
     const dt = new Date(today);
@@ -71,8 +91,18 @@ export function DashboardPage() {
     { l: "proxiesActive", v: `${fmtNum(d.proxies_active)} / ${fmtNum(d.proxies_total)}`, i: <ThunderboltOutlined /> },
     { l: "resellersTotal", v: fmtNum(d.resellers_total), i: <ApartmentOutlined /> },
     { l: "servers", v: `${fmtNum(d.servers_enabled)} / ${fmtNum(d.servers_total)}`, i: <CloudServerOutlined /> },
-    { l: "pendingPayments", v: fmtNum(d.pending_payments), i: <ClockCircleOutlined /> },
-    { l: "blockedUsers", v: fmtNum(d.blocked_users), i: <StopOutlined /> },
+    {
+      l: "pendingPayments",
+      v: fmtNum(d.pending_payments),
+      i: <ClockCircleOutlined />,
+      a: (d.pending_payments ?? 0) > 0 ? token.colorWarning : undefined,
+    },
+    {
+      l: "blockedUsers",
+      v: fmtNum(d.blocked_users),
+      i: <StopOutlined />,
+      a: (d.blocked_users ?? 0) > 0 ? token.colorError : undefined,
+    },
   ];
 
   return (
@@ -81,7 +111,18 @@ export function DashboardPage() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={15}>
-          <Card title={t("dashboard.last14")} style={{ borderRadius: 14 }} styles={{ body: { paddingBottom: 12 } }}>
+          <Card
+            title={t("dashboard.last14")}
+            style={{ borderRadius: 14 }}
+            styles={{ body: { paddingBottom: 12 } }}
+            extra={
+              sparkSum > 0 && (
+                <Text type="secondary" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                  {t("dashboard.sum14")}: <Text strong style={{ fontSize: 12 }}>{fmtToman(sparkSum)}</Text>
+                </Text>
+              )
+            }
+          >
             {spark.length === 0 || sparkMax <= 1 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
@@ -146,7 +187,13 @@ export function DashboardPage() {
       <Row gutter={[16, 16]}>
         {ops.map((c) => (
           <Col xs={12} sm={12} md={8} lg={6} xl={6} key={c.l}>
-            <StatCard label={t(`dashboard.${c.l}`)} value={c.v} icon={c.i} sub={(c as any).s} />
+            <StatCard
+              label={t(`dashboard.${c.l}`)}
+              value={c.v}
+              icon={c.i}
+              sub={(c as any).s}
+              accent={(c as any).a}
+            />
           </Col>
         ))}
       </Row>

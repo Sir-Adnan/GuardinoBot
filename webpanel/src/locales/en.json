@@ -91,6 +91,7 @@
     "servers": "Panels enabled",
     "pendingPayments": "Pending payments",
     "last14": "Revenue — last 14 days",
+    "sum14": "14-day total",
     "todaySummary": "Today",
     "summary": "Sales summary",
     "income": "Income",

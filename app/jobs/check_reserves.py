@@ -174,9 +174,8 @@ async def _activate_reserve(proxy_id: int) -> None:
         await Reserve.filter(proxy_id=proxy.id).delete()
     await _clear_failures(proxy.id)
     text = f"""
-🎉 پلن پشتیبان اشتراک <code>{proxy.username}</code> فعال شد!
-
-♻️ حجم و زمان سرویس شما تمدید شد؛ نیازی به تعویض لینک نیست — همان لینک اشتراک قبلی به‌صورت خودکار به‌روز شده است.
+🎉 پلن پشتیبان <code>{proxy.username}</code> فعال شد!
+♻️ سرویس تمدید شد — همان لینک قبلی کار می‌کند.
 """
     await bot.send_message(
         proxy.user_id, text, reply_markup=ProxySettings(proxy=proxy).as_markup()

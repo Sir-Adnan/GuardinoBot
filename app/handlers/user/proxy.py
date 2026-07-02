@@ -591,12 +591,12 @@ async def show_proxy(
     if sv_proxy.status == PanelUserStatus.active and _settings.reset_password_button:
         text += """
 
-🔐 اتصال را با کسی به اشتراک گذاشته‌اید؟ با دکمه «تغییر پسوورد» دسترسی دیگران قطع می‌شود."""
+🔐 قطع دسترسی دیگران: دکمه «تغییر پسوورد»"""
 
     if sv_proxy.status in (PanelUserStatus.active, PanelUserStatus.on_hold):
         text += """
 
-💡 اپلیکیشن شما لینک اشتراک را قبول نمی‌کند؟ با دکمه «دریافت لینک‌های اتصال» کانفیگ‌ها را جداگانه و با Qr Code دریافت کنید👇
+💡 لینک کار نکرد؟ دکمه «دریافت لینک‌های اتصال»👇
 """
     await proxy.fetch_related("reserve")
     reply_markup = ProxyPanel(

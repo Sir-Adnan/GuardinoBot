@@ -108,16 +108,12 @@ class CommandNotFoundText(TextValue):
 
 class ProxyHelpText(TextValue):
     value: str = """
-🔑 پروتکل‌های فعال: {ACTIVE_INBOUNDS}
+🔑 پروتکل‌ها: {ACTIVE_INBOUNDS}
 
-⚡️ <b>لینک اشتراک هوشمند شما</b> (برای کپی، روی آن بزنید):
+⚡️ <b>لینک اشتراک</b> (لمس = کپی):
 <code>{SUBSCRIPTION_URL}</code>
 
-📲 همین یک لینک را در اپلیکیشن خود وارد کنید — همه کانفیگ‌ها به‌صورت خودکار دریافت و همیشه به‌روز می‌شوند.
-
-🌐 <a href='{SUBSCRIPTION_URL}'>مشاهده وضعیت اشتراک در مرورگر</a>
-
-📚 راهنمای اتصال و استفاده: /help
+🌐 <a href='{SUBSCRIPTION_URL}'>مشاهده در مرورگر</a>  |  📚 راهنما: /help
 """
     _allowed_variables: dict[str, Callable[[Any], str]] = {
         "SUBSCRIPTION_URL": lambda v: v,

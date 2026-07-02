@@ -86,6 +86,12 @@ Recently fixed (2026-07-02):
   2-col grid (xl+), per-tab dirty badges, theme-aware Telegram-bubble preview, **Save all** bar.
   Audit = filter toolbar (mobile-stacking), verb-coloured action tags, signed-amount colouring,
   `showTotal`, styled JSON detail. +7 locale keys (fa+en).
+- ✅ **Dashboard polish** — Spin → Skeleton layout, 14-day total in the chart-card header
+  (`sum14` key), `StatCard` gained an optional `accent` prop → pending-payments (warning) and
+  blocked-users (error) KPIs get a tinted icon chip when non-zero.
+- ✅ **Bot copy tightened** (owner: the polished texts got too long) — proxy_help default, detail
+  hints, activation + reserve-activated messages are now short one-liners with emoji («لمس =
+  کپی» pattern); no explanatory paragraphs.
 
 ---
 
