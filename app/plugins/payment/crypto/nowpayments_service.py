@@ -236,21 +236,37 @@ async def finalize_nowpayments_payment(
                 reason="amount_mismatch",
             )
 
+        # Atomic claim (CLAUDE.md payment rule): only the ONE caller whose
+        # conditional update flips the row may credit + notify + activate —
+        # a concurrent callback/manual-check falls through to already_finished.
+        # partially_paid (review) is NOT excluded on purpose: a matching
+        # `finished` report may legitimately settle a review-flagged payment.
         async with in_transaction():
-            await transaction.fetch_related("crypto_payment")
-            cp = transaction.crypto_payment
-            extra = _merge_extra(cp, payload, source)
-            transaction.status = Transaction.Status.finished
-            transaction.finished_at = dt.now()
-            transaction.amount_paid = max(
-                0, transaction.amount - transaction.amount_free_given
+            claimed = await Transaction.filter(
+                id=transaction.id,
+                status__not_in=[Transaction.Status.finished],
+            ).update(
+                status=Transaction.Status.finished,
+                finished_at=dt.now(),
+                amount_paid=max(
+                    0, transaction.amount - transaction.amount_free_given
+                ),
             )
-            await transaction.save()
-            cp.payment_status = CryptoPayment.PaymentStatus.finished
-            _apply_payment_fields(cp, payload)
+            if claimed:
+                await transaction.fetch_related("crypto_payment")
+                cp = transaction.crypto_payment
+                extra = _merge_extra(cp, payload, source)
+                cp.payment_status = CryptoPayment.PaymentStatus.finished
+                _apply_payment_fields(cp, payload)
+                cp.extra_data = extra
+                await cp.save()
+        if not claimed:
             cp.extra_data = extra
+            _apply_payment_fields(cp, payload)
             await cp.save()
+            return {"result": "already_finished", "status": status}
 
+        await transaction.refresh_from_db()
         title = settings.get_settings().payment_nowpayments.menu_title
         text = (
             f"✅ پرداخت شما از طریق {title} با موفقیت تایید شد.\n\n"
@@ -378,26 +394,34 @@ async def manual_approve_nowpayments_payment(
         return "already_finished"
 
     async with in_transaction():
-        await transaction.fetch_related("crypto_payment")
-        cp = transaction.crypto_payment
-        transaction.status = Transaction.Status.finished
-        transaction.finished_at = dt.now()
-        transaction.amount_paid = max(0, transaction.amount - transaction.amount_free_given)
-        await transaction.save()
-        cp.payment_status = CryptoPayment.PaymentStatus.finished
-        extra = dict(cp.extra_data or {})
-        extra.update(
-            {
-                "manual_approved": True,
-                "manual_approved_at": dt.now().isoformat(),
-                "manual_approved_by": actor_id,
-                "status_source": source,
-                "nowpayments_status": "manual_approved",
-            }
+        claimed = await Transaction.filter(
+            id=transaction.id,
+            status__not_in=[Transaction.Status.finished],
+        ).update(
+            status=Transaction.Status.finished,
+            finished_at=dt.now(),
+            amount_paid=max(0, transaction.amount - transaction.amount_free_given),
         )
-        cp.extra_data = extra
-        await cp.save()
+        if claimed:
+            await transaction.fetch_related("crypto_payment")
+            cp = transaction.crypto_payment
+            cp.payment_status = CryptoPayment.PaymentStatus.finished
+            extra = dict(cp.extra_data or {})
+            extra.update(
+                {
+                    "manual_approved": True,
+                    "manual_approved_at": dt.now().isoformat(),
+                    "manual_approved_by": actor_id,
+                    "status_source": source,
+                    "nowpayments_status": "manual_approved",
+                }
+            )
+            cp.extra_data = extra
+            await cp.save()
+    if not claimed:
+        return "already_finished"
 
+    await transaction.refresh_from_db()
     title = settings.get_settings().payment_nowpayments.menu_title
     msg = await bot.send_message(
         transaction.user_id,

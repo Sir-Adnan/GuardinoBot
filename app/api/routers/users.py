@@ -43,6 +43,16 @@ def _scope(viewer: User):
     return q
 
 
+def _ensure_manageable(actor: User, target: User) -> None:
+    """Write-action privilege guard: act only on a STRICTLY lower role — an
+    admin must not block/edit a super-admin (owner lock-out, recoverable only
+    via direct DB access) nor self/peers (self-granted postpaid credit)."""
+    if int(target.role) >= int(actor.role):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Target role must be below yours"
+        )
+
+
 @router.get("", response_model=UsersPage)
 async def list_users(
     viewer: User = Depends(require_role(User.Role.reseller)),
@@ -114,6 +124,7 @@ async def set_user_blocked(
     u = await User.filter(id=user_id).first()
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    _ensure_manageable(actor, u)
     u.is_blocked = body.blocked
     await u.save(update_fields=["is_blocked"])
     await record_audit(
@@ -137,6 +148,7 @@ async def update_user(
     u = await User.filter(id=user_id).first()
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    _ensure_manageable(actor, u)
 
     dump = body.model_dump(exclude_unset=True)
     changed: list[str] = []

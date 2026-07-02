@@ -9,6 +9,8 @@ Installer/manager: `installer/guardino-bot.sh`
 
 CLI command: `guardino-bot`
 
+Status: **owner-verified on a real VPS** — multiple bots installed and running end-to-end.
+
 ## One-Time Setup
 
 1. Point a wildcard DNS record `*.<base>` to the server IP.
@@ -33,6 +35,9 @@ guardino-bot status
 guardino-bot edit-env <name>
 guardino-bot remove <name>
 guardino-bot domain
+guardino-bot platform-up      # (re)start the shared platform services
+guardino-bot repair-cli       # reinstall the CLI from the repo copy
+guardino-bot uninstall        # remove EVERYTHING (destructive)
 ```
 
 ## Backup And Restore
@@ -41,7 +46,8 @@ guardino-bot domain
 guardino-bot backup <name>
 guardino-bot backup all
 guardino-bot restore <name> <file>
-guardino-bot backup-telegram
+guardino-bot backup-send      # back up now + send to the configured Telegram bot
+guardino-bot backup-telegram  # configure the scheduled Telegram backup (cron)
 ```
 
 Backups are stored under:

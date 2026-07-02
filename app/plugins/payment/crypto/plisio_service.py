@@ -139,29 +139,45 @@ async def finalize_plisio_payment(
         return {"result": "already_finished", "status": status}
 
     if status == STATUS_COMPLETED:
+        # Atomic claim (CLAUDE.md payment rule): only the ONE caller whose
+        # conditional update flips the row may credit + notify + activate —
+        # a concurrent callback/manual-check falls through to already_finished.
         async with in_transaction():
-            await transaction.fetch_related("crypto_payment")
-            cp = transaction.crypto_payment
-            extra = _merge_extra(cp, payload, source)
-            transaction.status = Transaction.Status.finished
-            transaction.finished_at = dt.now()
-            transaction.amount_paid = max(0, transaction.amount - transaction.amount_free_given)
-            await transaction.save()
-            cp.payment_status = CryptoPayment.PaymentStatus.finished
-            cp.payment_id = extract_txn_id(payload) or cp.payment_id
-            cp.pay_currency = payload.get("psys_cid") or payload.get("currency") or cp.pay_currency
-            try:
-                cp.pay_amount = float(payload.get("amount") or payload.get("actual_sum") or 0)
-            except (TypeError, ValueError):
-                cp.pay_amount = cp.pay_amount
-            cp.outcome_amount = cp.pay_amount
-            cp.outcome_currency = cp.pay_currency
-            tx_id = payload.get("tx_id")
-            cp.purchase_id = ",".join(tx_id) if isinstance(tx_id, list) else tx_id
-            cp.pay_address = payload.get("wallet_hash") or cp.pay_address
+            claimed = await Transaction.filter(
+                id=transaction.id,
+                status__not_in=[
+                    Transaction.Status.finished,
+                    Transaction.Status.partially_paid,
+                ],
+            ).update(
+                status=Transaction.Status.finished,
+                finished_at=dt.now(),
+                amount_paid=max(0, transaction.amount - transaction.amount_free_given),
+            )
+            if claimed:
+                await transaction.fetch_related("crypto_payment")
+                cp = transaction.crypto_payment
+                extra = _merge_extra(cp, payload, source)
+                cp.payment_status = CryptoPayment.PaymentStatus.finished
+                cp.payment_id = extract_txn_id(payload) or cp.payment_id
+                cp.pay_currency = payload.get("psys_cid") or payload.get("currency") or cp.pay_currency
+                try:
+                    cp.pay_amount = float(payload.get("amount") or payload.get("actual_sum") or 0)
+                except (TypeError, ValueError):
+                    cp.pay_amount = cp.pay_amount
+                cp.outcome_amount = cp.pay_amount
+                cp.outcome_currency = cp.pay_currency
+                tx_id = payload.get("tx_id")
+                cp.purchase_id = ",".join(tx_id) if isinstance(tx_id, list) else tx_id
+                cp.pay_address = payload.get("wallet_hash") or cp.pay_address
+                cp.extra_data = extra
+                await cp.save()
+        if not claimed:
             cp.extra_data = extra
-            await cp.save()
+            await cp.save(update_fields=["extra_data"])
+            return {"result": "already_finished", "status": status}
 
+        await transaction.refresh_from_db()
         title = settings.get_settings().payment_plisio.menu_title
         text = f"""
 ✅ پرداخت شما از طریق {title} با موفقیت تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد!
@@ -242,15 +258,27 @@ async def manual_approve_plisio_payment(
         extra["manual_approved_by"] = actor_id
 
     async with in_transaction():
-        await transaction.fetch_related("crypto_payment")
-        cp = transaction.crypto_payment
-        transaction.status = Transaction.Status.finished
-        transaction.finished_at = dt.now()
-        transaction.amount_paid = max(0, transaction.amount - transaction.amount_free_given)
-        await transaction.save()
-        cp.payment_status = CryptoPayment.PaymentStatus.finished
-        cp.extra_data = extra
-        await cp.save()
+        claimed = await Transaction.filter(
+            id=transaction.id,
+            status__not_in=[
+                Transaction.Status.finished,
+                Transaction.Status.partially_paid,
+            ],
+        ).update(
+            status=Transaction.Status.finished,
+            finished_at=dt.now(),
+            amount_paid=max(0, transaction.amount - transaction.amount_free_given),
+        )
+        if claimed:
+            await transaction.fetch_related("crypto_payment")
+            cp = transaction.crypto_payment
+            cp.payment_status = CryptoPayment.PaymentStatus.finished
+            cp.extra_data = extra
+            await cp.save()
+    if not claimed:
+        return "already_finished"
+
+    await transaction.refresh_from_db()
 
     text = f"""
 ✅ پرداخت شما با بررسی دستی ادمین تأیید شد و مبلغ <b>{transaction.amount:,}</b> تومان به حساب شما اضافه شد.

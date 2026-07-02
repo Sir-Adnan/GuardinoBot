@@ -188,8 +188,8 @@ async def show_service(
         if isinstance(qmsg, CallbackQuery):
             await qmsg.answer("❌ سرویس مورد نظر یافت نشد!", show_alert=True)
             return await purchase(qmsg, user)
-        await qmsg.answer("❌ سرویس مورد نظر یافت نشد!", show_alert=True)
-        return main_menu_handler(qmsg, user)
+        await qmsg.answer("❌ سرویس مورد نظر یافت نشد!")
+        return await main_menu_handler(qmsg, user)
     await user.fetch_related("setting")
 
     if service.is_test_service and not (
@@ -430,11 +430,21 @@ async def activate_service(
                 discount.used_times = TF("used_times") + 1
                 await discount.save(update_fields=["used_times"])
                 await discount.used_by.add(user)
-            if not user.gift_given_to_referrer and user.referrer_id:
+            # A free/test purchase (amount=0) or a 0% gift must NOT burn the
+            # one-time referral flag — the referrer's gift waits for the
+            # invitee's first PAID purchase.
+            gift_amount = int(
+                invoice.amount * _settings.referral_discount_percent / 100
+            )
+            if (
+                not user.gift_given_to_referrer
+                and user.referrer_id
+                and gift_amount > 0
+            ):
                 gift_trx = await Transaction.create(
                     type=Transaction.PaymentType.gift,
                     status=Transaction.Status.finished,
-                    amount=invoice.amount * _settings.referral_discount_percent / 100,
+                    amount=gift_amount,
                     user_id=user.referrer_id,
                 )
                 await GiftPayment.create(

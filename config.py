@@ -96,8 +96,12 @@ if not re.match(r"^(?!_)[A-Za-z0-9_]+$", DEFAULT_USERNAME_PREFIX):
         "DEFAULT_USERNAME_PREFIX must be less than 20 characters and [0-9A-Za-z] and underscores in between"
     )
 
+# Read the correctly-spelled name (documented in .env.example) first, then fall
+# back to the historical misspelled key so old .env files keep working.
 DEFAULT_DAILY_TEST_SERVICES = config(
-    "DEFAULT_DAILY_TEST_ACCUOUNTS", default=1, cast=int
+    "DEFAULT_DAILY_TEST_SERVICES",
+    default=config("DEFAULT_DAILY_TEST_ACCUOUNTS", default=1, cast=int),
+    cast=int,
 )
 
 TRANSACTION_LOGS = config("TRANSACTION_LOGS", default=None)
@@ -158,13 +162,38 @@ DEFAULT_CHARGE_ORDERS: list[int] = [2, 2, 2, 2, 1, 1]
 
 
 # used for key encryptions to save in db, max 32 charachters
+_DEFAULT_SECRET_KEY = "SomethingVeRy-Secret-Change_ThIs"
 SECRET_KEY_STRING = config(
     "SECRET_KEY_STRING",
-    default="SomethingVeRy-Secret-Change_ThIs",
+    default=_DEFAULT_SECRET_KEY,
 )
 
 if len(SECRET_KEY_STRING) > 32:
     raise ValueError("'SECRET_KEY_STRING' must be less than 64 charachters")
+
+# SECURITY: the default key is public (it lives in this source file), and
+# WEB_JWT_SECRET falls back to it below — so shipping the default/blank key to a
+# real deployment lets anyone forge web-panel JWTs (full super-admin access) and
+# decrypt stored panel passwords. The installer always generates a random key,
+# so this only guards a hand-rolled deploy. Fail fast on a real DB; only allow
+# the insecure default for local sqlite development (warn there).
+_using_insecure_secret = (not SECRET_KEY_STRING.strip()) or (
+    SECRET_KEY_STRING == _DEFAULT_SECRET_KEY
+)
+if _using_insecure_secret:
+    if DATABASE_URL.startswith("sqlite"):
+        log.warning(
+            "SECRET_KEY_STRING is unset/default — OK for local sqlite dev, but "
+            "NEVER deploy like this. Generate one: "
+            "tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32"
+        )
+    else:
+        raise ValueError(
+            "SECRET_KEY_STRING is unset or still the public default. Set a unique "
+            "random value (max 32 chars) in your .env before starting in production "
+            "— otherwise web-panel JWTs are forgeable and stored panel passwords are "
+            "readable. Generate one: tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32"
+        )
 
 
 # --- Web admin/reseller panel (§9) — FastAPI service -------------------------

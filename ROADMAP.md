@@ -6,6 +6,7 @@
 > English on purpose (fewer tokens). Bot UI strings stay Persian.
 
 ## How to use this file
+
 - New idea → drop a one-liner under **Backlog**. When we commit to it, promote it to a
   **Phase** (own `### Phase N` block: goal, scope, files, decisions) and move to **Now**.
 - A phase ships → compress it to one ✅ line under **Done log** (keep just enough so nobody
@@ -15,145 +16,49 @@
 
 ---
 
-## Now — crypto gateways + payment config (security-first)
+## Now — stabilization + leftovers
 
-The big web-panel + bot-UX push is **largely shipped**: P5 (incl. create-from-scratch), P6, P7,
-P8, P9 (incl. Jalali picker), P10 (Discounts/Texts/Audit/Automation-monitor/Force-join), P11
-(foundation + most polish), P12 (subscription bar, account page, empty-state CTA, onboarding,
-insufficient-balance clarity), P13 (alerts v2 complete). Editor UX (texts insert/preview, button
-grouping) + payment-method buttons customizable. Details in **Done log** + the **Pxx blocks**.
+P5–P13 shipped; crypto v2 (Plisio + NowPayments) + the offline crypto gateway are live; the
+multi-bot installer and premium inline buttons are owner-verified on a real server. Shipped
+detail lives in the **Done log** + the **Pxx blocks** below.
 
 **Current focus (in order):**
-0. ✅ **Bugfix — Plisio/offline buttons were dead in the bot.** Each gateway must replicate the full
-   handler surface (every plugin does its own; there is no generic one). Plisio/offline only had the
-   final `SelectPayAmount` handler, so the **charge-account** flow (`ChargePanel.Callback`, no amount)
-   + custom-amount sub-flow had no handler, and `select_*` only accepted `CallbackQuery`. Added to both:
-   `charge` (ChargePanel entry → amount menu), `custom_amount` (amount==0 prompt) + FSM message capture,
-   made the final handler dual-type (`CallbackQuery | Message`). Also the in-bot **⚙️→تنظیمات**
-   `pm:settings:{plisio,offline}` button was dead → added a minimal admin screen (masked summary +
-   enable/disable toggle, guarded against enabling a misconfigured gateway + "configure fully in web").
-0b. ✅ **Bugfix — offline proof loop + reject-after-approve.** (a) The proof step required TXID **and**
-   screenshot in one message, so hash-then-screenshot looped forever; now it **accumulates** across
-   messages in any order (text=hash, photo=screenshot, photo+caption=both), asks only for what's
-   missing, validates the hash, and resets stale progress on a new session. (b) The admin card is now a
-   **stateful** keyboard (`OfflineReviewKb`) like card-to-card: rejecting an **already-approved** payment
-   asks for confirmation then **reverses the credit + removes the subscription** via the shared
-   `revoke_activated_transaction` (handlers split into approve / reject / reject_cancel; web-queue path
-   keeps the `apply_offline_review` wrapper). Balance nets back correctly (no double-credit / negative).
-1. ✅ **Crypto v2 (Plisio + NowPayments) — reworked by owner, now live.** Both gateways moved to a
-   shared **rate service** `crypto/rates.py` (Nobitex USDT/Toman, **Redis-cached** TTL
-   `rate_cache_seconds`, `Decimal`, ROUND_UP, `usdt_margin_percent`, `manual_usdt_toman_rate` fallback;
-   `get_usdt_toman_rate` / `calculate_payable_usdt` / `PaymentRateError`). Plisio now creates **crypto
-   `currency+amount`** invoices (`default_currency`, `currency_codes()`/`invoice_currency()`,
-   `expire_min`), shows the payable USDT + rate, has **🔄 check / ❌ cancel** buttons (premium-styled),
-   and an idempotent finalizer `crypto/plisio_service.py` (`finalize_plisio_payment` +
-   `manual_approve_plisio_payment`, shared by the `/plisio` IPN and the manual-check button; mismatch
-   never auto-credits). NowPayments got the same rate service + `crypto/nowpayments_service.py` + premium
-   buttons + tracking code + success/cancel URLs. New env: `PUBLIC_BASE_URL`, `PLISIO_DEFAULT_CURRENCY`,
-   `PLISIO_EXPIRE_MIN`, `PAYMENT_RATE_PROVIDER`, `PAYMENT_RATE_CACHE_SECONDS`, `PAYMENT_USDT_MARGIN_PERCENT`,
-   `MANUAL_USDT_TOMAN_RATE`.
-   ✅ **Bugfix (this session): NowPayments invoice crashed** with `ValueError: Cannot specify ',' with 's'`
-   — `ShowInvoiceText._allowed_variables["AMOUNT_DOLLARS"]` was `format_number` but the value is a
-   pre-formatted string from `_format_decimal`; changed the formatter to `str` (nowpayments.py).
-   ✅ **NowPayments "amountTo is too small" + the broken-page regression.** Root cause (from the official
-   Postman spec): `pay_currency` is **not** a `/v1/invoice` body field (response has `pay_currency:null`);
-   the hosted page shows the coins enabled in the **merchant dashboard** (`/v1/merchant/coins`). Forcing
-   `pay_currency=usdtbsc` (a coin not enabled in the account) blanked the page out. Fix: `NP_PAY_CURRENCY`
-   default **empty** = customer picks (always works); an optional fixed coin is **validated against
-   `/v1/merchant/coins`** (cached) and silently dropped if not enabled, so the page can never break again.
-   Web: `pay_currency` is now a **dropdown** (curated coins + an explicit selectable **"all coins"**
-   default) with a hint.
-   ✅ **The actual "amountTo is too small" cause = `is_fixed_rate`.** The invoice was created with
-   **fixed rate ON** (`create_invoice` defaulted `is_fixed_rate=True`), which locks the quote but enforces
-   a higher per-coin minimum. Fix: default **OFF** (floating) everywhere (`create_invoice`, NowPayments
-   `Settings.is_fixed_rate`, passed from `select_amount`) + a **web toggle** (`is_fixed_rate` bool field).
-   To avoid the TRC20 minimum entirely, also enable **usdtbsc (BEP20)** in the NowPayments dashboard.
-2. ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` (super-admin) reads/writes the
-   `payment_*` BotSetting JSON; **secrets masked** (read = is_set + last-4; empty on save = no change,
-   never wipes a key), upsert (handles `payment_plisio` pre-restart), `settings:dirty`, audited
-   (field names only). Web page `pages/gateways` (NowPayments + Plisio: enabled/title/min/api_key/
-   currency/rate fields). ⚠️ enabling **Plisio** still needs a bot restart (to load its plugin +
-   create the row); setting the **NowPayments IPN secret** here unblocks crypto crediting.
-3. ✅ **Offline crypto gateway** — wallet-per-coin (`CoinWallet` list, web-configured), customer picks +
-   sends TXID(+screenshot, accumulated in any order), super-admin Approve/Reject (stateful card,
-   reject-after-approve reverses credit + removes the sub) + a **web pending-review** view; reuses
-   `CryptoPayment`+`Provider.offline` → **no migration**. (On-chain auto-check **dropped** by owner —
-   not needed; the `auto_check` flag was removed from `CoinWallet`/`OfflineCoin`/web. Crypto-gateway
-   `auto_check_*` polling jobs are unrelated and kept.)
-4. ✅ **Admin glass buttons in the bot** — the 8 `AdminPanel` (⚙️) buttons route through `premium_button`
-   with `admin_*` keys → rename/emoji/colour-customizable in the web Buttons editor (new "Admin panel"
-   category). (Sub-menu admin keyboards = future extend.)
-5. Polish leftovers: theme presets/density done; remaining = micro-interactions, broader audit,
-   detail-page tabs already done. Deferred infra: brand migration, aiogram 3.4.1 bump, Guardino reserves.
-6. ✅ **Multi-bot per server** — new `installer/guardino-bot.sh` (CLI `guardino-bot`): one shared **platform**
-   (MariaDB + Redis(`--databases 64`) + Caddy + phpMyAdmin on an external `guardino-bot-net`) + an isolated
-   per-bot stack (bot/api/webpanel, shared images, **own DB + own `REDIS_DB` + own HTTPS subdomain**).
-   Wildcard subdomains (`<name>.<base>`); registry (`/opt/guardino-bot/registry.tsv`) allocates DB names +
-   Redis-DB indices. Actions: `platform-up · add · update[all] · list · backup[all] · restore <name> ·
-   remove · logs/restart/...`. Per-bot **backup/restore** (DB dump + `.env` + compose; restore one bot
-   independently). **No core code change** (app is env-driven; polling; per-bot `aerich upgrade`).
-   Caddy path list completed (was missing `/plisio` + `/payments/*`). Legacy single-install migration
-   removed by owner decision; fresh installs use the `guardino-bot` namespace to avoid Guardino Hub
-   collisions. Guide → `docs/multi-bot.md`. ⏳ Needs a real-server end-to-end run (build/up not possible
-   in the dev shell — only syntax/static checks passed).
 
-Immediate / carry-over (do anytime):
-- [ ] Verify Phase 3/4 premium rendering on a real deploy (Premium owner); if the fields are
-      dropped → raw-payload sender (httpx → Bot API) or aiogram bump.
-- ✅ Bug-fix plan `delightful-crafting-micali.md` — **all done & verified on deploy**: PasarGuard
-      add-server `is_sudo` (panel_type branch → `pg_validate_token`), edit-service "no protocol"
-      (Marzban-only inbounds check), Guardino sub-day expiry (block <1d + ceil/min-1 net), FSM clear
-      + `ReplyKeyboardRemove` on confirm, month=31d, panel-aware admin service/panel menus.
+1. [ ] **Card-to-card web gateway-config** — extend `GET/PATCH /payment-gateways` +
+   `pages/gateways` to card-to-card (cards CRUD, verify-before-show, auto-accept flags; secrets
+   masked, super-admin, audited). ⛔ Rial online gateways (zarinpal/zibal/payping/aqaye-pardakht)
+   dropped — owner: unused.
+2. [ ] Web-panel minors (detail in the Pxx blocks): P5b discount/menu attach UI + drag reorder ·
+   P9b reseller/usage/refund breakdowns + Excel export · P11a shell/breadcrumbs + server-side
+   Appearance defaults · P11b micro-interactions + broader audit · P7 orders view · P8 reseller
+   wallet/permission flags.
+3. [ ] Deferred infra: aiogram bump (`parse_mode=` ctor → `DefaultBotProperties`) · Guardino
+   reserves + efficient paginated sync + `on_hold` create · PasarGuard native
+   `reset_proxy_credentials` · brand migration `marzbot`/`Marzdemo` → Guardino · observability
+   (structured metrics/logs for panel + gateway errors).
 
-## Carry-over backlog (folded into the phases below)
-- ✅ **Crypto gateways** (payment-critical, security-first) — Plisio + NowPayments v2 live (see Now #1):
-  - ✅ **NowPayments IPN security fix** — signature is now **mandatory** (no secret → reject; closes a
-    forgery/self-credit hole), constant-time compare, proper HTTP responses, less logging
-    (`crypto/views.py`). **Owner action: set the NowPayments *IPN secret* in the bot** or crypto
-    crediting (correctly) won't run. Endpoints verified unchanged vs the live v1 API — any create-side
-    failure needs the exact `NowPaymentsError` body from logs.
-  - ✅ **Plisio gateway v2 (done)** — crypto `currency+amount` invoices (`GET /invoices/new`,
-    `https://plisio.net/api/v1`). `crypto/plisio.py` client + `Settings` (`payment_plisio`,
-    `default_currency`/`currency_codes()`/`invoice_currency()`/`expire_min` + rate fields) +
-    `verify_callback` (HMAC-SHA1 over PHP-`serialize()`, byte-exact self-tested); `Provider.plisio`
-    (VARCHAR(11) → **no migration**). Create handler `plisio_payment.py` (premium **pay/check/cancel**
-    buttons) uses `rates.py` to price in USDT and shows the payable amount. Idempotent finalizer
-    `crypto/plisio_service.py` shared by the `/plisio` IPN (mandatory api-key + `verify_hash`, credit
-    only on `completed`, **mismatch never auto-credits** → super-user alert) **and** the manual-check
-    button (`get_operation`/`manual_approve_plisio_payment`). Web-configurable.
-  - ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` + `pages/gateways` (super-admin):
-    NowPayments + Plisio enable/title/min/keys; secrets masked (read = is_set+last4, empty save = no
-    change), upsert, `settings:dirty`, audited (names only). Set the NowPayments IPN secret here.
-  - ✅ **Offline crypto gateway** — **no migration** (reuses `CryptoPayment` + `Provider.offline` +
-    `extra_data`). Config: `payment_offline` Settings (`offline/offline.py`: `CoinWallet` list +
-    `enabled_coins`/`coin_by_code`, `require_screenshot`), API `GET/PUT /payment-gateways/offline`
-    (super-admin, coins list, upsert, audited), web editor `OfflineGateway`. **Bot flow**
-    (`offline/handlers.py`, registered in handlers): pick coin → wallet **+ QR** (lazy `gen_qr` to dodge
-    the qr→app.main cycle) → customer sends TXID(+screenshot) → pending `CryptoPayment(offline,
-    waiting)` + Transaction(waiting) + super-admin **Approve/Reject** card. Approve → `finished` (the
-    only credit step; balance = Σ finished `amount`) + activate_service; Reject → `rejected` + user
-    notified. **No auto-credit**; idempotent (already-finished guard); cancel button; command-guarded
-    FSM. ✅ **Web pending-review** — `apply_offline_review` factored as the single credit path (used by
-    the bot card AND the web); `process_offline_review_queue` drains a Redis list (`offline:review:queue`)
-    in the 15s sync poll so web approve/reject runs in the BOT (credit+notify+activate). API
-    `GET /offline/pending`, `GET /offline/{id}/screenshot` (proxied via the bot's `get_file`),
-    `POST /offline/{id}/review` (queues). Web `OfflinePending` table (approve/reject queued + screenshot
-    viewer via auth'd blob). **Remaining (optional): on-chain auto-check** (TronGrid/BscScan/TON; the
-    `auto_check` flag is modelled).
-  - ✅ **Admin glass buttons (⚙️ panel)** — the 8 `AdminPanel` buttons (web-panel/servers/services/
-    service-menus/users/payments/settings/status) now route through `premium_button` with `admin_*`
-    keys (registered in `INLINE_BUTTONS`), so they're rename/emoji/colour-customizable in the web
-    Buttons editor under a new **"Admin panel"** category. (Sub-menu admin keyboards = future extend.)
-  - [ ] Extend gateway-config to the rial/card gateways; on-chain auto-check; web pending-offline review.
-- ✅ **Broadcast → non-blocking worker**: `app/utils/broadcast.py` (throttled, `TelegramRetryAfter`
-  sleep-retry, marks `blocked_bot`, Redis progress + `resume_pending`). Web has read-only monitor/cancel.
-  **Web compose/start dropped (owner decision)** — `/broadcast` + `/forward` in the bot (reply → command)
-  are simpler and let the owner use Telegram's native premium-emoji editor. Not adding it to the panel.
-- [ ] Guardino **reserves** + efficient paginated sync + `on_hold` create (panel adapter, deferred).
-- [ ] Brand migration `marzbot`/`Marzdemo` → Guardino (gradual; migration for DB-facing strings).
-- [ ] PasarGuard native `reset_proxy_credentials` (currently raises; "smart reconnect" works).
-- [ ] aiogram 3.4.1 upgrade (`parse_mode=` ctor → `DefaultBotProperties`) — testing + approval.
-- [ ] Observability: structured metrics/logs for panel + gateway errors.
+Recently fixed (2026-07-02):
+
+- ✅ purchase.py — missing `await main_menu_handler(...)` + stray `show_alert` on a `Message` reply.
+- ✅ Referral gift no longer burned by a free/test first purchase — the one-time gift waits for
+  the invitee's first PAID purchase (`gift_amount > 0` guard, int amount).
+- ✅ "Unused subscription" alert button now sends the single **Sub link** (new `links_sub` action +
+  `proxy_sub_link` handler, QR link-preview) instead of the noisy per-config list.
+- ✅ Plisio legacy `/plisio` view — ~90 lines of dead post-`return` code + unused imports removed
+  (clean delegation to the v2 handler).
+- ✅ config.py — **fail-fast** when `SECRET_KEY_STRING` is default/blank on a non-sqlite DB
+  (forgeable web-JWT guard; sqlite dev = warn only) + `DEFAULT_DAILY_TEST_SERVICES` env-name typo
+  fixed (old misspelling kept as fallback). `.env.example` + CLAUDE.md/architecture docs updated.
+- ✅ Web users API — **role guard** `_ensure_manageable` on block + edit: write actions only on a
+  STRICTLY lower role (an admin could block the owner → bot+web lock-out recoverable only via DB,
+  or self-grant postpaid credit). Balance adjust stays super-only.
+- ✅ Plisio + NowPayments finalizers — read-then-save replaced with the **atomic conditional
+  update** (`filter(status__not_in=…).update(status=finished)`); only the claimer notifies +
+  activates, so a callback racing the manual-check button can no longer double-activate.
+  Exclusion sets preserved per module (Plisio also excludes `partially_paid`; NowPayments doesn't —
+  manual approve of a review payment is intended).
+- ✅ Dead `middlewares/rate_limit.py` (never registered, latent TypeError) **deleted**; live
+  throttling stays `utils/rate_limit.py` (`RateLimit` + `lock()`).
 
 ---
 
@@ -164,6 +69,7 @@ Immediate / carry-over (do anytime):
 > management and IS allowed. Never expose panel/payment/DB credentials. Reseller scoping holds.
 
 ### P5 — Plans & Sales: full CRUD + ordering (web)
+
 **P5a — ✅ done:** edit (all simple fields + 8 flags + reset_strategy + flow + button emoji/style),
 **reorder** (↑↓ → `POST /services/reorder`, priority=index), **delete** (guarded: 409 if proxies/
 reserves reference it — Proxy=SET_NULL, Reserve=RESTRICT), **duplicate** (`POST /{id}/duplicate`
@@ -180,6 +86,7 @@ Guardino **nodes** (+ pricing mode) → assembles `inbounds`/`all_inbounds` or `
 **P5b — remaining (minor):** discount/menu attach UI + true drag-and-drop reorder. (↑↓ reorder works.)
 
 ### P6 — Panels & Nodes: full CRUD (web)
+
 **P6 core — ✅ done:** add panel (validates the connection via the panel adapter `fetch_token`/`login` +
 `validate` BEFORE saving — Marzban/PasarGuard token flow, Guardino reseller login with a clear
 "disable 2FA" error), edit (re-connects + refreshes the token when host/port/https/username/
@@ -188,10 +95,11 @@ live subs), `link_policy` (Guardino), health + enable/disable (existing). Creden
 encrypted (`PasswordField`), password/token **never returned**; all audited (`server.add/update/
 delete`). `servers` router gained `GET /{id}` (ServerDetail) + POST/PATCH/DELETE; web Servers page
 = add/edit modal (panel picker, host/port/https, creds, link policy) + PageHeader.
-**P6b — remaining:** browse PasarGuard **groups** / Guardino **nodes** endpoints (feed the P5b
-service provisioning picker).
+**P6b — ✅ done via P5b:** the provisioning endpoint + picker browse PasarGuard groups /
+Guardino nodes (`GET /services/provisioning`).
 
 ### P7 — Users 360°: detail + actions (web) — ✅ done
+
 - **Detail page, tabbed**: Overview · Subscriptions · Transactions · Logs (Logs = super-only,
   via `/audit?target_type=user&target_id=`). List already shows id + username (search by either).
 - **Overview actions**: block/unblock; **Edit** (role [super-only escalation guard], postpaid +
@@ -206,6 +114,7 @@ service provisioning picker).
   scoping already applies to the detail (resellers see only their subtree).
 
 ### P8 — Resellers: full management (web) — ✅ done
+
 - **Promote** an existing user → reseller (`POST /resellers/promote` by id/@username, super-only,
   audited) from the list.
 - **Detail = console** (tabbed: Overview · Sub-users · Subscriptions): edit (role/postpaid/credit
@@ -216,6 +125,7 @@ service provisioning picker).
   flags, and read-only **"view as reseller"** impersonation (deferred — needs auth scoping).
 
 ### P9 — Reports & Analytics: complete + Jalali (web) — ✅ core done
+
 - **Date range**: `/reports/summary` now takes `start`/`end` (ISO) overriding `days`; correct
   `created_at__gte/__lt` bounds + range echoed back. Web: preset Segmented (7/30/90) **+ custom
   RangePicker** + range shown in the header.
@@ -223,10 +133,11 @@ service provisioning picker).
   Sales · Income · Orders · New users · Failed already covered; payment breakdown + top services.
 - **Jalali display**: series tooltips + header range render via `formatDay` (P11a util) → follows
   the global calendar toggle. **CSV export** of KPIs + breakdown + series.
-- **Remaining (P9b):** a true **Jalali date-picker** for selection (RangePicker is Gregorian for
-  now; presets cover most cases) + Reseller/Usage/Refunds report breakdowns + Excel export.
+- **Remaining (P9b):** Reseller/Usage/Refunds report breakdowns + Excel export. (The Jalali
+  range picker shipped in P11b.)
 
-### P10 — Finish the half-done pages (web) — ⏳ in progress
+### P10 — Finish the half-done pages (web) — ✅ done
+
 - ✅ **Discounts**: full CRUD — `discounts` router POST/PATCH/DELETE (percentage 0..100 guard,
   auto-generated code, unique-code 409, M2M-safe delete, audited create/update/delete); web page
   = add/edit modal (code·%·max-uses·expiry·flags) + delete + PageHeader. (was list + toggle.)
@@ -242,18 +153,24 @@ service provisioning picker).
   `force_join_chats` dict (key = chat id/@username for the membership check, value = public username
   for the join link); web = a self-contained editor card on the Settings page (add/remove rows, save
   → `settings:dirty` reload). Audited `settings.force_join`.
-- **Remaining:** **payment-gateway config** (sensitive, guarded, secrets masked).
+- ✅ **Payment-gateway config** shipped (NowPayments + Plisio + offline — see Done log).
+  Card-to-card web config = Now #1. **P10 done.**
 
 ### P11 — UI/UX overhaul (web) — split foundation vs polish
+
 **P11a (foundation) — ⏳ in progress:**
+
 - ✅ Calendar-aware dates: `utils/datetime.ts` (Intl, no dep — Jalali/Gregorian) + header toggle;
   `fmtDate` is now calendar-aware so existing pages follow the choice; live via layout re-render.
 - ✅ Font setting: `theme.FONTS` (Vazirmatn default · Vazir · Sahel · Samim · System, loaded in
   index.html) + header font picker; persisted (localStorage); applied via AntD token + body.
 - ✅ `components/PageHeader.tsx` (consistent title/subtitle/actions) — adopt across pages in P5+.
-- [ ] Remaining: tab/section shell + breadcrumbs adoption, dashboard widget scaffold, responsive
-  table→card helper, move font/calendar defaults into a Settings "Appearance" tab (server-side).
+- [ ] Remaining: tab/section shell + breadcrumbs adoption; move font/calendar defaults into a
+  Settings "Appearance" tab (server-side). (Responsive table→card + dashboard widgets shipped
+  in P11b.)
+
 **P11b (polish):**
+
 - ✅ **Shared `StatCard`** — polished KPI card whose value uses the **inherited (configured) font**
   + tabular-nums (fixes the hard-coded-mono bug where dashboard/report numbers ignored the font
   picker).
@@ -310,8 +227,10 @@ service provisioning picker).
   error) — no panel URL/creds leak. Kept off `/dashboard/summary` so the summary stays fast.
 - [ ] Remaining: micro-interactions, broader audit.
 
-### P12 — Bot (Telegram) UX overhaul
+### P12 — Bot (Telegram) UX overhaul — ✅ done
+
 Goal: the customer-facing bot looks premium and converts better (customers browse/buy here).
+
 - ✅ **Subscription view — usage bar**: the proxy detail card gained a text data-usage bar
   (`▰▰▰▱▱ ۶۳٪`, Persian digits, in `<code>` for alignment) + "used / total" line (or "نامحدود ♾") +
   `max(0, …)` remaining. New `helpers.usage_bar()` / `helpers.fa_num()` (empty bar for unlimited).
@@ -335,12 +254,14 @@ Goal: the customer-facing bot looks premium and converts better (customers brows
 - ✅ **Insufficient-balance clarity**: the purchase confirmation now states the exact **shortfall**
   (`💳 مبلغ قابل پرداخت: price − balance`) so the customer sees precisely what to pay (it was only
   passed to the pay button before). One line, no clutter.
-- [ ] Purchase/renew: clearer steps, success screen; more empty states + hints; consistent
-  iconography; HTML/premium-emoji copy polish.
+- ✅ Purchase/renew flow polish (steps, success screen, empty states/hints, iconography, copy) —
+  done + owner-verified on deploy. **P12 done.**
 - All copy editable via the Texts editor (P10).
 
 ### P13 — Smart alerts v2: timing + pro control
+
 Was: cron `hour="6,16"` only → an "ended" alert could lag ~10h (the owner's complaint).
+
 - ✅ **Hourly cadence** — `proxy_alerts` now runs `cron minute=0` (top of every hour), so
   ended/limited/expiry fire within ~1h (was twice-daily). Sender stays non-blocking: batched
   `get_users`, ~20 msg/s throttle, `TelegramRetryAfter` sleep-retry, blocked-recipient handling.
@@ -377,17 +298,17 @@ Was: cron `hour="6,16"` only → an "ended" alert could lag ~10h (the owner's co
 
 ## Active phase details
 
-### Phase 2 — Web panel UX (⏳ partial)
-Done: `makeTheme(accent, mode)` + 5 accents (emerald/blue/violet/rose/amber) with picker,
-Settings page refactored to AntD Tabs (General/Values/Advanced/Alerts, `forceRender`).
-Remaining: detail-page tabs, skeletons/empty-states, broader polish + responsiveness pass.
-Files: `webpanel/src/theme.ts`, `contexts/color-mode.ts`, `App.tsx`,
-`components/Layout.tsx`, `pages/settings/index.tsx`.
+### Phase 2 — Web panel UX (✅ absorbed by P11)
 
-### Phase 3 — Premium emoji + colour on inline buttons (✅ built, ⏳ unverified on deploy)
+Theme accents + Settings tabs shipped here; detail-page tabs, skeletons/empty-states and the
+responsiveness pass all shipped later under P11a/P11b — nothing remains.
+
+### Phase 3 — Premium emoji + colour on inline buttons (✅ built + verified on deploy)
+
 Bot API `icon_custom_emoji_id` + `style` on inline (glass) buttons — NOT reply buttons.
 Master switch `premium_buttons_enabled` defaults **OFF** → zero behaviour change until owner opts in.
 Custom emoji icon needs the **bot owner to have Telegram Premium**; `style` colour does not.
+
 - Helper `app/keyboards/premium.py:premium_button(...)` — injects extras only when enabled,
   build-time try/except fallback to a plain button (a rejecting/old API never breaks the UI).
 - `app/utils/buttons.py`: `INLINE_BUTTONS` registry (9 keys) + `DEFAULT_STYLES` +
@@ -395,19 +316,22 @@ Custom emoji icon needs the **bot owner to have Telegram Premium**; `style` colo
 - Applied to alert keyboards + 6 `ProxyPanel` action buttons (`app/keyboards/user/proxy.py`).
 - Web: `pages/buttons/index.tsx` 2 tabs (Main-menu labels · Inline premium); router
   `app/api/routers/buttons.py` + schemas (`InlineButtonItem`, `ButtonsOut.inline/premium_enabled`).
-⚠️ Can't confirm from here that aiogram 3.4.1 serialises the extra fields. If it doesn't render
-on deploy → raw-payload sender (direct httpx to Bot API) or aiogram bump.
+
+✅ Owner-verified on a real deploy: premium emoji icons + button colours render correctly —
+aiogram 3.4.1 serialises the fields (no raw-payload sender needed).
+
 - ✅ **Double-emoji fix:** when a premium icon is applied, `buttons.strip_leading_emoji` drops
   the text's own leading emoji so the icon doesn't duplicate it (`app/keyboards/premium.py`).
 - ✅ **Inline rename:** `button_texts` setting + per-button text field in the web Buttons page
   (Inline tab). Renaming is NOT premium-gated — any admin can relabel an inline button.
 
-### Phase 4 — Full button customization (planned, staged) ⏳
+### Phase 4 — Full button customization (✅ done — 4c dropped)
 
 Goal owner asked for: edit **every** bot button (text + premium emoji + colour), create **new**
 buttons with **actions**, group them into **sections**, and fully customize the **main reply
 menu** (the post-/start buttons that drive customer first-impression + retention). Big +
 architectural → build per stage, confirm each before starting.
+
 - **4a — Cover inline buttons** ✅ (customer-facing): `INLINE_BUTTONS` now covers account /
   purchase / payment / renew / proxy-panel (rename + emoji + colour). Admin keyboards **out of
   scope** (owner decision). Remaining customer back/confirm/reserve buttons → 4a (cont.) above.
@@ -427,18 +351,39 @@ architectural → build per stage, confirm each before starting.
   Routing stays text-based (no handler change); super-admins always keep the admin button.
   Per-button premium `icon_custom_emoji_id` is inline-only, so reply buttons use unicode emoji in
   the label. `sync_settings.py` reloads via `settings:dirty`. No migration (key-value setting).
-- **4c — Dynamic custom buttons + actions** (large, needs design + DB model + migration):
-  super-admin defines a NEW button with an **action type** (open URL · open a service menu ·
-  show a text/page · trigger support · run a safe whitelisted command) and a **placement**
-  (main menu / a section / an inline panel). Needs a `CustomButton` model, an action registry +
-  generic callback dispatcher (security: only whitelisted, non-destructive actions; no arbitrary
-  handler injection), and web CRUD. **Plan + confirm before building.**
-Web panel (all stages): richer Buttons page — sections/tabs per bot area, enable/disable toggles,
-drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`buttons.update`).
+- **4c — Dynamic custom buttons + actions** — ⛔ dropped (owner decision, 2026-07): not needed.
 
 ---
 
 ## Done log (compact — don't rebuild these)
+
+- ✅ **Crypto v2 — Plisio + NowPayments (live)** — shared rate service `crypto/rates.py` (Nobitex
+  USDT/toman, Redis cache, margin %, manual fallback); crypto `currency+amount` invoices, premium
+  pay/check/cancel buttons, tracking codes; **idempotent finalizers** (`plisio_service` /
+  `nowpayments_service`) shared by IPN + manual check + auto-check — **mismatch never
+  auto-credits**; NowPayments IPN signature **mandatory**; `is_fixed_rate` default OFF; optional
+  `pay_currency` validated against merchant coins. ⚠️ The NowPayments **IPN secret must be set**
+  or crediting (correctly) won't run. Env: `PUBLIC_BASE_URL`, `PLISIO_*`, `PAYMENT_RATE_*`,
+  `MANUAL_USDT_TOMAN_RATE`.
+- ✅ **Web payment-gateway config** — `GET/PATCH /payment-gateways` + `pages/gateways`
+  (super-admin, audited): NowPayments + Plisio enable/title/min/keys/currency/rate; secrets
+  masked (read = is_set+last4, empty save = no change). ⚠️ Enabling Plisio needs one bot restart.
+- ✅ **Offline crypto gateway** — web-configured `CoinWallet` list; coin → wallet+QR →
+  TXID+screenshot (accumulated in any order); super-admin approve/reject **stateful card** + web
+  pending-review (Redis queue → single credit path `apply_offline_review`); reject-after-approve
+  reverses credit + removes the sub. Reuses `CryptoPayment(offline)` → no migration. On-chain
+  auto-check dropped (owner). In-bot `pm:settings` screens for plisio/offline added.
+- ✅ **Admin glass buttons** — the 8 ⚙️ `AdminPanel` buttons route through `premium_button`
+  (`admin_*` keys) → customizable in the web Buttons editor.
+- ✅ **Multi-bot installer** `installer/guardino-bot.sh` (CLI `guardino-bot`) — shared platform
+  (MariaDB+Redis+Caddy+phpMyAdmin) + isolated per-bot stacks (own DB/REDIS_DB/subdomain), per-bot
+  backup/restore, registry. **Owner-verified on a real VPS — multiple bots end-to-end.**
+  Guide → `docs/multi-bot.md`.
+- ✅ **Broadcast** — non-blocking worker `app/utils/broadcast.py` (throttle, retry-after, resume
+  from Redis cursor); compose stays bot-only (`/broadcast` + `/forward`); web = monitor/cancel.
+- ✅ **Bug-fix plan `delightful-crafting-micali.md`** — all verified on deploy (PasarGuard
+  add-server `is_sudo`, edit-service inbounds check, Guardino sub-day expiry, FSM clear,
+  month=31d, panel-aware admin menus).
 - ✅ **Topics-group reporting** — `app/utils/reports.py` (`ReportTopic` ×8: financial/orders/test/
   backup/nightly/errors/new-users/misc) routes all admin reports into a forum supergroup, one topic
   each; admin setup in bot settings ("گروه گزارشات") auto-creates topics; group **replaces** legacy
@@ -505,6 +450,7 @@ drag-reorder, live preview, add/remove. Keep super-admin-gated + audited (`butto
 ---
 
 ## Locked decisions (don't re-litigate)
+
 - **No manual sell in the web panel** — purchases/renew stay bot-only (user-centric; avoids
   free-provisioning on the owner's panel). Web = manage / support / report / customise + audit.
 - **Web panel goal is bot operations, not re-creating upstream panels** (Guardino Hub etc.).

@@ -17,13 +17,15 @@
 
 Max quality, min tokens. The repo is large; blind/whole-file reads are banned.
 
-**Read/Search**
+### Read / search
+
 - Never read a whole dir or big file "to be safe". Grep/Glob to the exact spot, then Read with `offset`/`limit`.
 - Do NOT read these unless strictly required (100KB+, repetitive): `marzban_client/`, `Dashboard-Example-Theme-UI/` (visual-only mockup — theme captured in `docs/webpanel.md`), and `docs/references/upstream-apis/*.json` (vendor specs Marzban/Pasarguard/Guardino/NOWPayments/Plisio, 100–760KB — **parse with a `python -c json` script to the one endpoint you need; never Read whole**). For panel behavior read `app/panels/base.py`, not the raw spec.
 - Don't read all of `migrations/models/`; only the one you need.
-- For codebase-wide search where you only need a conclusion, use the `Explore` subagent so raw output stays out of context.
+- For codebase-wide search where you only need a conclusion, prefer targeted Grep/Glob passes; spawn a subagent only when the owner explicitly asks.
 
-**Edit**
+### Edit
+
 - Small change → `Edit`, not full `Write`. Read a file once before editing; don't re-read to "confirm" after a successful edit.
 - Batch independent edits to one file in one message; `replace_all` for a repeated identical pattern.
 - Match surrounding style; never rewrite unrelated sections.
@@ -43,6 +45,8 @@ Run a heavy command only when the user types exactly one of: `FULL TEST`, `FULL 
 
 **Targeted checks (default):** small Python change → that file only (`python -m py_compile path/to/file.py`); a few related files → just those; whole-repo compile only on explicit request. Missing local dependency → report and ask, don't auto-install.
 
+**Tests:** the repo has no test suite yet. For payment/balance/authz logic, `py_compile` is NOT enough — when changing those paths, propose (don't auto-add) a minimal unit test for the critical property (idempotency, no double-credit, role gate) and say what was only compile-checked.
+
 ---
 
 ## Project goal & status
@@ -61,7 +65,7 @@ Verify current code before assuming a path, model name, DB table, migration stat
 ## Architecture & stack
 
 | Area | Tech |
-|---|---|
+| --- | --- |
 | Bot | aiogram 3.4.1 (**polling**) |
 | Lang/runtime | Python 3.11 on Docker (`python:3.11-alpine`) |
 | DB | MariaDB/MySQL via **Tortoise ORM 0.20** + **aerich** |
@@ -75,6 +79,8 @@ Verify current code before assuming a path, model name, DB table, migration stat
 
 Entry: `bot.py` → `app/main.py:main()`. **Full directory map / data models / commands → `docs/architecture.md`.**
 
+**Two processes, one bridge:** the API never calls the bot — it writes `BotSetting`/`BotText` rows and signals via Redis: dirty flags (`settings:dirty`/`texts:dirty`) + action queues (`offline:review:queue`, `plisio:review:queue`, `reports:web:actions`), all drained by the bot's 15s `jobs/sync_settings` poll. Every new web write-action that must reach the bot uses this pattern.
+
 High-level tree: `app/{main,marzban}.py · panels/ · api/ · handlers/{admin,user}/ · keyboards/ · models/ · plugins/payment/ · jobs/ · middlewares/ · utils/ · views/` · `webpanel/` · `marzban_client/` (gen) · `migrations/` · `docs/`.
 
 ---
@@ -84,6 +90,7 @@ High-level tree: `app/{main,marzban}.py · panels/ · api/ · handlers/{admin,us
 - Every model change **needs a migration**: `aerich migrate` → `aerich upgrade` (applied in `prestart.sh` on start). Don't auto-run aerich; explain first, then ask.
 - Keep migrations backward-compatible and additive. **Without explicit approval, never:** drop column/table, delete rows, reset reseller balance/data, rewrite proxy/user ownership, or rewrite financial history.
 - For M2M / model changes, mind the `_m2m_order` pattern + `describe` override in `models/__init__.py` (aerich workaround).
+- Tortoise 0.20 pitfall: a model whose pk is a OneToOneField (`UserSetting`) must be updated via queryset `.filter(user_id=…).update(…)` — instance `.save()` builds `WHERE user` → MariaDB error 1054.
 - Panel migrations `46_*`/`47_*` are additive (details in `docs/architecture.md`).
 
 ---
@@ -91,15 +98,20 @@ High-level tree: `app/{main,marzban}.py · panels/ · api/ · handlers/{admin,us
 ## Safety — read every time
 
 **Payment & financial.** Be very careful with balance, invoice, transaction, gateway, callback, order state, purchase/renew, refund, failed payments.
+
 - Don't rewrite financial history; don't create duplicate transactions/invoices.
-- Payment callbacks must be **idempotent** — a callback twice must not double-credit.
+- Payment callbacks must be **idempotent** — a callback twice must not double-credit. The pattern: one atomic conditional update (`filter(status=waiting).update(status=finished)`) as the single credit step — never read-then-save.
+- The purchase lock (`utils/rate_limit.lock`) is process-local and only works because there is **no await** between `is_locked()` and `lock()` in `activate_service` — don't insert one.
 - All crypto IPNs MUST verify the provider signature **mandatorily** (no secret → reject; a missing check is a self-credit forgery hole). Balance credits on `transaction.status = finished` via `Sum("amount")`, so **never mark finished on a mismatch (under/over-paid) callback** — flag it for manual review.
 - Never show gateway secrets or raw gateway errors to the user.
 
 **Secrets & bot.**
+
 - Never show internal errors/traces to the Telegram user. **Never log:** bot token, payment/panel tokens, `DATABASE_URL`, credentials, API keys, private user data.
+- **Roles** (`User.Role`, ordered ints compared with `>=`/`<`): `user(0) < reseller(1) < support(2) < admin(3) < super_user(4)`; `support` = receipt reviewer (card-to-card/offline approve). Renumbering needs a data migration (see `53_*`). Use the enum in checks, never magic numbers.
 - Keep sensitive values encrypted in DB (`PasswordField`). Mind admin/reseller-only commands, force-join, callback authorization, FSM/Redis state, payment confirmation, proxy renew/reset/delete. Preserve existing conversation flow when editing a handler unless a redesign is asked.
 - Don't commit secrets. Never expose `.env`/`.env.*`, `BOT_TOKEN`, `DATABASE_URL`, `SECRET_KEY_STRING`, gateway creds, panel tokens, Guardino API key, Redis/MariaDB creds. Keep sample files committed; new env → register in `config.py` + `.env.example` with an empty/safe value.
+- `config.py` ships a **public default** for `SECRET_KEY_STRING`, and `WEB_JWT_SECRET` falls back to it → a manual deploy that leaves both unset has a **forgeable web-panel JWT key** (the installer generates both). Never weaken this fallback chain; treat "unset in prod" as a bug to surface, and never print real values of either.
 
 **Production data.** May deploy with real users/payments/panels. Don't make changes that could delete/reset/overwrite/duplicate/detach/corrupt production data. Recommend a backup before sensitive changes. Don't run backup/migration/reset/cleanup/destructive commands on production unless explicitly asked.
 
@@ -114,7 +126,10 @@ High-level tree: `app/{main,marzban}.py · panels/ · api/ · handlers/{admin,us
 - Admin handlers register via `*_command` + docstring for auto-help (`generate_commands_help`).
 - Money in **toman**, volume in **bytes**.
 - Handle panel errors via `PanelError`/`PanelAuthError` (+ `status_code`) (409 retry pattern in `purchase.py`).
-- Don't hand-edit generated code; don't log sensitive data.
+- aiogram: `show_alert` exists only on `CallbackQuery.answer` (not `Message.answer`) — dual-type handlers (`CallbackQuery | Message`) must branch; and always `await` a handler called from another handler.
+- A new payment gateway must replicate the **full** handler surface (charge entry + custom-amount + final select, dual-type) — there is no generic one; copy an existing plugin's shape.
+- Admin-facing reports go through `app/utils/reports.report(topic, …)` (topics group), not direct `send_message`.
+- Don't hand-edit generated code (`marzban_client/`).
 
 ---
 
@@ -129,6 +144,7 @@ High-level tree: `app/{main,marzban}.py · panels/ · api/ · handlers/{admin,us
 ## Before finishing a change
 
 Report: what changed, what was checked, what was **not** checked, whether a migration / Docker rebuild / manual test is needed.
+
 - Model changed → create a migration and announce it. New env → `config.py` + `.env.example`. New dependency → `requirements.txt` (pinned) + announce rebuild.
 - Keep multi-panel points behind the interface; don't import `marzban_client` in new code.
 - If you didn't run a full build, say so. Prefer small backward-compatible changes. Don't invent details; check the repo. When unsure about architecture/migration/Docker/payment/panel, ask first.
@@ -137,4 +153,4 @@ Report: what changed, what was checked, what was **not** checked, whether a migr
 
 ## Backlog
 
-The live backlog (phases, status, decisions) lives in **`ROADMAP.md`** — read it when you pick up an item; don't grow a list here. **Broadcast** is resolved (non-blocking worker `app/utils/broadcast.py`). Crypto gateways, offline gateway, web gateway-config, admin glass buttons, etc. → see ROADMAP.
+The live backlog (phases, status, decisions) lives in **`ROADMAP.md`** — read it when you pick up an item; don't grow a list here. Current shape: P5–P13 + crypto/offline gateways **shipped** (see its Done log); open = card-to-card web gateway-config, web-panel minors, deferred infra (aiogram bump, Guardino reserves, brand migration, observability).

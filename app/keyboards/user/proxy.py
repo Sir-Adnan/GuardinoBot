@@ -215,6 +215,7 @@ class ProxyPanelActions(str, Enum):
     remove = "remove"
     links_allqr = "allqr"
     links_subqr = "subqr"
+    links_sub = "sublink"
     show_reserve = "show_reserve"
     delete_wpayback = "delete_wpayback"
 
@@ -912,15 +913,16 @@ def alert_renew_keyboard(proxy_id: int):
 
 
 def alert_links_keyboard(proxy_id: int):
-    """Inline 'connection links' button for the 'unused subscription' alert →
-    opens the proxy's links so the user can finally connect."""
+    """Inline button for the 'unused subscription' alert → sends the single
+    subscription (Sub) link, not the per-config links (owner decision: the
+    full config list is too cluttered for a nudge message)."""
     kb = InlineKeyboardBuilder()
     kb.add(
         premium_button(
-            text="🔗 دریافت لینک اتصال",
+            text="🔗 دریافت لینک اشتراک",
             key="alert_links",
             callback_data=ProxyPanel.Callback(
-                proxy_id=proxy_id, action=ProxyPanelActions.links
+                proxy_id=proxy_id, action=ProxyPanelActions.links_sub
             ),
         )
     )

@@ -1248,6 +1248,51 @@ async def proxy_links(
     await _send_config_links(query, header, blocks, footer, markup)
 
 
+@router.callback_query(
+    ProxyPanel.Callback.filter(F.action == ProxyPanelActions.links_sub)
+)
+async def proxy_sub_link(
+    query: CallbackQuery, user: User, callback_data: ProxyPanel.Callback
+):
+    """Send just the subscription (Sub) link — used by the 'unused
+    subscription' alert button, where the full config-link list is too noisy."""
+    user_id = callback_data.user_id if callback_data.user_id else user.id
+    proxy = await Proxy.filter(id=callback_data.proxy_id).first()
+    if not proxy:
+        return await query.answer("❌ سرویس مورد نظر یافت نشد!", show_alert=True)
+    if (user.role < user.Role.admin) and (user.id != user_id):
+        return
+    elif (user.role == user.Role.admin) and (proxy.user_id != user_id):
+        await proxy.fetch_related("user")
+        if proxy.user.parent_id != user.id:
+            return
+
+    try:
+        panel = get_panel(proxy.server_id)
+        sv_proxy = await panel.get_user(proxy.username)
+    except Exception as err:
+        await query.answer(
+            "❌ خطایی در انجام عملیات رخ داد! لطفا با پشتیبانی تماس بگیرید.",
+            show_alert=True,
+        )
+        raise err
+    if not sv_proxy or not sv_proxy.subscription_url:
+        return await query.answer(
+            "❌ خطایی در دریافت اطلاعات سرویس رخ داد! لطفا کمی بعد دوباره تلاش کنید.",
+            show_alert=True,
+        )
+    text = (
+        f"🔗 لینک اشتراک (Sub) سرویس <code>{proxy.username}</code>:\n\n"
+        f"<code>{escape(sv_proxy.subscription_url)}</code>\n\n"
+        "💡 روی لینک کلیک کنید تا کپی شود؛ با وارد کردن همین یک لینک در "
+        "اپلیکیشن، تمام کانفیگ‌ها به‌صورت خودکار دریافت و به‌روز می‌شوند."
+    )
+    qr_code_options = await qr.subscription_link_preview(
+        proxy.id, sv_proxy.username, sv_proxy.subscription_url
+    )
+    await query.message.answer(text, link_preview_options=qr_code_options)
+
+
 async def generate_qr_code(
     message: Message, links: list[str], username: str
 ) -> list[Message]:

@@ -20,7 +20,7 @@ Remaining (minor): `reset_proxy_credentials` unsupported on PasarGuard (raises) 
 ## Fundamental differences (per the specs — read before adapter work)
 
 | | Marzban (legacy) | PasarGuard v5 | Guardino Hub v0.1 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Auth | `/api/admin/token` (OAuth2 password → Bearer) | `/api/admin/token` (same as Marzban) | `/api/v1/auth/login` (JSON user/pass, **2FA**, api-token) |
 | Bot connection | base_url + admin token | base_url + admin token | base_url + **reseller user/pass** → access_token |
 | User identity | `username` | `username` | **`user_id` (int)** + `label` |

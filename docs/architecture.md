@@ -17,11 +17,11 @@ app/
                      # servers, proxies, transactions, reports, resellers, discounts, menus,
                      # buttons, texts, settings, audit, automation), deps/auth (JWT), schemas, clients
   handlers/
-    admin/           # admin, user, server, service, service_menu, setting, payment, discount
+    admin/           # admin, user, server, service, service_menu, setting, payment, discount, reports_group
     user/            # account, payment, proxy, purchase, ...
     start.py, base.py, prebase.py, errors.py
   keyboards/         # mirrors handlers (admin/* and user/*) + premium.py (inline emoji/colour)
-  models/            # Tortoise: user, server, service, proxy, setting
+  models/            # Tortoise: user, server, service, proxy, setting, audit
   plugins/
     payment/         # crypto/{nowpayments(+_service),plisio(+_payment,_service),rates,swapino,clients,views},
                      # offline/, card_to_card, perfect_money, rial_gateway (zarinpal/zibal/payping/aqaye_pardakht), tronseller
@@ -29,7 +29,8 @@ app/
   jobs/              # check_reserves, del_unpaid_payments, refresh_proxies, remind_invoices,
                      # proxy_alerts, check_hub_balance, sync_settings,
                      # nightly_report (23:59 Tehran), backup_report (mysqldump → backup topic)
-  middlewares/       # acl, rate_limit
+  middlewares/       # acl, button_labels — throttling is NOT a middleware
+                     # (handlers use utils/rate_limit.py RateLimit + lock())
   utils/             # helpers, settings, texts, encryption, proxy_management, qr, broadcast,
                      # reports (Topics-group reporting: ReportTopic + report(); legacy-channel
                      # fallback when no group is configured), ...
@@ -45,7 +46,7 @@ config.py            # reads env + TORTOISE_ORM
 
 ## Data models (key)
 
-- **User** — roles in `User.Role`: `user(0)`, `reseller(1)`, `admin(2)`, `super_user(3)`. Reseller tree (parent/child), referrer, balance/postpaid, `UserSetting`.
+- **User** — roles in `User.Role` (ordered, compared with `>=`/`<`): `user(0)`, `reseller(1)`, `support(2)` (receipt reviewer), `admin(3)`, `super_user(4)` — renumbered by migration `53_*`; renumbering again needs a data migration. Reseller tree (parent/child), referrer, balance/postpaid, `UserSetting`.
 - **Server** — panel connection: `host`, `port`, `https`, `token`, `username/password` (encrypted), `is_enabled`, `total_proxies`, **`panel_type`** (enum `marzban`/`pasarguard`/`guardino`, default `marzban`), and **`link_policy`** (enum `master_first`/`node_first` — Guardino only, which sub link to show).
 - **Service / ServiceMenu** — plans: `data_limit`, `expire_duration`, `inbounds` (Marzban: protocol→tags), `flow`, `price`, discount, nested menus, filters; and **`panel_config`** (JSON nullable — PasarGuard: `{"group_ids":[...], "proxy_settings":{...}}`; Guardino: `{"total_gb", "days"|"duration_preset", "node_ids"|"node_group", "pricing_mode"}`).
 - **Proxy** — a user's subscription on a Server; unique `username`, `status` (ProxyStatus == PanelUserStatus values), `service`, `user`, `server`, `reserve`; for id-based panels (Guardino): **`panel_user_id`** (int, hub user id) + **`sub_token`** (master_sub_token).

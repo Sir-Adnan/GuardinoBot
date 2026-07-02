@@ -10,7 +10,7 @@ Current state: **BUILT and substantial.** A separate **FastAPI** backend (`app/a
 
 ## Stack (agreed)
 
-- **Backend: FastAPI** (separate service beside the bot, sharing the same DB/Redis and **the same adapter layer**). Fully async; Pydantic + auto OpenAPI; JWT; Tortoise via `tortoise.contrib.fastapi`.
+- **Backend: FastAPI** (separate service beside the bot, sharing the same DB/Redis and **the same adapter layer**). Fully async; Pydantic + auto OpenAPI; JWT; Tortoise initialized manually in the app `lifespan` (NOT `register_tortoise` — a custom lifespan replaces its startup hook; see `app/api/main.py`).
 - **Frontend: React + TypeScript + Vite + Refine + Ant Design.** CRUD-heavy panel is fast with Refine (data/auth providers + RBAC); AntD has ready tables/forms/dashboards and **built-in RTL** for Persian. State via TanStack Query.
 - **Theme target** (captured from the `Dashboard-Example-Theme-UI/` mockup so it never needs re-reading): RTL Persian, **Vazirmatn** UI font + **IBM Plex Mono** for numerals, **Material Symbols Rounded** icons, **emerald/green accent**, **dark + light** themes (CSS-var/oklch palette with green/red/amber/blue/violet status colors), layout = fixed **sidebar (~266px, grouped nav) + sticky topbar (title, search, lang + theme toggles, notifications) + card grid**. Must be **fully responsive** (sidebar → drawer on mobile). Map onto the AntD `ConfigProvider` theme tokens.
 - **Auth:** JWT (access + refresh); role from `User.Role`. In Guardino multi-tenant mode, reseller web login can also validate against Guardino Hub.
@@ -48,6 +48,7 @@ Settings             → Bot Settings · Texts · Force Join · Security · Envi
 ## Shared principles
 
 - Keep web-panel code separate from Telegram handlers: `app/api/` (web/API), shared business logic in services/helpers, `app/panels/` (adapters).
-- Role separation: super_user / admin / reseller (and user where needed).
+- Role separation: super_user / admin / support / reseller (ordered `User.Role` ints — support is
+  the receipt reviewer and, like resellers, is subtree-scoped by the API `_scope` helpers).
 - Never leak secrets/panel tokens/payment creds/bot token/DB details in web responses.
 - Reuse the same Tortoise models and panel layer (`docs/panels.md`); don't duplicate logic.
