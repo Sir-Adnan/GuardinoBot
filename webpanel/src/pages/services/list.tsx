@@ -269,7 +269,15 @@ export function ServiceList() {
       render: (v: string, r: any) => (
         <Space size={4}>
           {v || "—"}
-          {r.panel_type && <Tag>{r.panel_type}</Tag>}
+          {r.panel_type && (
+            <Tag
+              color={{ marzban: "blue", pasarguard: "purple", guardino: "green" }[
+                r.panel_type as string
+              ]}
+            >
+              {r.panel_type}
+            </Tag>
+          )}
         </Space>
       ),
     },
@@ -440,11 +448,16 @@ export function ServiceList() {
             onChange={(val) => setProv((p: any) => ({ ...p, node_ids: val }))}
             options={nodes.map((n: any) => ({ value: n.id, label: n.name ?? n.id }))}
           />
-          <Input
+          <Select
             allowClear
+            style={{ width: "100%" }}
             placeholder={t("services.pricingMode")}
-            value={prov.pricing_mode}
-            onChange={(e) => setProv((p: any) => ({ ...p, pricing_mode: e.target.value }))}
+            value={prov.pricing_mode || undefined}
+            onChange={(val) => setProv((p: any) => ({ ...p, pricing_mode: val || "" }))}
+            options={[
+              { value: "bundle", label: "bundle" },
+              { value: "per_node", label: "per_node" },
+            ]}
           />
         </>
       );

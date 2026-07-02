@@ -24,10 +24,14 @@ detail lives in the **Done log** + the **Pxx blocks** below.
 
 **Current focus (in order):**
 
-1. [ ] **Card-to-card web gateway-config** — extend `GET/PATCH /payment-gateways` +
-   `pages/gateways` to card-to-card (cards CRUD, verify-before-show, auto-accept flags; secrets
-   masked, super-admin, audited). ⛔ Rial online gateways (zarinpal/zibal/payping/aqaye-pardakht)
-   dropped — owner: unused.
+1. ✅ **Card-to-card web gateway-config** — `payment_card_to_card` added to the generic
+   `GET/PATCH /payment-gateways` spec (enabled/menu_title/min_pay_amount/free_after/
+   free_after_percent/verify_before_show_card → merged into the existing JSON row, reloaded via
+   `settings:dirty`) + new **cards CRUD** `GET/POST/PATCH/DELETE /payment-gateways/cards`
+   (super-admin, audited with masked `…last4` labels only, 16-digit validation; the bot reads the
+   `cards` table live → no restart). Web: the gateway card renders from the generic spec + new
+   `CardsManager` (grouped-PAN display, active toggle, add/edit modal, empty-state warning).
+   ⛔ Rial online gateways (zarinpal/zibal/payping/aqaye-pardakht) dropped — owner: unused.
 2. [ ] Web-panel minors (detail in the Pxx blocks): P5b discount/menu attach UI + drag reorder ·
    P9b reseller/usage/refund breakdowns + Excel export · P11a shell/breadcrumbs + server-side
    Appearance defaults · P11b micro-interactions + broader audit · P7 orders view · P8 reseller
@@ -95,6 +99,28 @@ Recently fixed (2026-07-02):
 - ✅ **Bot copy tightened** (owner: the polished texts got too long) — proxy_help default, detail
   hints, activation + reserve-activated messages are now short one-liners with emoji («لمس =
   کپی» pattern); no explanatory paragraphs.
+- ✅ **Reports page — full redesign + richer stats.** Backend (`/reports/summary`, additive):
+  `top_services` now **range-aware + FULL list** (orders + **revenue** per service, Python-side
+  aggregation), new `orders_by_type` (purchase/renew_now/renew_reserve), `top_buyers` (top 10 by
+  spend with name/@username), `total_transactions`. Web: 8 KPI cards (added **avg order value** +
+  **payment success rate**, both derived client-side), dashboard-style pill chart (gridlines, avg
+  dashed line, Σ in header), two new card rows (payment vs order-type breakdown · full top-services
+  table with rank medals/share bars/pagination · top-buyers), Skeleton loading, `gb-lift` cohesion,
+  CSV export extended with every new section. Nothing removed. +10 locale keys (fa+en).
+- ⏳ **Remaining-pages redesign sweep (batch 1 done):** global `borderRadiusLG: 16` theme token
+  (all cards/modals app-wide); new shared `FilterBar` component (token-styled strip, mobile
+  flex-stacking) adopted in **Users / Transactions / Proxies / Audit**; Users list gained
+  accent-tinted initial avatars; Transactions + Proxies gained a visible **Refresh** header
+  button (`actions.refresh` key). Rule: 1 search control → PageHeader extra; 2+ filters →
+  FilterBar.
+- ✅ **Batch 2:** users/show + resellers/show = **profile headers** (big accent avatar, role/
+  blocked/verified tags inline, actions moved from the Overview tab into the header) + a
+  responsive **StatCard strip** (balance · active/total subs · discount% · postpaid | reseller:
+  balance · available credit · children · subs); tx-status tags coloured. Resellers list gained
+  initial avatars. Services: Guardino `pricing_mode` free-text → **Select (bundle|per_node,
+  matches the hub spec)** + coloured panel-type tags. PanelHealth → radius 16 + `gb-lift`.
+  Menus/gateways/settings/automation verified: already on Skeleton/table-loading patterns —
+  global radius token covers them. **Sweep complete.**
 
 ---
 

@@ -19,10 +19,15 @@ import {
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
+  CreditCardOutlined,
   DollarOutlined,
   EditOutlined,
   EyeOutlined,
+  TeamOutlined,
+  ThunderboltOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
+import { theme } from "antd";
 import { useGetIdentity } from "@refinedev/core";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -30,10 +35,12 @@ import { api } from "../../providers/axios";
 import { ROLE_COLORS, ROLE_SUPER, ROLE_VALUES, fmtDate, fmtNum, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { StatCard } from "../../components/StatCard";
 
 export function ResellerShow() {
   const { t, i18n } = useTranslation();
   const { id } = useParams();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { message } = AntdApp.useApp();
   const { data: me } = useGetIdentity<any>();
@@ -147,14 +154,17 @@ export function ResellerShow() {
         <Descriptions.Item label={t("resellers.proxies")}><span className="mono">{fmtNum(r.proxies_count)}</span></Descriptions.Item>
         <Descriptions.Item label={t("resellers.createdAt")}>{fmtDate(r.created_at)}</Descriptions.Item>
       </Descriptions>
-      {isSuper && (
-        <Space style={{ marginTop: 16 }} wrap>
-          <Button icon={<EditOutlined />} onClick={openEdit}>{t("users.edit")}</Button>
-          <Button icon={<DollarOutlined />} onClick={() => setBalOpen(true)}>{t("users.balanceAdjust")}</Button>
-        </Space>
-      )}
     </>
   );
+
+  const headerActions = isSuper ? (
+    <Space wrap>
+      <Button icon={<EditOutlined />} onClick={openEdit}>{t("users.edit")}</Button>
+      <Button type="primary" ghost icon={<DollarOutlined />} onClick={() => setBalOpen(true)}>
+        {t("users.balanceAdjust")}
+      </Button>
+    </Space>
+  ) : undefined;
 
   const childCols = [
     { title: t("users.id"), dataIndex: "id", width: 110, className: "mono" },
@@ -195,10 +205,54 @@ export function ResellerShow() {
   return (
     <Card>
       <PageHeader
-        icon={<Button type="text" icon={<BackIcon />} onClick={() => navigate("/resellers")} />}
-        title={r.name || (r.username ? "@" + r.username : `#${r.id}`)}
+        icon={
+          <Space size={10}>
+            <Button type="text" icon={<BackIcon />} onClick={() => navigate("/resellers")} />
+            <span
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                display: "grid",
+                placeItems: "center",
+                borderRadius: 14,
+                background: `${token.colorPrimary}1f`,
+                color: token.colorPrimary,
+                fontWeight: 800,
+                fontSize: 19,
+              }}
+            >
+              {String(r.name || r.username || "#").slice(0, 1).toUpperCase()}
+            </span>
+          </Space>
+        }
+        title={
+          <Space size={8} wrap>
+            {r.name || (r.username ? "@" + r.username : `#${r.id}`)}
+            <Tag color={ROLE_COLORS[r.role]} style={{ margin: 0 }}>{r.role_name}</Tag>
+            {r.is_blocked && <Tag color="red" style={{ margin: 0 }}>{t("users.blocked")}</Tag>}
+          </Space>
+        }
         subtitle={<span className="mono">#{r.id}{r.username ? ` · @${r.username}` : ""}</span>}
+        extra={headerActions}
       />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <StatCard label={t("resellers.balance")} value={fmtToman(r.balance)} icon={<WalletOutlined />} />
+        <StatCard
+          label={t("resellers.availableCredit")}
+          value={fmtToman(r.available_credit)}
+          icon={<CreditCardOutlined />}
+        />
+        <StatCard label={t("resellers.children")} value={fmtNum(r.children_count)} icon={<TeamOutlined />} />
+        <StatCard label={t("resellers.proxies")} value={fmtNum(r.proxies_count)} icon={<ThunderboltOutlined />} />
+      </div>
       <Tabs items={tabs} />
 
       <Modal open={editOpen} title={t("users.editTitle")} onCancel={() => setEditOpen(false)} onOk={() => editForm.submit()} confirmLoading={busy} okText={t("buttons.save")} destroyOnClose>

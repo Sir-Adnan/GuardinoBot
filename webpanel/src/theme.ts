@@ -16,6 +16,7 @@ export const fontFamily = (key: string): string => FONTS[key] ?? FONTS.vazirmatn
 // rounded corners, dark + light, with a selectable accent palette.
 const shared: ThemeConfig["token"] = {
   borderRadius: 10,
+  borderRadiusLG: 16, // cards/modals — matches the 2026 dashboard redesign
   colorSuccess: "#10b981",
   colorError: "#ef4444",
   colorWarning: "#f59e0b",

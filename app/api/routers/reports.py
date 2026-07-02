@@ -10,13 +10,14 @@ from datetime import timedelta as td
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from tortoise.functions import Count, Sum
+from tortoise.functions import Sum
 
 from app.api.deps import require_role
 from app.api.schemas import (
     PaymentBreakdownItem,
     ReportPoint,
     ReportsOut,
+    TopBuyerItem,
     TopServiceItem,
 )
 from app.models.proxy import Proxy, ProxyStatus
@@ -152,17 +153,76 @@ async def summary(
             )
         )
 
-    # top services by subscription count (all-time)
-    top = (
-        await Service.annotate(num=Count("proxies"))
-        .order_by("-num")
-        .limit(8)
-        .values("id", "name", "num")
+    # top services — FULL list, range-aware: orders (non-draft invoices) +
+    # revenue per service inside the selected range, sorted by revenue.
+    # Aggregated in Python (values pull) to dodge FK-join GROUP BY surprises.
+    svc_rows = await _rng(
+        Invoice.filter(is_draft=False, service_id__not_isnull=True)
+    ).values("service_id", "amount")
+    svc_agg: dict[int, dict[str, int]] = {}
+    for r in svc_rows:
+        sid = int(r["service_id"])
+        a = svc_agg.setdefault(sid, {"count": 0, "revenue": 0})
+        a["count"] += 1
+        a["revenue"] += int(r["amount"] or 0)
+    svc_names = dict(
+        await Service.filter(id__in=list(svc_agg)).values_list("id", "name")
+    ) if svc_agg else {}
+    top_services = sorted(
+        (
+            TopServiceItem(
+                id=sid,
+                name=svc_names.get(sid, f"#{sid}"),
+                count=a["count"],
+                revenue=a["revenue"],
+            )
+            for sid, a in svc_agg.items()
+        ),
+        key=lambda x: (-x.revenue, -x.count),
     )
-    top_services = [
-        TopServiceItem(id=t["id"], name=t["name"], count=int(t["num"] or 0))
-        for t in top
-        if int(t["num"] or 0) > 0
+
+    # orders split by invoice type (purchase / renew_now / renew_reserve)
+    _ORDER_TYPES = {
+        int(Invoice.Type.purchase): "purchase",
+        int(Invoice.Type.renew_now): "renew_now",
+        int(Invoice.Type.renew_reserve): "renew_reserve",
+    }
+    orders_by_type: list[PaymentBreakdownItem] = []
+    for ty, name in _ORDER_TYPES.items():
+        base = _rng(Invoice.filter(is_draft=False, type=ty))
+        count = await base.count()
+        if count == 0:
+            continue
+        orders_by_type.append(
+            PaymentBreakdownItem(
+                type=ty, type_name=name, count=count, amount=await _sum(base)
+            )
+        )
+
+    # top buyers by spend (non-draft invoices) inside the range
+    buyer_rows = await _rng(Invoice.filter(is_draft=False)).values(
+        "user_id", "amount"
+    )
+    buyer_agg: dict[int, dict[str, int]] = {}
+    for r in buyer_rows:
+        uid = int(r["user_id"])
+        a = buyer_agg.setdefault(uid, {"orders": 0, "amount": 0})
+        a["orders"] += 1
+        a["amount"] += int(r["amount"] or 0)
+    buyer_ids = sorted(buyer_agg, key=lambda u: -buyer_agg[u]["amount"])[:10]
+    buyer_users = {
+        u["id"]: u
+        for u in await User.filter(id__in=buyer_ids).values("id", "name", "username")
+    } if buyer_ids else {}
+    top_buyers = [
+        TopBuyerItem(
+            user_id=uid,
+            name=(buyer_users.get(uid) or {}).get("name"),
+            username=(buyer_users.get(uid) or {}).get("username"),
+            orders=buyer_agg[uid]["orders"],
+            amount=buyer_agg[uid]["amount"],
+        )
+        for uid in buyer_ids
     ]
 
     return ReportsOut(
@@ -183,7 +243,10 @@ async def summary(
         proxies_total=proxies_total,
         proxies_active=proxies_active,
         proxies_by_status=proxies_by_status,
+        total_transactions=total_tx,
         revenue_series=series,
         payment_breakdown=breakdown,
         top_services=top_services,
+        orders_by_type=orders_by_type,
+        top_buyers=top_buyers,
     )

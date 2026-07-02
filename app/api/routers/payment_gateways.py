@@ -21,6 +21,10 @@ import config
 from app.api.clients import bot, redis
 from app.api.deps import require_role
 from app.api.schemas import (
+    CardCreateIn,
+    CardItem,
+    CardsOut,
+    CardUpdateIn,
     GatewayFieldOut,
     GatewayOut,
     GatewaysOut,
@@ -34,7 +38,7 @@ from app.api.schemas import (
     PlisioCurrenciesOut,
     PlisioCurrencyOut,
 )
-from app.models.setting import BotSetting
+from app.models.setting import BotSetting, Card
 from app.models.user import CryptoPayment, Transaction, User
 from app.plugins.payment.crypto.plisio import (
     DEFAULT_INVOICE_CURRENCY,
@@ -94,6 +98,20 @@ _GATEWAYS: dict[str, dict] = {
             "rate_cache_seconds": "int",
             "usdt_margin_percent": "str",
             "manual_usdt_toman_rate": "str",
+        },
+    },
+    # Manual card-to-card. The destination cards themselves live in the `cards`
+    # table (see the /cards endpoints below), NOT in this JSON.
+    "payment_card_to_card": {
+        "name": "کارت به کارت",
+        "type": "manual",
+        "fields": {
+            "enabled": "bool",
+            "menu_title": "str",
+            "min_pay_amount": "int",
+            "free_after": "int",
+            "free_after_percent": "int",
+            "verify_before_show_card": "bool",
         },
     },
 }
@@ -283,6 +301,115 @@ async def plisio_currencies(
         items=_plisio_currency_items(FALLBACK_CURRENCIES),
         fallback=True,
     )
+
+
+# -- card-to-card destination cards (the `cards` table) -----------------------
+# The bot reads Card rows live (Card.get_random) → no settings:dirty needed.
+def _card_out(c: Card) -> CardItem:
+    return CardItem(
+        id=c.id,
+        card_number=c.card_number,
+        card_holder=c.card_holder,
+        is_active=c.is_active,
+        created_at=c.created_at,
+    )
+
+
+def _clean_card_number(v: str) -> str:
+    digits = re.sub(r"\D", "", str(v or ""))
+    if len(digits) != 16:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Card number must be exactly 16 digits"
+        )
+    return digits
+
+
+@router.get("/cards", response_model=CardsOut)
+async def list_cards(
+    _: User = Depends(require_role(User.Role.super_user)),
+) -> CardsOut:
+    rows = await Card.all().order_by("-is_active", "id")
+    return CardsOut(items=[_card_out(c) for c in rows])
+
+
+@router.post("/cards", response_model=CardItem, status_code=status.HTTP_201_CREATED)
+async def create_card(
+    body: CardCreateIn,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> CardItem:
+    number = _clean_card_number(body.card_number)
+    holder = (body.card_holder or "").strip()
+    if not holder:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Card holder is required")
+    c = await Card.create(
+        card_number=number, card_holder=holder[:128], is_active=bool(body.is_active)
+    )
+    await record_audit(
+        action="payment_gateway.card_add",
+        actor=actor,
+        target_type="card",
+        target_id=c.id,
+        target_label=f"…{number[-4:]}",  # never the full PAN in the audit log
+    )
+    return _card_out(c)
+
+
+@router.patch("/cards/{card_id}", response_model=CardItem)
+async def update_card(
+    card_id: int,
+    body: CardUpdateIn,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> CardItem:
+    c = await Card.filter(id=card_id).first()
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Card not found")
+    changed: list[str] = []
+    if body.card_number is not None:
+        c.card_number = _clean_card_number(body.card_number)
+        changed.append("card_number")
+    if body.card_holder is not None:
+        holder = body.card_holder.strip()
+        if not holder:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Card holder is required")
+        c.card_holder = holder[:128]
+        changed.append("card_holder")
+    if body.is_active is not None:
+        c.is_active = bool(body.is_active)
+        changed.append("is_active")
+    if changed:
+        await c.save()
+        await record_audit(
+            action="payment_gateway.card_update",
+            actor=actor,
+            target_type="card",
+            target_id=c.id,
+            target_label=f"…{c.card_number[-4:]}",
+            detail={"changed": changed},
+        )
+    return _card_out(c)
+
+
+@router.delete("/cards/{card_id}", response_model=OkOut)
+async def delete_card(
+    card_id: int,
+    actor: User = Depends(require_role(User.Role.super_user)),
+) -> OkOut:
+    """Delete a destination card. CardToCardPayment.destination_card is
+    SET_NULL, so past payments keep their history."""
+    c = await Card.filter(id=card_id).first()
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Card not found")
+    label = f"…{c.card_number[-4:]}"
+    cid = c.id
+    await c.delete()
+    await record_audit(
+        action="payment_gateway.card_delete",
+        actor=actor,
+        target_type="card",
+        target_id=cid,
+        target_label=label,
+    )
+    return OkOut(ok=True)
 
 
 # -- offline (manual) crypto gateway: wallet-per-coin -------------------------

@@ -20,10 +20,15 @@ import {
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
+  CreditCardOutlined,
   DeleteOutlined,
   DollarOutlined,
   EditOutlined,
+  PercentageOutlined,
+  ThunderboltOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
+import { theme } from "antd";
 import { useGetIdentity } from "@refinedev/core";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -31,6 +36,7 @@ import { api } from "../../providers/axios";
 import { ROLE_ADMIN, ROLE_COLORS, ROLE_SUPER, ROLE_VALUES, fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { StatCard } from "../../components/StatCard";
 
 const PROXY_STATUS_COLOR: Record<string, string> = {
   active: "green",
@@ -39,10 +45,21 @@ const PROXY_STATUS_COLOR: Record<string, string> = {
   expired: "red",
   on_hold: "blue",
 };
+const TX_STATUS_COLOR: Record<string, string> = {
+  finished: "green",
+  waiting: "gold",
+  rejected: "red",
+  failed: "red",
+  canceled: "default",
+  partially_paid: "orange",
+  sending: "blue",
+  confirming: "blue",
+};
 
 export function UserShow() {
   const { t, i18n } = useTranslation();
   const { id } = useParams();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { message } = AntdApp.useApp();
   const { data: me } = useGetIdentity<any>();
@@ -207,27 +224,28 @@ export function UserShow() {
         </Descriptions.Item>
         <Descriptions.Item label={t("users.createdAt")}>{fmtDate(u.created_at)}</Descriptions.Item>
       </Descriptions>
-      {isAdmin && (
-        <Space style={{ marginTop: 16 }} wrap>
-          {u.is_blocked ? (
-            <Button onClick={() => setBlocked(false)}>{t("actions.unblock")}</Button>
-          ) : (
-            <Popconfirm title={t("actions.blockConfirm")} okButtonProps={{ danger: true }} onConfirm={() => setBlocked(true)}>
-              <Button danger>{t("actions.block")}</Button>
-            </Popconfirm>
-          )}
-          <Button icon={<EditOutlined />} onClick={openEdit}>
-            {t("users.edit")}
-          </Button>
-          {isSuper && (
-            <Button icon={<DollarOutlined />} onClick={() => setBalOpen(true)}>
-              {t("users.balanceAdjust")}
-            </Button>
-          )}
-        </Space>
-      )}
     </>
   );
+
+  const headerActions = isAdmin ? (
+    <Space wrap>
+      {u.is_blocked ? (
+        <Button onClick={() => setBlocked(false)}>{t("actions.unblock")}</Button>
+      ) : (
+        <Popconfirm title={t("actions.blockConfirm")} okButtonProps={{ danger: true }} onConfirm={() => setBlocked(true)}>
+          <Button danger>{t("actions.block")}</Button>
+        </Popconfirm>
+      )}
+      <Button icon={<EditOutlined />} onClick={openEdit}>
+        {t("users.edit")}
+      </Button>
+      {isSuper && (
+        <Button type="primary" ghost icon={<DollarOutlined />} onClick={() => setBalOpen(true)}>
+          {t("users.balanceAdjust")}
+        </Button>
+      )}
+    </Space>
+  ) : undefined;
 
   const subsCols = [
     { title: t("users.id"), dataIndex: "id", width: 64, className: "mono" },
@@ -263,9 +281,13 @@ export function UserShow() {
 
   const txCols = [
     { title: t("users.id"), dataIndex: "id", width: 64, className: "mono" },
-    { title: t("users.type"), dataIndex: "type_name" },
+    { title: t("users.type"), dataIndex: "type_name", render: (v: string) => <Tag>{v}</Tag> },
     { title: t("users.amount"), dataIndex: "amount", className: "mono", render: (v: number) => fmtToman(v) },
-    { title: t("users.status"), dataIndex: "status_name" },
+    {
+      title: t("users.status"),
+      dataIndex: "status_name",
+      render: (v: string) => <Tag color={TX_STATUS_COLOR[v] || "default"}>{v}</Tag>,
+    },
     { title: t("users.createdAt"), dataIndex: "created_at", render: (v: string) => fmtDate(v) },
   ];
 
@@ -298,13 +320,64 @@ export function UserShow() {
       : []),
   ];
 
+  const activeSubs = proxies.filter((p) => p.status === "active").length;
+
   return (
     <Card>
       <PageHeader
-        icon={<Button type="text" icon={<BackIcon />} onClick={() => navigate("/users")} />}
-        title={u.name || (u.username ? "@" + u.username : `#${u.id}`)}
+        icon={
+          <Space size={10}>
+            <Button type="text" icon={<BackIcon />} onClick={() => navigate("/users")} />
+            <span
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                display: "grid",
+                placeItems: "center",
+                borderRadius: 14,
+                background: `${token.colorPrimary}1f`,
+                color: token.colorPrimary,
+                fontWeight: 800,
+                fontSize: 19,
+              }}
+            >
+              {String(u.name || u.username || "#").slice(0, 1).toUpperCase()}
+            </span>
+          </Space>
+        }
+        title={
+          <Space size={8} wrap>
+            {u.name || (u.username ? "@" + u.username : `#${u.id}`)}
+            <Tag color={ROLE_COLORS[u.role]} style={{ margin: 0 }}>{u.role_name}</Tag>
+            {u.is_blocked && <Tag color="red" style={{ margin: 0 }}>{t("users.blocked")}</Tag>}
+            {u.is_verified && <Tag color="green" style={{ margin: 0 }}>{t("users.verified")}</Tag>}
+          </Space>
+        }
         subtitle={<span className="mono">#{u.id}{u.username ? ` · @${u.username}` : ""}</span>}
+        extra={headerActions}
       />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <StatCard label={t("users.balance")} value={fmtToman(u.balance)} icon={<WalletOutlined />} />
+        <StatCard
+          label={t("users.proxies")}
+          value={`${activeSubs} / ${u.proxies_count}`}
+          icon={<ThunderboltOutlined />}
+        />
+        <StatCard label={t("users.discountPct")} value={`${u.discount_percentage}%`} icon={<PercentageOutlined />} />
+        <StatCard
+          label={t("users.postpaid")}
+          value={u.is_postpaid ? fmtToman(u.max_post_paid_credit) : t("common.no")}
+          icon={<CreditCardOutlined />}
+        />
+      </div>
       <Tabs items={tabs} />
 
       <Modal open={editOpen} title={t("users.editTitle")} onCancel={() => setEditOpen(false)} onOk={() => editForm.submit()} confirmLoading={busy} okText={t("buttons.save")} destroyOnClose>

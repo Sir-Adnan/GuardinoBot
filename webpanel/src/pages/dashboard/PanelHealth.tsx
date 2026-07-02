@@ -37,7 +37,8 @@ export function PanelHealth() {
 
   return (
     <Card
-      style={{ borderRadius: 14, marginTop: 16 }}
+      className="gb-lift"
+      style={{ borderRadius: 16, marginTop: 16 }}
       title={t("dashboard.panelHealth")}
       extra={
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>

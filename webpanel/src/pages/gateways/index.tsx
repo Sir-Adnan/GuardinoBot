@@ -21,6 +21,7 @@ import { SaveOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
 import { PageHeader } from "../../components/PageHeader";
+import { CardsManager } from "./CardsManager";
 import { OfflineGateway } from "./OfflineGateway";
 import { OfflinePending } from "./OfflinePending";
 
@@ -410,6 +411,7 @@ export function GatewaysPage() {
         })}
       </Row>
 
+      <CardsManager />
       <OfflineGateway />
       <OfflinePending />
     </div>

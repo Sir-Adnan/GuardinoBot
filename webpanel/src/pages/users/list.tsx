@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card, Input, Select, Space, Tag, Typography } from "antd";
+import { Button, Card, Input, Select, Space, Tag, Typography, theme } from "antd";
 import {
   CheckCircleOutlined,
   EyeOutlined,
@@ -13,11 +13,13 @@ import { useTranslation } from "react-i18next";
 import { ROLE_COLORS, fmtDate } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { FilterBar } from "../../components/FilterBar";
 
 const { Text } = Typography;
 
 export function UserList() {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -53,19 +55,38 @@ export function UserList() {
         const primary = r.name || handle || `#${r.id}`;
         const secondary = r.name && handle ? handle : null;
         return (
-          <Space direction="vertical" size={0}>
-            <Button
-              type="link"
-              size="small"
-              style={{ padding: 0, height: "auto", textAlign: "start" }}
-              onClick={() => navigate(`/users/show/${r.id}`)}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <span
+              aria-hidden
+              style={{
+                width: 32,
+                height: 32,
+                flex: "none",
+                display: "grid",
+                placeItems: "center",
+                borderRadius: 10,
+                background: `${token.colorPrimary}1f`,
+                color: token.colorPrimary,
+                fontWeight: 700,
+                fontSize: 13,
+              }}
             >
-              {primary}
-            </Button>
-            {secondary && (
-              <Text type="secondary" style={{ fontSize: 12 }}>{secondary}</Text>
-            )}
-          </Space>
+              {String(r.name || r.username || "#").slice(0, 1).toUpperCase()}
+            </span>
+            <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0, height: "auto", textAlign: "start" }}
+                onClick={() => navigate(`/users/show/${r.id}`)}
+              >
+                {primary}
+              </Button>
+              {secondary && (
+                <Text type="secondary" style={{ fontSize: 12 }}>{secondary}</Text>
+              )}
+            </Space>
+          </div>
         );
       },
     },
@@ -112,7 +133,7 @@ export function UserList() {
   return (
     <Card>
       <PageHeader title={t("users.title")} subtitle={t("users.subtitle")} />
-      <Space wrap style={{ marginBottom: 12 }}>
+      <FilterBar>
         <Input
           allowClear
           prefix={<SearchOutlined />}
@@ -122,7 +143,7 @@ export function UserList() {
             setPage(1);
             setSearch(e.target.value);
           }}
-          style={{ width: 240 }}
+          style={{ flex: "1 1 220px", minWidth: 180 }}
         />
         <Select
           allowClear
@@ -132,7 +153,7 @@ export function UserList() {
             setPage(1);
             setRole(v);
           }}
-          style={{ width: 150 }}
+          style={{ flex: "1 1 140px", maxWidth: 220 }}
           options={[
             { value: 0, label: t("users.r_user") },
             { value: 1, label: t("users.r_reseller") },
@@ -149,14 +170,14 @@ export function UserList() {
             setPage(1);
             setBlocked(v);
           }}
-          style={{ width: 170 }}
+          style={{ flex: "1 1 150px", maxWidth: 220 }}
           options={[
             { value: "active", label: t("users.active") },
             { value: "blocked", label: t("users.blocked") },
             { value: "bot", label: t("users.blockedBot") },
           ]}
         />
-      </Space>
+      </FilterBar>
       <ResponsiveTable
         size="small"
         rowKey="id"

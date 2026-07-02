@@ -18,6 +18,7 @@ import { api } from "../../providers/axios";
 import { fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { FilterBar } from "../../components/FilterBar";
 import { useIsMobile } from "../../hooks/useIsMobile";
 
 const { Text } = Typography;
@@ -195,18 +196,7 @@ export function AuditPage() {
           </Button>
         }
       />
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          marginBottom: 16,
-          padding: 10,
-          borderRadius: 12,
-          background: token.colorFillQuaternary,
-          border: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
+      <FilterBar>
         <Input.Search
           allowClear
           placeholder={t("audit.search")}
@@ -240,7 +230,7 @@ export function AuditPage() {
           }}
           allowClear
         />
-      </div>
+      </FilterBar>
       <ResponsiveTable
         rowKey="id"
         loading={loading}

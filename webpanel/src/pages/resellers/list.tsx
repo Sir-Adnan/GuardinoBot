@@ -8,6 +8,7 @@ import {
   Modal,
   Space,
   Tag,
+  theme,
 } from "antd";
 import { EyeOutlined, UserAddOutlined } from "@ant-design/icons";
 import { useGetIdentity, useInvalidate, useList } from "@refinedev/core";
@@ -20,6 +21,7 @@ import { ResponsiveTable } from "../../components/ResponsiveTable";
 
 export function ResellerList() {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { message } = AntdApp.useApp();
   const invalidate = useInvalidate();
@@ -58,7 +60,30 @@ export function ResellerList() {
     {
       title: t("resellers.name"),
       key: "name",
-      render: (_: any, r: any) => r.name || (r.username ? "@" + r.username : "—"),
+      render: (_: any, r: any) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span
+            aria-hidden
+            style={{
+              width: 32,
+              height: 32,
+              flex: "none",
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 10,
+              background: `${token.colorPrimary}1f`,
+              color: token.colorPrimary,
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            {String(r.name || r.username || "#").slice(0, 1).toUpperCase()}
+          </span>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+            {r.name || (r.username ? "@" + r.username : "—")}
+          </span>
+        </div>
+      ),
     },
     {
       title: t("resellers.role"),

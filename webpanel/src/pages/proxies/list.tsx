@@ -27,6 +27,7 @@ import { api } from "../../providers/axios";
 import { ROLE_ADMIN, fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { FilterBar } from "../../components/FilterBar";
 
 const { Text } = Typography;
 
@@ -168,8 +169,16 @@ export function ProxyList() {
 
   return (
     <Card>
-      <PageHeader title={t("proxies.title")} subtitle={t("proxies.subtitle")} />
-      <Space wrap style={{ marginBottom: 12 }}>
+      <PageHeader
+        title={t("proxies.title")}
+        subtitle={t("proxies.subtitle")}
+        extra={
+          <Button icon={<ReloadOutlined />} onClick={refresh}>
+            {t("actions.refresh", "↻")}
+          </Button>
+        }
+      />
+      <FilterBar>
         <Input
           allowClear
           prefix={<SearchOutlined />}
@@ -179,7 +188,7 @@ export function ProxyList() {
             setPage(1);
             setSearch(e.target.value);
           }}
-          style={{ width: 240 }}
+          style={{ flex: "1 1 220px", minWidth: 180 }}
         />
         <Select
           allowClear
@@ -189,10 +198,10 @@ export function ProxyList() {
             setPage(1);
             setStatus(v);
           }}
-          style={{ width: 160 }}
+          style={{ flex: "1 1 150px", maxWidth: 220 }}
           options={STATUSES.map((s) => ({ value: s, label: stLabel(s) }))}
         />
-      </Space>
+      </FilterBar>
       <ResponsiveTable
         size="small"
         rowKey="id"

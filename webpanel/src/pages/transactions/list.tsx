@@ -8,6 +8,7 @@ import { api } from "../../providers/axios";
 import { ROLE_SUPER, fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { FilterBar } from "../../components/FilterBar";
 
 const { Text } = Typography;
 
@@ -170,8 +171,16 @@ export function TransactionList() {
 
   return (
     <Card>
-      <PageHeader title={t("tx.title")} subtitle={t("tx.subtitle")} />
-      <Space wrap style={{ marginBottom: 12 }}>
+      <PageHeader
+        title={t("tx.title")}
+        subtitle={t("tx.subtitle")}
+        extra={
+          <Button icon={<SyncOutlined />} onClick={refresh}>
+            {t("actions.refresh", "↻")}
+          </Button>
+        }
+      />
+      <FilterBar>
         <Input
           allowClear
           prefix={<SearchOutlined />}
@@ -181,7 +190,7 @@ export function TransactionList() {
             setPage(1);
             setSearch(e.target.value);
           }}
-          style={{ width: 280 }}
+          style={{ flex: "1 1 260px", minWidth: 200 }}
         />
         <Select
           allowClear
@@ -191,7 +200,7 @@ export function TransactionList() {
             setPage(1);
             setStatus(v);
           }}
-          style={{ width: 150 }}
+          style={{ flex: "1 1 140px", maxWidth: 210 }}
           options={[
             { value: 1, label: "waiting" },
             { value: 8, label: "confirming" },
@@ -209,7 +218,7 @@ export function TransactionList() {
             setPage(1);
             setType(v);
           }}
-          style={{ width: 170 }}
+          style={{ flex: "1 1 150px", maxWidth: 220 }}
           options={[
             { value: 1, label: "crypto" },
             { value: 2, label: "card_to_card" },
@@ -225,7 +234,7 @@ export function TransactionList() {
             setPage(1);
             setProvider(v);
           }}
-          style={{ width: 170 }}
+          style={{ flex: "1 1 150px", maxWidth: 220 }}
           options={[
             { value: "plisio", label: "Plisio" },
             { value: "nowpayments", label: "NowPayments" },
@@ -233,7 +242,7 @@ export function TransactionList() {
             { value: "swapino", label: "Swapino" },
           ]}
         />
-      </Space>
+      </FilterBar>
       <ResponsiveTable
         size="small"
         rowKey="id"

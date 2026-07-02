@@ -1,4 +1,4 @@
-import { useContext, useState, type ReactNode } from "react";
+import { useContext, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Button,
   Card,
@@ -7,8 +7,8 @@ import {
   Empty,
   Row,
   Segmented,
+  Skeleton,
   Space,
-  Spin,
   Table,
   Tooltip,
   Typography,
@@ -19,9 +19,12 @@ import {
   CloseCircleOutlined,
   CloudUploadOutlined,
   ClusterOutlined,
+  CrownOutlined,
   DollarOutlined,
   DownloadOutlined,
   PauseCircleOutlined,
+  PercentageOutlined,
+  RiseOutlined,
   ShoppingOutlined,
   StopOutlined,
   TeamOutlined,
@@ -51,6 +54,19 @@ const PROXY_STATUS_META: Record<string, { icon: ReactNode; color: string }> = {
   expired: { icon: <CloseCircleOutlined />, color: "#ef4444" },
 };
 
+const RANK = ["🥇", "🥈", "🥉"];
+const rank = (i: number) => (
+  <span style={{ fontVariantNumeric: "tabular-nums" }}>{RANK[i] ?? i + 1}</span>
+);
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <Text strong style={{ display: "block", marginTop: 22, marginBottom: 10, fontSize: 13 }}>
+      {children}
+    </Text>
+  );
+}
+
 export function ReportsPage() {
   const { t } = useTranslation();
   const { token } = theme.useToken();
@@ -64,24 +80,45 @@ export function ReportsPage() {
 
   const { data, isLoading } = useCustom<any>({ url: "/reports/summary", method: "get", config: { query } });
   const d = data?.data;
+  const primary = token.colorPrimary;
+
+  // Accent CSS vars for .gb-grid / .gb-avg / .gb-lift (index.css) — theme aware.
+  const dashVars = {
+    "--gbd-a": primary,
+    "--gbd-a-2": `${primary}99`,
+    "--gbd-a-soft": `${primary}2e`,
+    "--gbd-a-faint": `${primary}14`,
+    "--gbd-a-40": `${primary}66`,
+    "--gbd-grid": token.colorFillSecondary,
+  } as CSSProperties;
+
+  // ---- derived KPIs (no extra API cost) ------------------------------------
+  const avgOrder = d?.orders ? Math.round((d.sales_total ?? 0) / d.orders) : 0;
+  const successRate = d?.total_transactions
+    ? Math.round(((d.total_transactions - (d.failed_payments ?? 0)) / d.total_transactions) * 100)
+    : null;
 
   const cards = [
-    { k: "sales_total", icon: <DollarOutlined />, fmt: "money" },
-    { k: "income_total", icon: <WalletOutlined />, fmt: "money" },
-    { k: "orders", icon: <ShoppingOutlined />, fmt: "num" },
-    { k: "gb_sold", icon: <CloudUploadOutlined />, fmt: "gb" },
-    { k: "new_users", icon: <TeamOutlined />, fmt: "num" },
-    { k: "failed_payments", icon: <CloseCircleOutlined />, fmt: "num" },
+    { k: "sales_total", icon: <DollarOutlined />, v: fmtToman(d?.sales_total) },
+    { k: "income_total", icon: <WalletOutlined />, v: fmtToman(d?.income_total) },
+    { k: "orders", icon: <ShoppingOutlined />, v: fmtNum(d?.orders) },
+    { k: "gb_sold", icon: <CloudUploadOutlined />, v: fmtGb(d?.gb_sold) },
+    { k: "new_users", icon: <TeamOutlined />, v: fmtNum(d?.new_users) },
+    { k: "failed_payments", icon: <CloseCircleOutlined />, v: fmtNum(d?.failed_payments) },
+    { k: "avg_order", icon: <RiseOutlined />, v: fmtToman(avgOrder) },
+    {
+      k: "success_rate",
+      icon: <PercentageOutlined />,
+      v: successRate == null ? "—" : `${fmtNum(successRate)}٪`,
+    },
   ];
-  const fmtVal = (kind: string, v: any) =>
-    kind === "money" ? fmtToman(v) : kind === "gb" ? fmtGb(v) : fmtNum(v);
 
   const allTimeCards = [
-    { k: "all_sales_total", icon: <DollarOutlined />, fmt: "money" },
-    { k: "all_income_total", icon: <WalletOutlined />, fmt: "money" },
-    { k: "all_orders", icon: <ShoppingOutlined />, fmt: "num" },
-    { k: "all_users", icon: <TeamOutlined />, fmt: "num" },
-    { k: "all_gb_sold", icon: <CloudUploadOutlined />, fmt: "gb" },
+    { k: "all_sales_total", icon: <DollarOutlined />, v: fmtToman(d?.all_sales_total) },
+    { k: "all_income_total", icon: <WalletOutlined />, v: fmtToman(d?.all_income_total) },
+    { k: "all_orders", icon: <ShoppingOutlined />, v: fmtNum(d?.all_orders) },
+    { k: "all_users", icon: <TeamOutlined />, v: fmtNum(d?.all_users) },
+    { k: "all_gb_sold", icon: <CloudUploadOutlined />, v: fmtGb(d?.all_gb_sold) },
   ];
 
   const byStatus: Record<string, number> = d?.proxies_by_status ?? {};
@@ -89,13 +126,25 @@ export function ReportsPage() {
 
   const series: any[] = d?.revenue_series ?? [];
   const maxAmount = Math.max(1, ...series.map((p) => p.amount));
+  const seriesSum = series.reduce((s, p) => s + (p.amount || 0), 0);
+  const seriesAvg = series.length ? seriesSum / series.length : 0;
+  const lastIdx = series.length - 1;
+
   const breakdown: any[] = d?.payment_breakdown ?? [];
-  const breakdownTotal = Math.max(1, ...[breakdown.reduce((s, r) => s + r.amount, 0)]);
+  const breakdownTotal = Math.max(1, breakdown.reduce((s, r) => s + r.amount, 0));
+  const ordersByType: any[] = d?.orders_by_type ?? [];
+  const ordersTypeTotal = Math.max(1, ordersByType.reduce((s, r) => s + r.amount, 0));
+  const topServices: any[] = d?.top_services ?? [];
+  const topServicesTotal = Math.max(1, topServices.reduce((s, r) => s + (r.revenue || 0), 0));
+  const topBuyers: any[] = d?.top_buyers ?? [];
 
   const exportCsv = () => {
     if (!d) return;
     const lines: string[] = [`range,${d.start ?? ""},${d.end ?? ""}`];
-    cards.forEach((c) => lines.push(`${c.k},${d[c.k] ?? 0}`));
+    cards.forEach((c) =>
+      lines.push(`${c.k},${c.k === "avg_order" ? avgOrder : c.k === "success_rate" ? successRate ?? "" : d[c.k] ?? 0}`),
+    );
+    lines.push(`total_transactions,${d.total_transactions ?? 0}`);
     lines.push("", "all_time_metric,value");
     allTimeCards.forEach((c) => lines.push(`${c.k},${d[c.k] ?? 0}`));
     lines.push("", "proxy_status,count");
@@ -103,6 +152,14 @@ export function ReportsPage() {
     STATUS_ORDER.forEach((st) => lines.push(`${st},${byStatus[st] ?? 0}`));
     lines.push("", "payment_method,count,amount");
     breakdown.forEach((r) => lines.push(`${r.type_name},${r.count},${r.amount}`));
+    lines.push("", "order_type,count,amount");
+    ordersByType.forEach((r) => lines.push(`${r.type_name},${r.count},${r.amount}`));
+    lines.push("", "service,orders,revenue");
+    topServices.forEach((r) => lines.push(`"${String(r.name).replace(/"/g, '""')}",${r.count},${r.revenue ?? 0}`));
+    lines.push("", "buyer_id,buyer,orders,amount");
+    topBuyers.forEach((r) =>
+      lines.push(`${r.user_id},"${String(r.name || r.username || "").replace(/"/g, '""')}",${r.orders},${r.amount}`),
+    );
     lines.push("", "date,amount");
     series.forEach((p) => lines.push(`${p.date},${p.amount}`));
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -113,38 +170,98 @@ export function ReportsPage() {
     URL.revokeObjectURL(a.href);
   };
 
+  const shareBar = (pct: number) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, height: 6, borderRadius: 3, background: token.colorFillTertiary }}>
+        <div
+          style={{
+            width: `${Math.min(100, pct)}%`,
+            height: "100%",
+            borderRadius: 3,
+            background: `linear-gradient(90deg, ${primary}, ${primary}99)`,
+          }}
+        />
+      </div>
+      <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 12, minWidth: 32, textAlign: "end" }}>
+        {pct}%
+      </span>
+    </div>
+  );
+
   const breakdownCols = [
-    { title: t("reports.method"), dataIndex: "type_name" },
+    { title: t("reports.method"), dataIndex: "type_name", render: (v: string) => t(`audit.pm.${v}`, v) },
     {
       title: t("reports.share"),
       key: "share",
-      width: 160,
-      render: (_: any, r: any) => {
-        const pct = Math.round((r.amount / breakdownTotal) * 100);
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ flex: 1, height: 6, borderRadius: 3, background: token.colorFillTertiary }}>
-              <div style={{ width: `${pct}%`, height: "100%", borderRadius: 3, background: token.colorPrimary }} />
-            </div>
-            <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 12 }}>{pct}%</span>
-          </div>
-        );
-      },
+      width: 170,
+      render: (_: any, r: any) => shareBar(Math.round((r.amount / breakdownTotal) * 100)),
     },
     { title: t("reports.count"), dataIndex: "count", className: "mono", width: 70, render: (v: number) => fmtNum(v) },
     { title: t("reports.amount"), dataIndex: "amount", className: "mono", render: (v: number) => fmtToman(v) },
   ];
-  const topCols = [
-    { title: t("reports.service"), dataIndex: "name" },
-    { title: t("reports.count"), dataIndex: "count", className: "mono", width: 90, render: (v: number) => fmtNum(v) },
+
+  const ordersTypeCols = [
+    { title: t("reports.orders_by_type"), dataIndex: "type_name", render: (v: string) => t(`reports.ot_${v}`, v) },
+    {
+      title: t("reports.share"),
+      key: "share",
+      width: 170,
+      render: (_: any, r: any) => shareBar(Math.round((r.amount / ordersTypeTotal) * 100)),
+    },
+    { title: t("reports.count"), dataIndex: "count", className: "mono", width: 70, render: (v: number) => fmtNum(v) },
+    { title: t("reports.amount"), dataIndex: "amount", className: "mono", render: (v: number) => fmtToman(v) },
+  ];
+
+  const topServiceCols = [
+    { title: "#", key: "rank", width: 52, render: (_: any, __: any, i: number) => rank(i) },
+    { title: t("reports.service"), dataIndex: "name", ellipsis: true },
+    {
+      title: t("reports.share"),
+      key: "share",
+      width: 150,
+      responsive: ["md"] as any,
+      render: (_: any, r: any) => shareBar(Math.round(((r.revenue || 0) / topServicesTotal) * 100)),
+    },
+    { title: t("reports.count"), dataIndex: "count", className: "mono", width: 80, render: (v: number) => fmtNum(v) },
+    { title: t("reports.revenue"), dataIndex: "revenue", className: "mono", width: 130, render: (v: number) => fmtToman(v ?? 0) },
+  ];
+
+  const topBuyerCols = [
+    { title: "#", key: "rank", width: 52, render: (_: any, __: any, i: number) => rank(i) },
+    {
+      title: t("reports.buyer"),
+      key: "buyer",
+      ellipsis: true,
+      render: (_: any, r: any) => (
+        <span>
+          {r.name || r.username || r.user_id}
+          {r.username && (
+            <Text type="secondary" style={{ fontSize: 11, marginInlineStart: 6 }}>
+              @{r.username}
+            </Text>
+          )}
+        </span>
+      ),
+    },
+    { title: t("reports.count"), dataIndex: "orders", className: "mono", width: 70, render: (v: number) => fmtNum(v) },
+    { title: t("reports.amount"), dataIndex: "amount", className: "mono", width: 130, render: (v: number) => fmtToman(v) },
   ];
 
   const axisLabels = series.length
     ? [series[0], series[Math.floor(series.length / 2)], series[series.length - 1]]
     : [];
 
+  const kpiSkeleton = (n: number) =>
+    [...Array(n)].map((_, i) => (
+      <Col xs={12} sm={8} md={8} lg={6} key={i}>
+        <Card style={{ borderRadius: 16 }}>
+          <Skeleton active title={false} paragraph={{ rows: 2 }} />
+        </Card>
+      </Col>
+    ));
+
   return (
-    <div>
+    <div style={dashVars}>
       <PageHeader
         title={t("reports.title")}
         subtitle={d?.start ? `${formatDay(d.start)} – ${formatDay(d.end)}` : t("reports.subtitle")}
@@ -180,45 +297,68 @@ export function ReportsPage() {
       />
 
       {isLoading ? (
-        <div style={{ display: "grid", placeItems: "center", minHeight: 240 }}>
-          <Spin />
-        </div>
+        <>
+          <Row gutter={[16, 16]}>{kpiSkeleton(8)}</Row>
+          <Card style={{ marginTop: 16, borderRadius: 16 }}>
+            <Skeleton active paragraph={{ rows: 5 }} />
+          </Card>
+        </>
       ) : (
         <>
           <Row gutter={[16, 16]}>
             {cards.map((c) => (
-              <Col xs={12} sm={8} md={8} lg={4} key={c.k} flex="1">
-                <StatCard
-                  label={t(`reports.${c.k}`)}
-                  value={fmtVal(c.fmt, d?.[c.k])}
-                  icon={c.icon}
-                />
+              <Col xs={12} sm={8} md={8} lg={6} key={c.k}>
+                <StatCard label={t(`reports.${c.k}`)} value={c.v} icon={c.icon} />
               </Col>
             ))}
           </Row>
 
-          <Card style={{ marginTop: 16 }} title={t("reports.revenueTrend")} styles={{ body: { paddingBottom: 12 } }}>
+          <Card
+            className="gb-lift"
+            style={{ marginTop: 16, borderRadius: 16 }}
+            title={t("reports.revenueTrend")}
+            styles={{ body: { paddingBottom: 12 } }}
+            extra={
+              seriesSum > 0 && (
+                <Text type="secondary" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                  Σ <Text strong style={{ fontSize: 12 }}>{fmtToman(seriesSum)}</Text>
+                </Text>
+              )
+            }
+          >
             {series.length === 0 ? (
-              <Empty />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <>
-                <div className="bars" style={{ height: 180, overflowX: "auto" }}>
-                  {series.map((p, i) => (
-                    <Tooltip key={i} title={`${formatDay(p.date)} — ${fmtToman(p.amount)}`}>
-                      <div className="barcol">
-                        <div
-                          className="chart-bar"
-                          style={{
-                            height: `${Math.round((p.amount / maxAmount) * 100)}%`,
-                            minHeight: p.amount > 0 ? 3 : 0,
-                            background: `linear-gradient(180deg, ${token.colorPrimary}, ${token.colorPrimary}99)`,
-                          }}
-                        />
-                      </div>
-                    </Tooltip>
-                  ))}
+                <div className="gb-grid">
+                  {seriesAvg > 0 && (
+                    <div
+                      className="gb-avg"
+                      style={{ bottom: `${Math.min(96, Math.round((seriesAvg / maxAmount) * 100))}%` }}
+                    />
+                  )}
+                  <div className="bars" style={{ height: 190, gap: series.length > 40 ? 3 : 6 }}>
+                    {series.map((p, i) => (
+                      <Tooltip key={i} title={`${formatDay(p.date)} — ${fmtToman(p.amount)}`}>
+                        <div className="barcol">
+                          <div
+                            className="chart-bar"
+                            style={{
+                              height: `${Math.max(p.amount > 0 ? 4 : 2, Math.round((p.amount / maxAmount) * 100))}%`,
+                              background:
+                                i === lastIdx
+                                  ? `linear-gradient(180deg, ${primary}, ${primary}aa)`
+                                  : `linear-gradient(180deg, ${primary}cc, ${primary}44)`,
+                              boxShadow: i === lastIdx ? `0 0 14px ${primary}55` : undefined,
+                              opacity: p.amount > 0 ? 1 : 0.25,
+                            }}
+                          />
+                        </div>
+                      </Tooltip>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
                   {axisLabels.map((p, i) => (
                     <Text key={i} type="secondary" style={{ fontSize: 11 }}>
                       {formatDay(p.date)}
@@ -229,24 +369,96 @@ export function ReportsPage() {
             )}
           </Card>
 
-          <Text strong style={{ display: "block", marginTop: 22, marginBottom: 10, fontSize: 13 }}>
-            {t("reports.allTime")}
-          </Text>
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24} lg={13}>
+              <Card className="gb-lift" style={{ borderRadius: 16, height: "100%" }} title={t("reports.paymentBreakdown")}>
+                <Table
+                  rowKey="type"
+                  size="small"
+                  pagination={false}
+                  dataSource={breakdown}
+                  columns={breakdownCols}
+                  scroll={{ x: 420 }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={11}>
+              <Card className="gb-lift" style={{ borderRadius: 16, height: "100%" }} title={t("reports.orders_by_type")}>
+                <Table
+                  rowKey="type"
+                  size="small"
+                  pagination={false}
+                  dataSource={ordersByType}
+                  columns={ordersTypeCols}
+                  scroll={{ x: 420 }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24} lg={13}>
+              <Card
+                className="gb-lift"
+                style={{ borderRadius: 16, height: "100%" }}
+                title={
+                  <Space size={8}>
+                    <CrownOutlined style={{ color: primary }} />
+                    {t("reports.topServices")}
+                  </Space>
+                }
+              >
+                <Table
+                  rowKey="id"
+                  size="small"
+                  dataSource={topServices}
+                  columns={topServiceCols}
+                  scroll={{ x: 480 }}
+                  pagination={
+                    topServices.length > 10
+                      ? { pageSize: 10, size: "small", showSizeChanger: false }
+                      : false
+                  }
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={11}>
+              <Card
+                className="gb-lift"
+                style={{ borderRadius: 16, height: "100%" }}
+                title={
+                  <Space size={8}>
+                    <CrownOutlined style={{ color: primary }} />
+                    {t("reports.top_buyers")}
+                  </Space>
+                }
+              >
+                <Table
+                  rowKey="user_id"
+                  size="small"
+                  pagination={false}
+                  dataSource={topBuyers}
+                  columns={topBuyerCols}
+                  scroll={{ x: 420 }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          <SectionTitle>{t("reports.allTime")}</SectionTitle>
           <Row gutter={[16, 16]}>
             {allTimeCards.map((c) => (
               <Col xs={12} sm={8} md={8} lg={4} xl={4} key={c.k} flex="1">
-                <StatCard
-                  label={t(`reports.${c.k}`)}
-                  value={fmtVal(c.fmt, d?.[c.k])}
-                  icon={c.icon}
-                />
+                <StatCard label={t(`reports.${c.k}`)} value={c.v} icon={c.icon} />
               </Col>
             ))}
           </Row>
 
-          <Text strong style={{ display: "block", marginTop: 22, marginBottom: 10, fontSize: 13 }}>
-            {t("reports.subsStats")}
-          </Text>
+          <SectionTitle>{t("reports.subsStats")}</SectionTitle>
           <Row gutter={[16, 16]}>
             <Col xs={12} sm={8} md={8} lg={4} flex="1">
               <StatCard label={t("reports.proxies_total")} value={fmtNum(d?.proxies_total)} icon={<ClusterOutlined />} />
@@ -261,19 +473,6 @@ export function ReportsPage() {
                 />
               </Col>
             ))}
-          </Row>
-
-          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-            <Col xs={24} lg={14}>
-              <Card title={t("reports.paymentBreakdown")}>
-                <Table rowKey="type" size="small" pagination={false} dataSource={breakdown} columns={breakdownCols} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} />
-              </Card>
-            </Col>
-            <Col xs={24} lg={10}>
-              <Card title={t("reports.topServices")}>
-                <Table rowKey="id" size="small" pagination={false} dataSource={d?.top_services ?? []} columns={topCols} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} />
-              </Card>
-            </Col>
           </Row>
         </>
       )}

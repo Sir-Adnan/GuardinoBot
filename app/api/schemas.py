@@ -381,6 +381,15 @@ class TopServiceItem(BaseModel):
     id: int
     name: str
     count: int
+    revenue: int = 0  # Σ non-draft invoice amount in range
+
+
+class TopBuyerItem(BaseModel):
+    user_id: int
+    name: Optional[str] = None
+    username: Optional[str] = None
+    orders: int
+    amount: int  # Σ non-draft invoice amount in range
 
 
 class ReportsOut(BaseModel):
@@ -403,9 +412,13 @@ class ReportsOut(BaseModel):
     proxies_total: int = 0
     proxies_active: int = 0
     proxies_by_status: dict[str, int] = {}
+    total_transactions: int = 0  # all transactions created in range (for success-rate)
     revenue_series: list[ReportPoint]
     payment_breakdown: list[PaymentBreakdownItem]
     top_services: list[TopServiceItem]
+    # orders split by Invoice.Type (purchase / renew_now / renew_reserve), in range
+    orders_by_type: list[PaymentBreakdownItem] = []
+    top_buyers: list[TopBuyerItem] = []
 
 
 # -- resellers ----------------------------------------------------------------
@@ -637,6 +650,31 @@ class GatewaysOut(BaseModel):
 class GatewayUpdateIn(BaseModel):
     key: str
     values: dict[str, Any]  # field name -> new value (empty secret = no change)
+
+
+# card-to-card destination cards (the `cards` table)
+class CardItem(BaseModel):
+    id: int
+    card_number: str
+    card_holder: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+
+
+class CardsOut(BaseModel):
+    items: list[CardItem]
+
+
+class CardCreateIn(BaseModel):
+    card_number: str
+    card_holder: str
+    is_active: bool = True
+
+
+class CardUpdateIn(BaseModel):
+    card_number: Optional[str] = None
+    card_holder: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class PlisioCurrencyOut(BaseModel):
