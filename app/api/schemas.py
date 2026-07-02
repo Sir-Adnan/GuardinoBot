@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
-ROLE_NAMES = {0: "user", 1: "reseller", 2: "admin", 3: "super_user"}
+ROLE_NAMES = {0: "user", 1: "reseller", 2: "support", 3: "admin", 4: "super_user"}
 
 
 # -- auth ---------------------------------------------------------------------
@@ -69,7 +69,7 @@ class UserDetail(UserListItem):
 
 
 class UserUpdateIn(BaseModel):
-    role: Optional[int] = None  # 0..3 — role change requires super-admin
+    role: Optional[int] = None  # 0..4 — role change requires super-admin
     is_postpaid: Optional[bool] = None
     max_post_paid_credit: Optional[int] = None
     daily_test_services: Optional[int] = None

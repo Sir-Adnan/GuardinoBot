@@ -126,6 +126,7 @@
     "blockedBot": "Blocked the bot",
     "r_user": "User",
     "r_reseller": "Reseller",
+    "r_support": "Support",
     "r_admin": "Admin",
     "r_super": "Super-admin",
     "balance": "Balance",
@@ -779,5 +780,5 @@
     "unblock": "Unblock",
     "blockConfirm": "Block this user?"
   },
-  "roles": { "0": "user", "1": "reseller", "2": "admin", "3": "super_user" }
+  "roles": { "0": "user", "1": "reseller", "2": "support", "3": "admin", "4": "super_user" }
 }

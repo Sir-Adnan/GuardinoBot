@@ -1,16 +1,24 @@
+// Mirrors app/models/user.py User.Role (support inserted at 2; admin/super shifted).
 export const ROLE_KEYS: Record<number, string> = {
   0: "user",
   1: "reseller",
-  2: "admin",
-  3: "super_user",
+  2: "support",
+  3: "admin",
+  4: "super_user",
 };
 
 export const ROLE_COLORS: Record<number, string> = {
   0: "default",
   1: "blue",
-  2: "gold",
-  3: "green",
+  2: "purple",
+  3: "gold",
+  4: "green",
 };
+
+// Role thresholds for permission checks — never compare against raw numbers.
+export const ROLE_ADMIN = 3;
+export const ROLE_SUPER = 4;
+export const ROLE_VALUES = [0, 1, 2, 3, 4];
 
 import { formatDate } from "./datetime";
 

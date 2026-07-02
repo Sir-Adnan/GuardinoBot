@@ -111,7 +111,7 @@ from app.models.setting import Card
 from app.models.user import CardToCardPayment, Invoice, Transaction, User
 from app.plugins.payment.jobs import activate_service, revoke_activated_transaction
 from app.utils import helpers, settings, texts
-from app.utils.filters import AdminAccess, IsSuperUser
+from app.utils.filters import IsSuperUser, SupportAccess
 from app.utils.values import admin_edit_texts_format, check_texts
 
 router = Router(name="payment/card_to_card")
@@ -1642,8 +1642,13 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
     _reciept_dest = (
         [_settings.transaction_logs]
         if _settings.transaction_logs
-        else config.SUPER_USERS
+        else list(config.SUPER_USERS)
     )
+    # support admins (receipt reviewers) always get a PV copy too
+    _support_ids = await User.filter(
+        role=User.Role.support, is_blocked=False
+    ).values_list("id", flat=True)
+    _reciept_dest += [i for i in _support_ids if i not in _reciept_dest]
 
     if reciept_messages := await send_reciept(_reciept_dest):
         await message.reply(
@@ -1684,7 +1689,7 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
 
 
 @router.callback_query(
-    CardToCardAdminAccept.Callback.filter(F.action == "reject_cancel"), AdminAccess()
+    CardToCardAdminAccept.Callback.filter(F.action == "reject_cancel"), SupportAccess()
 )
 async def admin_reject_cancel_card_to_card_receipt(
     query: CallbackQuery, user: User, callback_data: CardToCardAdminAccept.Callback
@@ -1698,7 +1703,7 @@ async def admin_reject_cancel_card_to_card_receipt(
 
 
 @router.callback_query(
-    CardToCardAdminAccept.Callback.filter(F.action == "reject"), AdminAccess()
+    CardToCardAdminAccept.Callback.filter(F.action == "reject"), SupportAccess()
 )
 async def admin_reject_card_to_card_receipt(
     query: CallbackQuery, user: User, callback_data: CardToCardAdminAccept.Callback
@@ -1784,7 +1789,7 @@ async def admin_reject_card_to_card_receipt(
 
 
 @router.callback_query(
-    CardToCardAdminAccept.Callback.filter(F.action == "accept"), AdminAccess()
+    CardToCardAdminAccept.Callback.filter(F.action == "accept"), SupportAccess()
 )
 async def admin_accept_card_to_card_receipt(
     query: CallbackQuery,

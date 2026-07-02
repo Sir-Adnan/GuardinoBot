@@ -14,7 +14,7 @@ import { useGetIdentity, useInvalidate, useList } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { ROLE_COLORS, fmtNum, fmtToman } from "../../utils/format";
+import { ROLE_COLORS, ROLE_SUPER, fmtNum, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
 
@@ -24,7 +24,7 @@ export function ResellerList() {
   const { message } = AntdApp.useApp();
   const invalidate = useInvalidate();
   const { data: me } = useGetIdentity<any>();
-  const isSuper = (me?.role ?? 0) >= 3;
+  const isSuper = (me?.role ?? 0) >= ROLE_SUPER;
   const [form] = Form.useForm();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);

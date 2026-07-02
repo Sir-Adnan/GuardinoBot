@@ -19,8 +19,9 @@ const SOURCE_COLORS: Record<string, string> = {
 const ROLE_COLORS: Record<number, string> = {
   0: "default",
   1: "cyan",
-  2: "geekblue",
-  3: "magenta",
+  2: "purple",
+  3: "geekblue",
+  4: "magenta",
 };
 
 export function AuditPage() {

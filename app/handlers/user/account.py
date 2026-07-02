@@ -49,6 +49,7 @@ from . import router
 ACCOUNT_TYPE = {
     "user": "کاربر معمولی",
     "reseller": "فروشنده",
+    "support": "پشتیبان",
     "admin": "ادمین",
     "super_user": "ادمین اصلی",
 }

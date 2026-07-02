@@ -24,7 +24,7 @@ import {
 import { useCustom, useGetIdentity } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { fmtDate, fmtNum } from "../../utils/format";
+import { ROLE_SUPER, fmtDate, fmtNum } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { AlertConfig } from "./AlertConfig";
 
@@ -52,7 +52,7 @@ export function AutomationPage() {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
   const { data: me } = useGetIdentity<any>();
-  const isSuper = (me?.role ?? 0) >= 3;
+  const isSuper = (me?.role ?? 0) >= ROLE_SUPER;
   const { data, isLoading, refetch } = useCustom<any>({
     url: "/automation/broadcast",
     method: "get",

@@ -22,7 +22,7 @@ import dayjs from "dayjs";
 import { useGetIdentity, useInvalidate, useList } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { fmtDate, fmtNum } from "../../utils/format";
+import { ROLE_ADMIN, fmtDate, fmtNum } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
 
@@ -31,7 +31,7 @@ export function DiscountList() {
   const { message } = AntdApp.useApp();
   const invalidate = useInvalidate();
   const { data: me } = useGetIdentity<any>();
-  const isAdmin = (me?.role ?? 0) >= 2;
+  const isAdmin = (me?.role ?? 0) >= ROLE_ADMIN;
   const [form] = Form.useForm();
 
   const [page, setPage] = useState(1);

@@ -28,7 +28,7 @@ import { useGetIdentity } from "@refinedev/core";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { ROLE_COLORS, fmtDate, fmtToman } from "../../utils/format";
+import { ROLE_ADMIN, ROLE_COLORS, ROLE_SUPER, ROLE_VALUES, fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
 
@@ -47,8 +47,8 @@ export function UserShow() {
   const { message } = AntdApp.useApp();
   const { data: me } = useGetIdentity<any>();
   const role = me?.role ?? 0;
-  const isAdmin = role >= 2;
-  const isSuper = role >= 3;
+  const isAdmin = role >= ROLE_ADMIN;
+  const isSuper = role >= ROLE_SUPER;
   const BackIcon = i18n.language === "en" ? ArrowLeftOutlined : ArrowRightOutlined;
 
   const [u, setU] = useState<any | null>(null);
@@ -312,7 +312,7 @@ export function UserShow() {
           {isSuper && (
             <Form.Item name="role" label={t("users.role")}>
               <Select
-                options={[0, 1, 2, 3].map((n) => ({ value: n, label: t(`roles.${n}`) }))}
+                options={ROLE_VALUES.map((n) => ({ value: n, label: t(`roles.${n}`) }))}
               />
             </Form.Item>
           )}

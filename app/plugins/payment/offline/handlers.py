@@ -35,7 +35,7 @@ from app.keyboards.admin.admin import AdminPanel, AdminPanelAction, CancelFormAd
 from app.keyboards.user import payment
 from app.models.user import CryptoPayment, Invoice, Transaction, User
 from app.utils import helpers, settings
-from app.utils.filters import IsSuperUser
+from app.utils.filters import IsSuperUser, SupportAccess
 
 from .offline import SETTINGS_KEY_PREFIX
 
@@ -402,7 +402,7 @@ async def offline_proof(message: Message, user: User, state: FSMContext):
         "پس از تأییدِ ادمین، اعتبار به‌صورتِ خودکار به حساب‌تان اضافه می‌شود."
     )
 
-    # notify super-admins with a stateful approve/reject card
+    # notify super-admins + support admins with a stateful approve/reject card
     kb = OfflineReviewKb(cp_id=cp.id, status=transaction.status)
     info = (
         "🪙 <b>پرداختِ آفلاینِ جدید — بررسی</b>\n\n"
@@ -412,7 +412,12 @@ async def offline_proof(message: Message, user: User, state: FSMContext):
         f"🔗 TXID: <code>{txid}</code>\n"
         f"🧾 فاکتور: <code>{transaction.id}</code>"
     )
-    for uid in config.SUPER_USERS:
+    dests = list(config.SUPER_USERS)
+    support_ids = await User.filter(
+        role=User.Role.support, is_blocked=False
+    ).values_list("id", flat=True)
+    dests += [i for i in support_ids if i not in dests]
+    for uid in dests:
         try:
             if file_id:
                 await message.bot.send_photo(uid, file_id, caption=info, reply_markup=kb.as_markup())
@@ -556,7 +561,7 @@ async def _rerender_card(qmsg: CallbackQuery, cp_id: int, status) -> None:
         pass
 
 
-@router.callback_query(OfflineReviewCb.filter(F.action == "approve"), IsSuperUser())
+@router.callback_query(OfflineReviewCb.filter(F.action == "approve"), SupportAccess())
 async def offline_approve(
     qmsg: CallbackQuery, user: User, callback_data: OfflineReviewCb
 ):
@@ -572,7 +577,7 @@ async def offline_approve(
 
 
 @router.callback_query(
-    OfflineReviewCb.filter(F.action == "reject_cancel"), IsSuperUser()
+    OfflineReviewCb.filter(F.action == "reject_cancel"), SupportAccess()
 )
 async def offline_reject_cancel(
     qmsg: CallbackQuery, user: User, callback_data: OfflineReviewCb
@@ -585,7 +590,7 @@ async def offline_reject_cancel(
     return await qmsg.answer("لغو شد")
 
 
-@router.callback_query(OfflineReviewCb.filter(F.action == "reject"), IsSuperUser())
+@router.callback_query(OfflineReviewCb.filter(F.action == "reject"), SupportAccess())
 async def offline_reject(
     qmsg: CallbackQuery, user: User, callback_data: OfflineReviewCb
 ):

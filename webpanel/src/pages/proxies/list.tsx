@@ -24,7 +24,7 @@ import { useGetIdentity, useInvalidate, useList } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { fmtDate, fmtToman } from "../../utils/format";
+import { ROLE_ADMIN, fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
 
@@ -45,7 +45,7 @@ export function ProxyList() {
   const { message } = AntdApp.useApp();
   const invalidate = useInvalidate();
   const { data: me } = useGetIdentity<any>();
-  const isAdmin = (me?.role ?? 0) >= 2;
+  const isAdmin = (me?.role ?? 0) >= ROLE_ADMIN;
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);

@@ -273,7 +273,7 @@ async def get_user_info_command(
     <code>/unblock {user_to_get.id}</code> <b>رفع مسدودی</b>
     <code>/charge {user_to_get.id}</code> <i>[amount]</i> <b>افزایش موجودی</b>
     <code>/decharge {user_to_get.id}</code> <i>[amount]</i> <b>کاهش موجودی</b>
-    <code>/role {user_to_get.id}</code> <i>[admin|reseller|user]</i> <b>تنظیم سطح کاربری</b>
+    <code>/role {user_to_get.id}</code> <i>[user|reseller|support|admin|super_user]</i> <b>تنظیم سطح کاربری</b>
 """
     markup = ManageUser(user=user_to_get, current_page=current_page).as_markup()
     if isinstance(qmsg, CallbackQuery):
@@ -329,11 +329,11 @@ async def user_role_command(message: Message, user: User):
 
     Args:
         user (int | str): user id or username of the user
-        role (str): role of user, [user|reseller|admin|super_user]
+        role (str): role of user, [user|reseller|support|admin|super_user]
 
     Example:
         <code>/role @username admin</code>
-        <code>/role 123456789 admin</code>
+        <code>/role 123456789 support</code>
     """
     try:
         _, user_id, role = message.text.split()
@@ -349,9 +349,9 @@ async def user_role_command(message: Message, user: User):
     if not user_to_get:
         return await message.answer(f"User {user_id} not found!")
 
-    roles = {"user": 0, "reseller": 1, "admin": 2, "super_user": 3}
+    roles = {r.name: r.value for r in User.Role}
     if role not in roles:
-        return await message.answer("Unknown role! must be one of " + "".join(roles))
+        return await message.answer("Unknown role! must be one of " + " | ".join(roles))
 
     user_to_get.role = roles.get(role)
     await user_to_get.save()

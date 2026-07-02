@@ -23,7 +23,7 @@ import {
 import { useGetIdentity } from "@refinedev/core";
 import { useTranslation } from "react-i18next";
 import { api } from "../../providers/axios";
-import { fmtNum } from "../../utils/format";
+import { ROLE_ADMIN, fmtNum } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
 
@@ -37,7 +37,7 @@ export function ServerList() {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
   const { data: me } = useGetIdentity<any>();
-  const isAdmin = (me?.role ?? 0) >= 2;
+  const isAdmin = (me?.role ?? 0) >= ROLE_ADMIN;
   const [form] = Form.useForm();
   const panelType = Form.useWatch("panel_type", form);
 

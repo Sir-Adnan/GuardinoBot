@@ -107,10 +107,12 @@ class ACLMiddleware(BaseMiddleware):
             update["username"] = user.username
         if user.full_name is not None and user.full_name != db_user.name:
             update["name"] = user.full_name
+        # .env SUPER_USERS are always super admins. Do NOT auto-demote other
+        # super_users: the web panel / /role command can legitimately grant
+        # super_user, and this used to silently revert them to plain users on
+        # their next message to the bot.
         if user.id in config.SUPER_USERS and db_user.role != User.Role.super_user:
             update["role"] = User.Role.super_user
-        elif user.id not in config.SUPER_USERS and db_user.role == User.Role.super_user:
-            update["role"] = User.Role.user
         if update:
             await db_user.update_from_dict(update).save()
             await db_user.refresh_from_db()

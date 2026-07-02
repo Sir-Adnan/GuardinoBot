@@ -49,7 +49,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
-    role: Optional[int] = Query(None, ge=0, le=3),
+    role: Optional[int] = Query(None, ge=0, le=4),
     blocked: Optional[str] = Query(None),  # "blocked" | "bot" | "active"
 ) -> UsersPage:
     q = _scope(viewer)
@@ -146,7 +146,7 @@ async def update_user(
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN, "Only a super-admin can change roles"
             )
-        if dump["role"] not in (0, 1, 2, 3):
+        if dump["role"] not in tuple(int(r) for r in User.Role):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid role")
         u.role = User.Role(dump["role"])
         changed.append("role")

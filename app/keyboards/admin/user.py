@@ -10,6 +10,7 @@ from app.models.user import Transaction, User
 ACCOUNT_TYPE = {
     "user": "کاربر معمولی",
     "reseller": "فروشنده",
+    "support": "پشتیبان",
     "admin": "ادمین",
     "super_user": "ادمین اصلی",
 }

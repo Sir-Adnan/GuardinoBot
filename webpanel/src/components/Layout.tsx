@@ -48,6 +48,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useGetIdentity, useLogout } from "@refinedev/core";
 
+import { ROLE_ADMIN, ROLE_SUPER } from "../utils/format";
 import { ColorModeContext, type Density } from "../contexts/color-mode";
 import { ACCENT_KEYS, accentColor, FONT_KEYS, FONTS, PRESETS } from "../theme";
 
@@ -124,8 +125,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const selectedKey =
     location.pathname === "/" ? "/" : "/" + location.pathname.split("/")[1];
 
-  const isAdmin = (identity?.role ?? 0) >= 2;
-  const isSuper = (identity?.role ?? 0) >= 3;
+  const isAdmin = (identity?.role ?? 0) >= ROLE_ADMIN;
+  const isSuper = (identity?.role ?? 0) >= ROLE_SUPER;
   const menuItems = [
     {
       type: "group" as const,

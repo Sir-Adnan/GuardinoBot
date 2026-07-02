@@ -24,6 +24,14 @@ class AdminAccess(Filter):
         return current_user.get().role >= User.Role.admin
 
 
+class SupportAccess(Filter):
+    """Receipt reviewers (support role) and above — used only on the payment
+    receipt approve/reject callbacks, not on the admin panel."""
+
+    async def __call__(self, message: Message) -> Any:
+        return current_user.get().role >= User.Role.support
+
+
 class ResellerAccess(Filter):
     async def __call__(self, message: Message) -> Any:
         return current_user.get().role >= User.Role.reseller

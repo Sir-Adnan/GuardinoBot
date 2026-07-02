@@ -136,8 +136,9 @@ export function UserList() {
           options={[
             { value: 0, label: t("users.r_user") },
             { value: 1, label: t("users.r_reseller") },
-            { value: 2, label: t("users.r_admin") },
-            { value: 3, label: t("users.r_super") },
+            { value: 2, label: t("users.r_support") },
+            { value: 3, label: t("users.r_admin") },
+            { value: 4, label: t("users.r_super") },
           ]}
         />
         <Select

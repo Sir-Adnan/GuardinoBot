@@ -18,10 +18,14 @@ class User(TimedBase):
         table = "users"
 
     class Role(IntEnum):
+        # Ordered hierarchy — code compares with >=/<. Renumbering existing
+        # values needs a data migration (see migrations/models/53_*: admin
+        # 2→3, super_user 3→4 when `support` was inserted).
         user = 0
         reseller = 1
-        admin = 2
-        super_user = 3
+        support = 2  # receipt reviewer: approves/rejects payment receipts
+        admin = 3
+        super_user = 4
 
     id = fields.BigIntField(pk=True)
     username = fields.CharField(max_length=200, null=True)
