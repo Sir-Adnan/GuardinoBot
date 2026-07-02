@@ -116,7 +116,9 @@ async def nightly_report(force: bool = False) -> None:
 
     # --- per-server breakdown ----------------------------------------------------
     server_rows = (
-        await PurchaseLog.filter(in_day, proxy__isnull=False)
+        # proxy_id (FK column): `proxy__isnull` resolves INTO the Proxy model
+        # and raises FieldError on Tortoise 0.20
+        await PurchaseLog.filter(in_day, proxy_id__isnull=False)
         .annotate(cnt=Count("id"), total=Sum("amount"), volume=Sum("data"))
         .group_by("proxy__server__name", "proxy__server__host")
         .values(

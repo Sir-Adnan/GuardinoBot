@@ -44,13 +44,33 @@ async def _process_reports_actions() -> None:
         elif action == "nightly":
             from app.jobs.nightly_report import nightly_report  # local: no cycle
 
-            asyncio.create_task(nightly_report(force=True))
-            logger.info("nightly report triggered (web run-now)")
+            # awaited (not a bare create_task): a query failure must show up
+            # in the log instead of vanishing with the GC'd task
+            try:
+                await nightly_report(force=True)
+                logger.info("nightly report sent (web run-now)")
+            except Exception:  # noqa: BLE001
+                logger.error("nightly report (web run-now) failed", exc_info=True)
         elif action == "backup":
             from app.jobs.backup_report import run_backup  # local: no cycle
 
-            asyncio.create_task(run_backup())
+            task = asyncio.create_task(run_backup())
+            task.add_done_callback(
+                lambda t: t.cancelled()
+                or not t.exception()
+                or logger.error("backup (web run-now) failed", exc_info=t.exception())
+            )
             logger.info("backup triggered (web run-now)")
+
+
+async def _safe(coro, name: str) -> None:
+    """Isolate one sync step: a persistent failure in one stage (e.g. a
+    blocked outbound HTTP call in a gateway auto-check) must not starve the
+    stages after it on every tick."""
+    try:
+        await coro
+    except Exception as exc:  # noqa: BLE001
+        logger.error("sync_settings step '%s' failed: %s", name, exc)
 
 
 async def sync_settings() -> None:
@@ -75,6 +95,11 @@ async def sync_settings() -> None:
             # background task so a full scan never blocks this 15s poll loop
             asyncio.create_task(proxy_alerts(force=True))
             logger.info("proxy_alerts triggered (web run-now)")
+
+        # interactive web actions first — they must never be starved by the
+        # payment checkers below
+        await _safe(_process_reports_actions(), "reports_actions")
+
         # drain any web-submitted offline-payment reviews (credit runs here so
         # user-notify + service-activation work in the bot process)
         from app.main import bot  # local: avoid import-order issues
@@ -90,12 +115,11 @@ async def sync_settings() -> None:
             process_nowpayments_review_queue,
         )
 
-        await process_offline_review_queue(bot)
-        await process_plisio_review_queue()
-        await process_nowpayments_review_queue()
-        await auto_check_plisio_payments()
-        await auto_check_nowpayments_payments()
-        await _process_reports_actions()
+        await _safe(process_offline_review_queue(bot), "offline_reviews")
+        await _safe(process_plisio_review_queue(), "plisio_reviews")
+        await _safe(process_nowpayments_review_queue(), "nowpayments_reviews")
+        await _safe(auto_check_plisio_payments(), "plisio_auto_check")
+        await _safe(auto_check_nowpayments_payments(), "nowpayments_auto_check")
     except Exception as exc:  # noqa: BLE001
         logger.error("sync_settings failed: %s", exc)
 

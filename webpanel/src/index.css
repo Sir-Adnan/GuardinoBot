@@ -239,6 +239,50 @@ a:hover {
   }
 }
 
+/* ---------- Settings page: setting rows + sticky save bar ----------
+   Colors come from CSS vars set on the page wrapper (antd-token aware). */
+.gb-setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--gbst-border);
+  border-radius: 12px;
+  background: var(--gbst-bg);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.gb-setting-item:hover {
+  border-color: var(--gbst-accent);
+}
+.gb-setting-label {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.gb-savebar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--gbst-border);
+  background: var(--gbst-savebar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  justify-content: flex-end;
+}
+@media (max-width: 575px) {
+  .gb-savebar {
+    bottom: 8px;
+  }
+  .gb-savebar .ant-btn {
+    width: 100%;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;
