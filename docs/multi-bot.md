@@ -79,5 +79,12 @@ DB user prefix:   gbot_<name>
 - A fresh install is expected; legacy auto-migration is intentionally not part of
   this installer.
 - Redis logical DBs are allocated per bot.
+- **Web-panel API routing**: every instance's services join the shared
+  `guardino-bot-net`, where Docker aliases each compose service by its bare name
+  — so `api` resolves round-robin across ALL bots' APIs. The webpanel's nginx
+  therefore proxies to `${API_UPSTREAM}` (envsubst template), and the installer
+  sets it to the instance's unique container `guardino-bot-<name>-api:8000`.
+  Symptoms of a wrong/bare upstream: login codes arriving from another bot,
+  random 401 logouts (JWT signed by another instance).
 - phpMyAdmin is shared and bound to `127.0.0.1:8081`; use an SSH tunnel to reach it.
 - Each bot runs migrations on its own database when its container starts.

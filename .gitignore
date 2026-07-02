@@ -138,3 +138,27 @@ dmypy.json
 
 # docker volumes
 docker-volumes
+
+# Env files — never push real env values; keep only the committed samples
+.env.*
+!.env.example
+
+# Node (webpanel/ has its own .gitignore — this is a repo-wide safety net)
+node_modules/
+
+# Local editor / OS / agent files
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
+.claude/plans/
+
+# TLS material (AIOHTTP_SSL_CERTFILE / AIOHTTP_SSL_KEYFILE may point into the repo)
+*.pem
+*.key
+*.crt
+
+# SQLite dev databases + dumps/backups
+*.sqlite3
+*.sql.gz
+backup_*.sql

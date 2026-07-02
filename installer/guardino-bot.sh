@@ -504,6 +504,11 @@ services:
     mem_limit: 96m
     depends_on: [api]
     networks: [default, ${NET}]
+    environment:
+      # MUST be the instance's unique api container: on the shared network
+      # every instance's api is aliased "api" and the bare name round-robins
+      # across ALL bots' APIs (login codes from the wrong bot, random 401s).
+      API_UPSTREAM: guardino-bot-${n}-api:8000
 
 networks:
   default:
@@ -615,11 +620,21 @@ do_update() {
     install_cli repo
     build_images
     local n
+    # Regenerate each instance's compose too: updates ship compose changes
+    # (e.g. the per-instance API_UPSTREAM that fixes cross-bot API routing) —
+    # without this, existing instances keep the old generated file forever.
     if [[ "$target" == "all" ]]; then
-        while IFS= read -r n; do [[ -n "$n" ]] || continue; info "Updating '${n}' ..."; dci "$n" up -d; done < <(reg_names)
+        while IFS= read -r n; do
+            [[ -n "$n" ]] || continue
+            info "Updating '${n}' ..."
+            write_instance_compose "$n"
+            dci "$n" up -d
+        done < <(reg_names)
     else
         reg_has "$target" || die "No instance '$target'."
-        info "Updating '${target}' ..."; dci "$target" up -d
+        info "Updating '${target}' ..."
+        write_instance_compose "$target"
+        dci "$target" up -d
     fi
     docker image prune -f >/dev/null 2>&1 || true
     info "Update complete (migrations applied on start)."

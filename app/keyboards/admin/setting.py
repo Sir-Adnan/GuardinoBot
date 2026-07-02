@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Literal
+from typing import Literal, Optional
 
 from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -500,7 +500,10 @@ class ReportsSettings(InlineKeyboardBuilder):
 
     class Callback(CallbackData, prefix="rptstg"):
         action: ReportsSettingsActions
-        topic: str = ""
+        # Optional, NOT `str = ""`: aiogram packs an empty segment and unpacks
+        # it back as None — a plain `str` field then fails validation and the
+        # filter silently never matches (dead buttons).
+        topic: Optional[str] = None
         confirmed: bool = False
 
     def __init__(self, _settings: "settings.Settings", *args, **kwargs) -> None:

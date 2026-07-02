@@ -52,7 +52,14 @@ async def _resolve(identifier: str) -> Optional[User]:
         return None
     if ident.isdigit():
         return await User.filter(id=int(ident)).first()
-    return await User.filter(username__iexact=ident).first()
+    # Deterministic pick for stale duplicate usernames (ACL only refreshes a
+    # username when that user talks to the bot): prefer the highest role, then
+    # the most recently active row — request-code and verify must agree.
+    return (
+        await User.filter(username__iexact=ident)
+        .order_by("-role", "-updated_at")
+        .first()
+    )
 
 
 def _eligible(user: Optional[User]) -> bool:

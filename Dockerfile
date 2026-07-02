@@ -9,8 +9,12 @@ COPY ./requirements.txt /app/
 
 WORKDIR /app
 
-# mariadb-client: mysqldump for the in-bot backup job (app/jobs/backup_report.py)
-RUN apk add --no-cache mariadb-client
+# mariadb-client: mysqldump for the in-bot backup job (app/jobs/backup_report.py).
+# Non-fatal on purpose: alpine mirrors are often unreachable from IR servers and
+# a failed apk must not kill the whole update — the backup job detects the
+# missing mysqldump at runtime and reports it in the backup topic instead.
+RUN apk add --no-cache mariadb-client || \
+    echo "WARN: mariadb-client install failed; backup-to-topic disabled"
 
 RUN pip install -r requirements.txt
 

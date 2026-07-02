@@ -1723,6 +1723,8 @@ async def reports_unset_group(
 async def reports_toggle_topic(
     query: CallbackQuery, user: User, callback_data: ReportsSettings.Callback
 ):
+    if not callback_data.topic:
+        return await query.answer()
     _settings = settings.get_settings()
     disabled = list(_settings.reports_disabled_topics or [])
     if callback_data.topic in disabled:
