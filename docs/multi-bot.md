@@ -88,3 +88,16 @@ DB user prefix:   gbot_<name>
   random 401 logouts (JWT signed by another instance).
 - phpMyAdmin is shared and bound to `127.0.0.1:8081`; use an SSH tunnel to reach it.
 - Each bot runs migrations on its own database when its container starts.
+- All containers use `restart: unless-stopped` (except MariaDB/Redis: `always`)
+  so every bot comes back automatically after a server reboot.
+- `guardino-bot update` also regenerates the platform compose and the Caddyfile
+  (new `WEBHOOK_PATHS` entries reach existing servers) and validates the
+  Caddyfile before reloading Caddy.
+- `restore` derives the database, DB user, and domain from the **target**
+  instance name (like `add`) and rewrites `DATABASE_URL`/`DOMAIN` in the
+  restored `.env` — restoring a backup under a new name clones the bot instead
+  of attaching to the original's live database.
+- `remove` (with "keep database") preserves the instance `.env` under the
+  backups dir — it holds the only copy of `SECRET_KEY_STRING`.
+- `stop` keeps containers (log history survives); `remove`/`uninstall` still
+  use `down`.

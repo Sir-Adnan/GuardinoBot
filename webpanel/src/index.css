@@ -120,6 +120,125 @@ a:hover {
   filter: brightness(1.14) saturate(1.1);
 }
 
+/* ---------- Login page: aurora gradient + glass card ----------
+   Colors come from CSS vars set by the component (accent/mode aware). */
+.gb-login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--gb-bg);
+  padding: clamp(12px, 4vw, 32px);
+  padding-top: max(clamp(12px, 4vw, 32px), env(safe-area-inset-top));
+  padding-bottom: max(clamp(12px, 4vw, 32px), env(safe-area-inset-bottom));
+}
+/* subtle dotted grid, faded out towards the edges */
+.gb-login::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--gb-grid) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, #000 30%, transparent 75%);
+  pointer-events: none;
+}
+.gb-login-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: var(--gb-blob-opacity);
+  animation: gb-float 16s ease-in-out infinite alternate;
+  pointer-events: none;
+  will-change: transform;
+}
+@keyframes gb-float {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(42px, -34px, 0) scale(1.18);
+  }
+}
+.gb-login-card {
+  position: relative;
+  width: min(408px, 100%);
+  border-radius: 20px;
+  padding: clamp(22px, 5.5vw, 34px);
+  background: var(--gb-card-bg);
+  border: 1px solid var(--gb-card-border);
+  box-shadow: var(--gb-card-shadow);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  animation: gb-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* gradient hairline running along the card edge */
+.gb-login-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--gb-accent), transparent 38%, transparent 62%, var(--gb-accent-2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.55;
+  pointer-events: none;
+}
+@keyframes gb-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+.gb-login-logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 14px;
+  font-size: 30px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--gb-accent), var(--gb-accent-2));
+  box-shadow: 0 10px 28px var(--gb-accent-glow);
+}
+.gb-login-title {
+  background: linear-gradient(90deg, var(--gb-title-a), var(--gb-title-b));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.gb-login-step {
+  animation: gb-step 0.35s ease;
+}
+@keyframes gb-step {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.gb-login-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--gb-chip-bg);
+  border: 1px solid var(--gb-card-border);
+  font-size: 12.5px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gb-login-blob,
+  .gb-login-card,
+  .gb-login-step {
+    animation: none;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;

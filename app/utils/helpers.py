@@ -302,25 +302,26 @@ async def build_transaction_report(
     if admin is not None:
         if isinstance(admin, User):
             admin_line = (
-                f"\n👤 ادمین: <a href='tg://user?id={admin.id}'>"
+                f"\n👮 ادمین: <a href='tg://user?id={admin.id}'>"
                 f"{admin.name or admin.id}</a>"
             )
         else:
-            admin_line = f"\n👤 ادمین: {admin}"
+            admin_line = f"\n👮 ادمین: {admin}"
     note_line = f"\n📝 توضیح: {note}" if note else ""
+    # gift amount only when present — keeps the report one screen tall
+    gift_line = (
+        f"\n🎁 هدیه: <code>{transaction.amount_free_given:,}</code> تومان"
+        if transaction.amount_free_given
+        else ""
+    )
+    status = TRX_STATUS_FA.get(transaction.status, transaction.status.name)
     return f"""
-💳 <b>گزارش تراکنش</b>
+💳 <b>گزارش تراکنش</b> | {status}
 
-وضعیت: <b>{TRX_STATUS_FA.get(transaction.status, transaction.status.name)}</b>
-روش پرداخت: {method}
-
-💰 مبلغ: <code>{transaction.amount:,}</code> تومان
-🎁 مبلغ هدیه: <code>{transaction.amount_free_given:,}</code> تومان
-🧾 شماره فاکتور: <code>{transaction.id}</code>{admin_line}{note_line}
-
-کاربر: <a href='tg://user?id={transaction.user_id}'>{transaction.user_id}</a>
-اطلاعات کاربر:
-https://t.me/{get_bot_username()}?start=info_{transaction.user_id}
+▫️ روش: {method}
+💰 مبلغ: <code>{transaction.amount:,}</code> تومان{gift_line}
+🧾 فاکتور: <code>{transaction.id}</code>
+👤 کاربر: <code>{transaction.user_id}</code>{admin_line}{note_line}
 """
 
 

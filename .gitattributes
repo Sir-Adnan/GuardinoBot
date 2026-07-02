@@ -1,0 +1,4 @@
+# Shell scripts run on Linux servers — a CRLF checkout on Windows would break
+# them (`\r': command not found`). Force LF everywhere.
+*.sh text eol=lf
+prestart.sh text eol=lf

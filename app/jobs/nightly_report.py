@@ -31,16 +31,25 @@ _TYPE_TITLES = {
 }
 
 
-def _yesterday_range() -> tuple[dt, dt, str]:
-    """(start, end, jalali-date-label) of the previous full Tehran day, as
-    aware datetimes matching the UTC-stored created_at."""
+def _report_range(force: bool) -> tuple[dt, dt, str]:
+    """(start, end, jalali-date-label) as aware datetimes matching the
+    UTC-stored created_at. Scheduled run (00:15) → the previous FULL Tehran
+    day; forced run (web "run now") → TODAY so far, otherwise a manual test
+    right after midnight would show an empty/stale day."""
     now_tehran = dt.now(TEHRAN)
     midnight = TEHRAN.localize(
         dt(now_tehran.year, now_tehran.month, now_tehran.day)
     )
-    start = midnight - td(days=1)
-    date_fa = jdt.fromgregorian(datetime=start).strftime("%Y/%m/%d")
-    return start.astimezone(timezone("UTC")), midnight.astimezone(timezone("UTC")), date_fa
+    if force:
+        start, end = midnight, now_tehran
+        date_fa = (
+            jdt.fromgregorian(datetime=start).strftime("%Y/%m/%d")
+            + f" (تا {now_tehran.strftime('%H:%M')})"
+        )
+    else:
+        start, end = midnight - td(days=1), midnight
+        date_fa = jdt.fromgregorian(datetime=start).strftime("%Y/%m/%d")
+    return start.astimezone(timezone("UTC")), end.astimezone(timezone("UTC")), date_fa
 
 
 async def nightly_report(force: bool = False) -> None:
@@ -52,7 +61,7 @@ async def nightly_report(force: bool = False) -> None:
     if not _settings.nightly_report_enabled and not force:
         return
 
-    start, end, date_fa = _yesterday_range()
+    start, end, date_fa = _report_range(force)
     in_day = Q(created_at__gte=start) & Q(created_at__lt=end)
 
     # --- orders (PurchaseLog) -------------------------------------------------
@@ -70,15 +79,30 @@ async def nightly_report(force: bool = False) -> None:
         await Transaction.filter(
             in_day, status=Transaction.Status.finished
         )
-        .annotate(cnt=Count("id"), total=Sum("amount"))
+        .annotate(cnt=Count("id"), total=Sum("amount"), gift=Sum("amount_free_given"))
         .group_by("type")
-        .values("type", "cnt", "total")
+        .values("type", "cnt", "total", "gift")
     )
     total_received = sum(int(row["total"] or 0) for row in trx_rows)
+    total_gift = sum(int(row["gift"] or 0) for row in trx_rows)
+
+    # --- rejected / failed money (audit: what was turned away, not credited) ----
+    rejected_rows = (
+        await Transaction.filter(
+            in_day,
+            status__in=[Transaction.Status.rejected, Transaction.Status.failed],
+        )
+        .annotate(cnt=Count("id"), total=Sum("amount"))
+        .group_by("type")
+        .values("cnt", "total")
+    )
+    rejected_count = sum(int(row["cnt"] or 0) for row in rejected_rows)
+    rejected_total = sum(int(row["total"] or 0) for row in rejected_rows)
 
     # --- counters ---------------------------------------------------------------
     test_count = await Proxy.filter(in_day, service__is_test_service=True).count()
     new_users = await User.filter(in_day).count()
+    total_users = await User.all().count()
 
     # --- top buyers ---------------------------------------------------------------
     top_rows = (
@@ -100,8 +124,14 @@ async def nightly_report(force: bool = False) -> None:
         )
     )
 
-    lines = [f"🌙 <b>گزارش روزانه ربات</b> — <code>{date_fa}</code>", ""]
+    orders_count = sum(int(row["cnt"] or 0) for row in order_rows)
+    orders_total = sum(int(row["total"] or 0) for row in order_rows)
 
+    lines = [
+        f"🌙 <b>گزارش روزانه ربات</b> — <code>{date_fa}</code>",
+        "",
+        "📦 <b>سفارش‌ها</b>",
+    ]
     for ptype, title in _TYPE_TITLES.items():
         row = orders_by_type.get(ptype.value) or orders_by_type.get(ptype) or {}
         lines.append(
@@ -109,11 +139,10 @@ async def nightly_report(force: bool = False) -> None:
             f"<b>{int(row.get('total') or 0):,}</b> تومان"
         )
     lines += [
-        f"🖥 جمع حجم فروخته‌شده: <b>{helpers.hr_size(total_volume, lang='fa') if total_volume else '۰'}</b>",
-        f"🔑 اکانت تست امروز: <b>{test_count}</b> عدد",
-        f"🎉 کاربران جدید امروز: <b>{new_users}</b> نفر",
+        f"➕ جمع سفارش‌ها: <b>{orders_count}</b> عدد — <b>{orders_total:,}</b> تومان",
+        f"🖥 حجم فروخته‌شده: <b>{helpers.hr_size(total_volume, lang='fa') if total_volume else '۰'}</b>",
         "",
-        "💳 <b>دریافتی امروز به تفکیک روش پرداخت:</b>",
+        "💳 <b>دریافتی به تفکیک روش پرداخت</b>",
     ]
     if trx_rows:
         for row in trx_rows:
@@ -128,11 +157,25 @@ async def nightly_report(force: bool = False) -> None:
                 f"({int(row['cnt'] or 0)} تراکنش)"
             )
         lines.append(f"💰 جمع کل دریافتی: <b>{total_received:,}</b> تومان")
+        if total_gift:
+            lines.append(f"🎁 هدیه اعمال‌شده: <b>{total_gift:,}</b> تومان")
     else:
-        lines.append("— امروز پرداخت تأییدشده‌ای ثبت نشده است.")
+        lines.append("— پرداخت تأییدشده‌ای در این بازه ثبت نشده است.")
+    if rejected_count:
+        lines.append(
+            f"🚫 ردشده/ناموفق: <b>{rejected_count}</b> تراکنش — "
+            f"<b>{rejected_total:,}</b> تومان"
+        )
+
+    lines += [
+        "",
+        "👥 <b>کاربران</b>",
+        f"🎉 جدید: <b>{new_users}</b> نفر · کل: <b>{total_users}</b> نفر",
+        f"🔑 اکانت تست: <b>{test_count}</b> عدد",
+    ]
 
     if top_rows:
-        lines += ["", "🏆 <b>خریداران برتر امروز:</b>"]
+        lines += ["", "🏆 <b>خریداران برتر:</b>"]
         for i, row in enumerate(top_rows, start=1):
             lines.append(
                 f"{i}. <a href='tg://user?id={row['user_id']}'>{row['user_id']}</a>"
@@ -140,7 +183,7 @@ async def nightly_report(force: bool = False) -> None:
             )
 
     if server_rows:
-        lines += ["", "🖥 <b>گزارش سرورها:</b>"]
+        lines += ["", "🖥 <b>سرورها:</b>"]
         for row in server_rows:
             name = row.get("proxy__server__name") or row.get("proxy__server__host") or "-"
             volume = int(row.get("volume") or 0)

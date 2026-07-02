@@ -1619,13 +1619,11 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
         return await message.reply("❌ خطایی رخ داد! لطفا با پشتیبانی تماس بگیرید!")
     text = await _admin_receipt_text(transaction)
 
-    async def send_reciept(
-        chats: list[str | int], thread_id: int | None = None
-    ) -> list[Message]:
+    async def send_reciept(chats: list[str | int]) -> list[Message]:
         reciept_messages = []
         for chat in chats:
             try:
-                msg = await message.forward(chat, message_thread_id=thread_id)
+                msg = await message.forward(chat)
                 reciept_msg = await msg.reply(
                     text=text,
                     reply_markup=_admin_receipt_markup(transaction),
@@ -1633,33 +1631,21 @@ async def get_card_to_card_reciepts(message: Message, user: User, state: FSMCont
                 await _remember_admin_receipt_message(transaction.id, reciept_msg)
                 reciept_messages.append(reciept_msg)
             except (TelegramBadRequest, TelegramForbiddenError):
-                if thread_id is not None:
-                    # topic deleted/closed → legacy chain below
-                    return await send_reciept(
-                        [_settings.transaction_logs]
-                        if _settings.transaction_logs
-                        else config.SUPER_USERS
-                    )
                 if chat == _settings.transaction_logs:
                     return await send_reciept(config.SUPER_USERS)
         return reciept_messages
 
-    # Receipt photos go to the financial topic when the reports group is set,
-    # else to the legacy transaction-logs chat / super-users PV.
-    from app.utils import reports
+    # Receipts (with accept/reject buttons) go ONLY to admins — legacy
+    # transaction-logs chat or super-users PV, never to the reports group.
+    # The group's financial topic gets just the final accepted/rejected
+    # report via transaction_log.
+    _reciept_dest = (
+        [_settings.transaction_logs]
+        if _settings.transaction_logs
+        else config.SUPER_USERS
+    )
 
-    _target = reports.topic_target(reports.ReportTopic.financial)
-    if _target:
-        _reciept_dest, _reciept_thread = [_target[0]], _target[1]
-    else:
-        _reciept_dest = (
-            [_settings.transaction_logs]
-            if _settings.transaction_logs
-            else config.SUPER_USERS
-        )
-        _reciept_thread = None
-
-    if reciept_messages := await send_reciept(_reciept_dest, _reciept_thread):
+    if reciept_messages := await send_reciept(_reciept_dest):
         await message.reply(
             "✅ رسید پرداخت شما ثبت شد! بعد از تأیید مبلغ پرداختی به حساب شما اضافه خواهد شد."
         )

@@ -126,6 +126,27 @@ dns_check() { # <domain>
     fi
 }
 
+# getMe preflight — a bad token otherwise only surfaces as a silent crash-loop
+# after "Bot is up". Unreachable Telegram is non-fatal (verify can't run).
+check_bot_token() { # token
+    local body code
+    body="$(mktemp)"
+    code="$(curl -sS --ipv4 --max-time 15 -o "$body" -w '%{http_code}' \
+        "https://api.telegram.org/bot${1}/getMe" 2>/dev/null)" || {
+        rm -f "$body"
+        warn "Could not reach Telegram to verify the token — continuing."
+        return 0
+    }
+    if [[ "$code" == 200 ]] && grep -q '"ok"[[:space:]]*:[[:space:]]*true' "$body" 2>/dev/null; then
+        local un; un="$(sed -nE 's/.*"username"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$body")"
+        info "Token OK${un:+ (@${un})}."
+        rm -f "$body"
+        return 0
+    fi
+    rm -f "$body"
+    die "Telegram rejected this token (HTTP ${code:-?}) — double-check it with @BotFather."
+}
+
 # ----------------------------------------------------------------------------- env file helpers (KEY = "value")
 env_get() { # <file> <key>
     [[ -f "$1" ]] || return 0
@@ -169,7 +190,13 @@ reg_add()   { # name domain db user redisdb
     reg_del "$1"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$(date +%Y-%m-%dT%H:%M:%S)" >> "$REGISTRY"
 }
-instance_count() { [[ -f "$REGISTRY" ]] && grep -c . "$REGISTRY" 2>/dev/null || echo 0; }
+# NB: `grep -c` prints "0" AND exits 1 on an empty registry — a bare
+# `|| echo 0` would emit a second line and garble `-gt` comparisons.
+instance_count() {
+    local n=""
+    [[ -f "$REGISTRY" ]] && n="$(grep -c . "$REGISTRY" 2>/dev/null || true)"
+    echo "${n:-0}"
+}
 
 print_instance_choices() { # include_all[yes|no] stream[out|err]
     local include_all="${1:-no}" stream="${2:-out}" i=1 n domain redis
@@ -334,7 +361,8 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: ${PLATFORM_PROJECT}-caddy
-    restart: on-failure
+    # unless-stopped: on-failure does NOT bring containers back after a reboot
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
@@ -348,7 +376,7 @@ services:
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: ${PLATFORM_PROJECT}-phpmyadmin
-    restart: on-failure
+    restart: unless-stopped
     environment:
       PMA_HOST: mariadb
       PMA_PORT: 3306
@@ -393,11 +421,24 @@ CADDY
     info "Assembled Caddyfile ($(reg_names | grep -c . || true) site[s])."
 }
 
+# Always returns 0 (callers like do_add must finish their remaining steps),
+# but reports the real outcome — a failed reload used to print "reloaded".
 caddy_reload() {
     docker ps --format '{{.Names}}' | grep -qx "${PLATFORM_PROJECT}-caddy" || return 0
-    docker exec "${PLATFORM_PROJECT}-caddy" caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
-        || dcp restart caddy >/dev/null 2>&1 || true
-    info "Caddy reloaded."
+    # validate BEFORE reload: a bad Caddyfile must never replace the running
+    # config (that would take every bot's panel + webhooks down at once)
+    if ! docker exec "${PLATFORM_PROJECT}-caddy" caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+        err "Caddyfile is INVALID — Caddy keeps serving the previous config. Inspect: ${CADDY_DIR}/Caddyfile"
+        return 0
+    fi
+    if docker exec "${PLATFORM_PROJECT}-caddy" caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+        info "Caddy reloaded."
+    elif dcp restart caddy >/dev/null 2>&1; then
+        info "Caddy restarted."
+    else
+        err "Caddy reload AND restart failed — panels/webhooks may be down. Check: docker logs ${PLATFORM_PROJECT}-caddy"
+    fi
+    return 0
 }
 
 clone_or_update_src() {
@@ -436,6 +477,17 @@ verify_platform() {
     warn "Find what owns the ports:  ss -ltnp '( sport = :80 or sport = :443 )'"
 }
 
+# best-effort: warn if the bot container died right after start (bad token /
+# bad .env are the common causes) instead of reporting an unconditional "up"
+verify_instance() { # name
+    local n="$1" st
+    sleep 4
+    st="$(docker inspect -f '{{.State.Status}}' "guardino-bot-${n}-bot" 2>/dev/null || true)"
+    [[ "$st" == "running" ]] && return 0
+    warn "Bot container is '${st:-missing}' — it may be crash-looping."
+    warn "Inspect with:  ${CYAN}guardino-bot logs ${n} bot${NC}"
+}
+
 platform_up() {
     need_root; install_docker
     ensure_net
@@ -469,6 +521,9 @@ prompt_base_domain() {
     local ans; read -rp "Base domain [${cur:-none}]: " ans || true
     [[ -n "$ans" ]] && env_set "$PLATFORM_ENV" BASE_DOMAIN "$(echo "$ans" | tr -d ' ' | sed -E 's#^https?://##; s#/.*$##')"
     BASE_DOMAIN="$(env_get "$PLATFORM_ENV" BASE_DOMAIN)"
+    if [[ -n "$ans" && -n "$cur" && "$BASE_DOMAIN" != "$cur" && "$(instance_count)" -gt 0 ]]; then
+        warn "Existing bots keep their old <name>.${cur} domains — the new base applies only to bots added from now on."
+    fi
     [[ -n "$BASE_DOMAIN" ]] && info "Base domain: ${BASE_DOMAIN}" || warn "No base domain set yet."
 }
 
@@ -483,7 +538,8 @@ services:
   bot:
     image: ${BOT_IMAGE}
     container_name: guardino-bot-${n}-bot
-    restart: on-failure
+    # unless-stopped: on-failure does NOT bring containers back after a reboot
+    restart: unless-stopped
     env_file: [.env]
     mem_limit: 512m
     networks: [default, ${NET}]
@@ -491,7 +547,7 @@ services:
   api:
     image: ${BOT_IMAGE}
     container_name: guardino-bot-${n}-api
-    restart: on-failure
+    restart: unless-stopped
     command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
     env_file: [.env]
     mem_limit: 384m
@@ -500,7 +556,7 @@ services:
   webpanel:
     image: ${WEB_IMAGE}
     container_name: guardino-bot-${n}-webpanel
-    restart: on-failure
+    restart: unless-stopped
     mem_limit: 96m
     depends_on: [api]
     networks: [default, ${NET}]
@@ -565,6 +621,9 @@ prompt_superusers() {
     while true; do
         read -rp "  user id: " line || true
         [[ -z "$line" ]] && break
+        # config.py silently drops non-numeric entries → bot would start with
+        # NO admin at all; catch @usernames here (stderr: stdout is captured)
+        [[ "$line" =~ ^[0-9]+$ ]] || { echo "${YELLOW}[!]${NC} Numeric Telegram ID expected (not a @username) — ignored." >&2; continue; }
         out+="${line}"$'\n'
     done
     printf '%s' "$out"
@@ -590,6 +649,13 @@ do_add() {
 
     local token; read -rp "${CYAN}Telegram bot token for '${name}': ${NC}" token
     [[ -n "$token" ]] || die "BOT_TOKEN is required."
+    local other
+    while IFS= read -r other; do
+        if [[ -n "$other" && "$(env_get "$(inst_env "$other")" BOT_TOKEN)" == "$token" ]]; then
+            die "This token is already used by instance '${other}' — two bots polling one token break both."
+        fi
+    done < <(reg_names)
+    check_bot_token "$token"
     local su; su="$(prompt_superusers)"; [[ -n "$su" ]] || warn "No super-admin entered; add one later in the .env."
 
     local sani db user pass rdb
@@ -604,6 +670,7 @@ do_add() {
 
     info "Starting bot '${name}' ..."
     dci "$name" up -d
+    verify_instance "$name"
     verify_platform   # warn if Caddy isn't serving (e.g. legacy stack holds 80/443)
     hr
     info "Bot '${name}' is up."
@@ -619,6 +686,13 @@ do_update() {
     clone_or_update_src
     install_cli repo
     build_images
+    # Ship PLATFORM-level changes too: the compose (restart policies, images)
+    # and the Caddyfile — a WEBHOOK_PATHS entry added by an update would
+    # otherwise never reach existing servers (silently dead IPN for the new
+    # gateway, since the on-disk Caddyfile predates it).
+    write_platform_compose
+    dcp up -d
+    assemble_caddyfile; caddy_reload
     local n
     # Regenerate each instance's compose too: updates ship compose changes
     # (e.g. the per-instance API_UPSTREAM that fixes cross-bot API routing) —
@@ -717,7 +791,8 @@ run_instance_action() { # restart|stop|start target
     fi
     case "$action" in
         restart) dci "$target" restart; info "Restarted '$target'." ;;
-        stop)    dci "$target" down;    info "Stopped '$target'." ;;
+        # stop (not down): keep the containers so `docker logs` history survives
+        stop)    dci "$target" stop;    info "Stopped '$target'." ;;
         start)   dci "$target" up -d;   info "Started '$target'." ;;
         *)       die "Unknown action: $action" ;;
     esac
@@ -756,8 +831,11 @@ backup_one() { # name -> path
     reg_has "$n" || { warn "No instance '$n'."; return 1; }
     db="$(reg_field "$n" 3)"
     [[ -n "$db" ]] || { warn "No database registered for '${n}'."; return 1; }
-    ts="$(date +%Y%m%d-%H%M%S)"; tmp="$(mktemp -d)"
+    ts="$(date +%Y%m%d-%H%M%S)"
     mkdir -p "${BACKUP_ROOT}/${n}"
+    # not /tmp: it's RAM-backed (tmpfs) on newer distros, and a large DB dump
+    # would eat the server's memory
+    tmp="$(mktemp -d "${BACKUP_ROOT}/.tmp.XXXXXX")"
     info "Backing up '${n}' (db ${db}) ..."
     if ! dump_db "$db" > "${tmp}/database.sql" 2>/dev/null; then
         warn "  DB dump failed for '${n}' (backup was not created)."
@@ -787,7 +865,7 @@ do_backup() {
         cp -f "$PLATFORM_ENV" "${BACKUP_ROOT}/platform-env-$(date +%Y%m%d-%H%M%S).bak" 2>/dev/null || true
         info "All instances backed up under ${BACKUP_ROOT}."
     else
-        n="$(pick_instance "$target")"; backup_one "$n"
+        local n; n="$(pick_instance "$target")"; backup_one "$n"
     fi
 }
 
@@ -837,7 +915,7 @@ tg_send_file() { # token chat file caption
     for p in "${parts[@]}"; do
         _tg_send_doc "$token" "$chat" "$p" "${caption}
 📦 Part: ${i}/${n}
-🔧 Restore: cat *.part_* > backup.tar.gz" \
+🔧 Restore: cat *.part_* > $(basename "$file")" \
             || failed=1
         i=$((i + 1))
     done
@@ -925,7 +1003,7 @@ backup_and_send() {
             fi
         done < <(reg_names)
         [[ ${#rels[@]} -gt 0 ]] || { warn "No bots were backed up."; return 1; }
-        combo="/tmp/guardino-bot-all-${ts}.tar.gz"
+        combo="${BACKUP_ROOT}/.tmp-all-${ts}.tar.gz"
         if ! tar -czf "$combo" -C "$BACKUP_ROOT" "${rels[@]}" 2>/dev/null; then
             rm -f "$combo"
             err "Combined backup archive creation failed."
@@ -964,7 +1042,13 @@ backup_and_send() {
     info "Backup → Telegram done (${sent} sent)."
 }
 
-valid_cron_expr() { [[ "$(awk '{print NF}' <<<"$1")" -eq 5 && "$1" != *$'\n'* ]]; }
+valid_cron_expr() {
+    [[ "$1" != *$'\n'* ]] || return 1
+    [[ "$(awk '{print NF}' <<<"$1")" -eq 5 ]] || return 1
+    # numbers/steps/ranges/lists only — one malformed line makes cron silently
+    # ignore the WHOLE cron.d file, so catch typos before installing it
+    [[ "$1" =~ ^[0-9*/,[:space:]-]+$ ]]
+}
 
 ensure_cron_service() {
     if ! command -v cron >/dev/null 2>&1 && ! command -v crond >/dev/null 2>&1; then
@@ -1060,6 +1144,11 @@ do_backup_telegram() {
                esac
                [[ -n "$cron" ]] && { env_set "$BACKUP_CONF" BACKUP_SCHEDULE "$cron"; install_backup_cron "$cron"; } ;;
             4) read -rsp "Encryption passphrase (empty = disable): " v; echo
+               # env_get cuts the value at the first '"' — such a passphrase
+               # would encrypt with a TRUNCATED key the user can never retype
+               case "$v" in *'"'*|*'\'*)
+                   warn "Double quotes and backslashes are not supported in the passphrase — not saved."; continue ;;
+               esac
                env_set "$BACKUP_CONF" BACKUP_ENC_PASS "$v"
                [[ -n "$v" ]] && info "AES-256 on. Restore: openssl enc -d -aes-256-cbc -pbkdf2 -in <f>.enc -out <f> -pass pass:<phrase>" || info "Encryption off." ;;
             5) backup_and_send ;;
@@ -1077,20 +1166,32 @@ do_restore() { # name file
     [[ -n "$file" ]] || { ls -1t "${BACKUP_ROOT}/${name}"/*.tar.gz 2>/dev/null | head; read -rp "Backup file path: " file; }
     [[ -f "$file" ]] || die "Backup file not found: $file"
 
-    local tmp; tmp="$(mktemp -d)"; tar -xzf "$file" -C "$tmp" || die "Cannot extract $file"
-    [[ -f "${tmp}/.env" ]] || die "Backup missing .env"
-    local url du dp db rdb
-    url="$(env_get "${tmp}/.env" DATABASE_URL)"
-    du="$(sed -E 's#^mysql://([^:]+):.*#\1#'      <<<"$url")"
-    dp="$(sed -E 's#^mysql://[^:]+:([^@]+)@.*#\1#' <<<"$url")"
-    db="$(sed -E 's#.*/([^/?]+)(\?.*)?$#\1#'       <<<"$url")"
-    rdb="$(env_get "${tmp}/.env" REDIS_DB)"
+    mkdir -p "$BACKUP_ROOT"
+    local tmp; tmp="$(mktemp -d "${BACKUP_ROOT}/.tmp.XXXXXX")"
+    tar -xzf "$file" -C "$tmp" || die "Cannot extract $file"
+    [[ -f "${tmp}/.env" ]] || die "Backup missing .env (a 'combined' archive holds one tar.gz per bot — extract it and restore each inner file)."
+    local rdb; rdb="$(env_get "${tmp}/.env" REDIS_DB)"
     # never share a Redis logical DB with a different live instance
     if [[ -z "$rdb" ]] || awk -F'\t' -v n="$name" -v r="$rdb" '$1!=n && $5==r{f=1} END{exit !f}' "$REGISTRY"; then
         rdb="$(alloc_redis_db)"
     fi
+    # DB/user/domain derive from the TARGET name (same as `add`), never from
+    # the backup's .env: restoring under a new name while the original bot is
+    # alive must not attach both to one live database or emit a duplicate
+    # Caddy site block (duplicate addresses fail validation → panels down).
+    local sani db du dp domain
+    sani="$(sanitize "$name")"; db="guardino_bot_${sani}"; du="gbot_${sani:0:23}"; dp="$(rand 24)"
+    BASE_DOMAIN="$(env_get "$PLATFORM_ENV" BASE_DOMAIN)"
+    if [[ -n "$BASE_DOMAIN" ]]; then
+        domain="${name}.${BASE_DOMAIN}"
+    else
+        domain="$(env_get "${tmp}/.env" DOMAIN)"; [[ -n "$domain" ]] || domain="$name"
+        if awk -F'\t' -v n="$name" -v d="$domain" '$1!=n && $2==d{f=1} END{exit !f}' "$REGISTRY" 2>/dev/null; then
+            die "Domain '${domain}' already belongs to another instance — set a base domain or restore under the original name."
+        fi
+    fi
 
-    warn "Restoring '${name}' into DB '${db}' (Redis DB ${rdb})."
+    warn "Restoring '${name}' into DB '${db}' (Redis DB ${rdb}, domain ${domain})."
     read -rp "Continue? (yes/no): " a; [[ "$a" == "yes" ]] || { info "Cancelled."; rm -rf "$tmp"; return; }
 
     info "Creating DB + user ..."; create_db "$db" "$du" "$dp"
@@ -1100,12 +1201,17 @@ do_restore() { # name file
     fi
     mkdir -p "$(inst_dir "$name")"
     cp -f "${tmp}/.env" "$(inst_env "$name")"
+    chmod 600 "$(inst_env "$name")"
     env_set "$(inst_env "$name")" REDIS_DB "$rdb"
+    env_set "$(inst_env "$name")" DATABASE_URL "mysql://${du}:${dp}@mariadb:3306/${db}"
+    env_set "$(inst_env "$name")" DOMAIN "$domain"
+    env_set "$(inst_env "$name")" WEBHOOK_BASE_URL "https://${domain}"
+    env_set "$(inst_env "$name")" PUBLIC_BASE_URL "https://${domain}"
     write_instance_compose "$name"
-    local domain; domain="$(env_get "$(inst_env "$name")" DOMAIN)"; [[ -n "$domain" ]] || domain="$name"
     reg_add "$name" "$domain" "$db" "$du" "$rdb"
     assemble_caddyfile; caddy_reload
     dci "$name" up -d
+    verify_instance "$name"
     rm -rf "$tmp"
     info "Restored '${name}'. Panel: ${CYAN}https://${domain}/${NC}"
 }
@@ -1121,7 +1227,11 @@ do_remove() {
     if [[ "$b" == "yes" ]]; then
         drop_db "$db" "$user"; rm -rf "${BACKUP_ROOT}/${n}"; info "Database + backups deleted."
     else
-        info "Database kept (${db})."
+        # the .env being deleted below holds the only copy of SECRET_KEY_STRING —
+        # without it the PasswordField columns in the kept DB are unrecoverable
+        mkdir -p "${BACKUP_ROOT}/${n}"
+        cp -f "$(inst_env "$n")" "${BACKUP_ROOT}/${n}/env-removed-$(date +%Y%m%d-%H%M%S).bak" 2>/dev/null || true
+        info "Database kept (${db}) — .env preserved in ${BACKUP_ROOT}/${n}/."
     fi
     rm -rf "$(inst_dir "$n")"
     reg_del "$n"
@@ -1137,12 +1247,15 @@ do_uninstall() {
     while IFS= read -r n; do [[ -n "$n" ]] || continue; dci "$n" down || true; done < <(reg_names)
     [[ -f "$PLATFORM_COMPOSE" ]] && dcp down || true
     read -rp "${RED}Also delete all data (${DATA_DIR}) + configs (${ROOT_DIR})? Irreversible (yes/no): ${NC}" b
+    # either way the cron must go: it would keep invoking the removed CLI forever
+    rm -f "$BACKUP_CRON"
     if [[ "$b" == "yes" ]]; then
         docker network rm "$NET" >/dev/null 2>&1 || true
         rm -rf "$DATA_DIR" "$ROOT_DIR" "$BIN_PATH"
+        rm -f "$BACKUP_LOG"
         info "Everything removed."
     else
-        info "Containers stopped; data kept in ${DATA_DIR}."
+        info "Containers stopped; data kept in ${DATA_DIR}. Scheduled backup cron removed."
     fi
 }
 
@@ -1234,6 +1347,10 @@ do_install() {
 
 # ----------------------------------------------------------------------------- menu
 menu() {
+    # subshell actions reset this handler to the default, so ^C kills only the
+    # foreground action (e.g. leaving `logs -f`) and the menu survives;
+    # ^C at the "Choice:" prompt still exits via `|| exit 0`.
+    trap ':' INT
     while true; do
         title "🛡 ${APP_NAME} Manager"
         printf "  Instances: %s   Root: %s\n" "$(instance_count)" "$ROOT_DIR"
