@@ -10,14 +10,23 @@ must be single-instance.
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
 from redis.asyncio import Redis
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 import config
 
+# Auto-reconnect through Redis restarts (same rationale as app/main.py) — a
+# platform Redis blip otherwise 500s /auth/request-code with ConnectionError.
 redis = Redis(
     host=config.REDIS_HOST,
     port=config.REDIS_PORT,
     db=config.REDIS_DB,
     decode_responses=True,
+    retry=Retry(ExponentialBackoff(cap=3), 5),
+    retry_on_error=[RedisConnectionError, RedisTimeoutError],
+    health_check_interval=30,
 )
 
 # Send-only bot (no polling) used to deliver one-time login codes. It MUST use

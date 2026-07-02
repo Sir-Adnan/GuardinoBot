@@ -13,6 +13,15 @@ from app.utils import helpers
 
 
 async def activate_reserve(proxy_id: int) -> None:
+    # One compact log line instead of a scheduler traceback every 30s — an
+    # unreachable panel host or dirty data must not flood the logs forever.
+    try:
+        await _activate_reserve(proxy_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("activate_reserve %s failed: %s", proxy_id, exc)
+
+
+async def _activate_reserve(proxy_id: int) -> None:
     proxy = await Proxy.filter(id=proxy_id).prefetch_related("reserve").first()
     if (not proxy) or (not proxy.reserve):
         return
@@ -20,6 +29,23 @@ async def activate_reserve(proxy_id: int) -> None:
 
     await proxy.reserve.fetch_related("service")
     service = proxy.reserve.service
+    if service is None:
+        # dangling reserve (its service was deleted, e.g. restored old DB):
+        # it can never activate — park it (activate_at=None stops the 30s
+        # re-queue loop, the row itself is kept) and tell the admins.
+        await Reserve.filter(proxy_id=proxy.id).update(activate_at=None)
+        logger.error(
+            f"Activating reserve: {proxy.id}:{proxy.username}: service is gone; parked"
+        )
+        from app.utils import reports
+
+        reports.report(
+            reports.ReportTopic.misc,
+            f"⚠️ رزرو پشتیبان پروکسی <code>{proxy.username}</code> قابل فعال‌سازی "
+            "نیست (سرویس آن حذف شده است) و متوقف شد. لطفا بررسی کنید.",
+            legacy_super_users=True,
+        )
+        return
     async with in_transaction():
         panel = get_panel(service.server_id)
         try:
@@ -34,6 +60,13 @@ async def activate_reserve(proxy_id: int) -> None:
                 return
             logger.error(
                 f"Activating reserve: {proxy.id}:{proxy.username}: {exc.status_code} returned from server"
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 - e.g. DNS/connect errors
+            # transient network / dead panel host: keep retrying on the next
+            # cycle, but with a one-line log instead of a traceback storm
+            logger.error(
+                f"Activating reserve: {proxy.id}:{proxy.username}: panel unreachable: {exc}"
             )
             return
 

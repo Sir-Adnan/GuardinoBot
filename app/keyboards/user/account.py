@@ -63,7 +63,9 @@ class UserPanel(InlineKeyboardBuilder):
             )
         )
 
-        if user.role > User.Role.reseller:
+        # >=: resellers (and support+) get the sub-user management / account
+        # settings entries; the matching handlers are gated by ResellerAccess
+        if user.role >= User.Role.reseller:
             self.add(
                 premium_button(
                     text="⚙️ تنظیمات حساب",
@@ -71,7 +73,9 @@ class UserPanel(InlineKeyboardBuilder):
                     callback_data=self.Callback(action=UserPanelAction.settings),
                 )
             )
-        if user.role > User.Role.reseller:
+        # >=: resellers (and support+) get the sub-user management / account
+        # settings entries; the matching handlers are gated by ResellerAccess
+        if user.role >= User.Role.reseller:
             self.add(
                 premium_button(
                     text="👥 مدیریت کاربران",

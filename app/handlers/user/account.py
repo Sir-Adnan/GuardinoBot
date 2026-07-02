@@ -42,7 +42,7 @@ from app.models.user import (
     UserSetting,
 )
 from app.utils import settings, texts
-from app.utils.filters import AdminAccess, IsJoinedToChannel, PhoneNumberVerified
+from app.utils.filters import IsJoinedToChannel, PhoneNumberVerified, ResellerAccess
 
 from . import router
 
@@ -361,7 +361,7 @@ async def referral(qmsg: CallbackQuery | Message, user: User):
 
 @router.callback_query(
     ManageUsers.Callback.filter(F.action == ManageUsersAction.all),
-    AdminAccess(),
+    ResellerAccess(),
 )
 async def manage_users(
     query: CallbackQuery, user: User, callback_data: ManageUsers.Callback
@@ -412,9 +412,9 @@ class ManageUserForm(StatesGroup):
 
 @router.callback_query(
     ManageUsers.Callback.filter(F.action == ManageUsersAction.show_user),
-    AdminAccess(),
+    ResellerAccess(),
 )
-@router.message(F.text == MainMenu.cancel, StateFilter(ManageUserForm), AdminAccess())
+@router.message(F.text == MainMenu.cancel, StateFilter(ManageUserForm), ResellerAccess())
 async def manage_user(
     qmsg: CallbackQuery | Message,
     user: User,
@@ -489,7 +489,7 @@ async def manage_user(
 
 @router.callback_query(
     ManageUser.Callback.filter(),
-    AdminAccess(),
+    ResellerAccess(),
 )
 async def manage_users_action(
     query: CallbackQuery,
@@ -575,7 +575,7 @@ async def manage_users_action(
 
 @router.message(
     ManageUserForm.amount,
-    AdminAccess(),
+    ResellerAccess(),
     ~CommandStart(),
     ~Command("menu"),
 )
@@ -612,7 +612,7 @@ async def manage_users_charge_amount(message: Message, user: User, state: FSMCon
 
 @router.callback_query(
     ChargeByParent.Callback.filter(),
-    AdminAccess(),
+    ResellerAccess(),
 )
 async def charge_by_parent(
     query: CallbackQuery, user: User, callback_data: ChargeByParent.Callback
@@ -665,7 +665,7 @@ async def charge_by_parent(
 
 @router.message(
     ManageUserForm.discount_percent,
-    AdminAccess(),
+    ResellerAccess(),
     ~CommandStart(),
     ~Command("menu"),
 )
@@ -706,7 +706,7 @@ async def manage_users_discount_percent(
 
 @router.message(
     ManageUserForm.daily_test_services,
-    AdminAccess(),
+    ResellerAccess(),
     ~CommandStart(),
     ~Command("menu"),
 )
@@ -745,7 +745,7 @@ async def manage_users_daily_test_services(
 
 @router.message(
     ManageUserForm.proxy_prefix,
-    AdminAccess(),
+    ResellerAccess(),
     ~CommandStart(),
     ~Command("menu"),
 )
@@ -790,12 +790,12 @@ class SetUsernamePrefixForm(StatesGroup):
 @router.message(
     F.text == MainMenu.cancel,
     SetUsernamePrefixForm.username_prefix,
-    AdminAccess(),
+    ResellerAccess(),
     ~CommandStart(),
     ~Command("menu"),
 )
 @router.callback_query(
-    UserPanel.Callback.filter(F.action == UserPanelAction.settings), AdminAccess()
+    UserPanel.Callback.filter(F.action == UserPanelAction.settings), ResellerAccess()
 )
 async def settings_(
     qmsg: CallbackQuery | Message, user: User, state: FSMContext = None
@@ -830,7 +830,7 @@ async def settings_(
 
 @router.callback_query(
     UserSettings.Callback.filter(F.action == UserSettingsAction.username_prefix),
-    AdminAccess(),
+    ResellerAccess(),
 )
 async def username_prefix_set(query: CallbackQuery, user: User, state: FSMContext):
     await state.set_state(SetUsernamePrefixForm.username_prefix)
@@ -852,7 +852,7 @@ async def username_prefix_set(query: CallbackQuery, user: User, state: FSMContex
 
 @router.message(
     SetUsernamePrefixForm.username_prefix,
-    AdminAccess(),
+    ResellerAccess(),
     ~CommandStart(),
     ~Command("menu"),
 )

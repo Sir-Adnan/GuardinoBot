@@ -132,7 +132,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
       type: "group" as const,
       label: t("nav.sales"),
       children: [
-        { key: "/", icon: <DashboardOutlined />, label: t("nav.dashboard") },
+        // dashboard's API endpoints are admin+ — hide it for reseller/support
+        // (their landing page is /users, see HomeGate in App.tsx)
+        ...(isAdmin
+          ? [{ key: "/", icon: <DashboardOutlined />, label: t("nav.dashboard") }]
+          : []),
         { key: "/users", icon: <TeamOutlined />, label: t("nav.users") },
         { key: "/proxies", icon: <ClusterOutlined />, label: t("nav.proxies") },
         ...(isAdmin

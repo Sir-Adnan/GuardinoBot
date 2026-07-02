@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Authenticated, Refine } from "@refinedev/core";
+import { Authenticated, Refine, useGetIdentity } from "@refinedev/core";
 import { useNotificationProvider } from "@refinedev/antd";
 import routerProvider, { CatchAllNavigate } from "@refinedev/react-router-v6";
-import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { App as AntdApp, ConfigProvider } from "antd";
 import faIR from "antd/locale/fa_IR";
 import enUS from "antd/locale/en_US";
@@ -21,6 +21,7 @@ import { setCalendarPref } from "./utils/datetime";
 import { AppLayout } from "./components/Layout";
 import { LoginPage } from "./pages/login";
 import { DashboardPage } from "./pages/dashboard";
+import { ROLE_ADMIN } from "./utils/format";
 import { UserList } from "./pages/users/list";
 import { UserShow } from "./pages/users/show";
 import { ServerList } from "./pages/servers/list";
@@ -38,6 +39,15 @@ import { AuditPage } from "./pages/audit";
 import { TextsPage } from "./pages/texts";
 import { MenusPage } from "./pages/menus";
 import { ButtonsPage } from "./pages/buttons";
+
+/** Landing route: the dashboard's API endpoints are admin+ only, so
+ * resellers/support land on /users instead of a page full of 403s. */
+function HomeGate() {
+  const { data: identity, isLoading } = useGetIdentity<{ role?: number }>();
+  if (isLoading) return null;
+  if ((identity?.role ?? 0) >= ROLE_ADMIN) return <DashboardPage />;
+  return <Navigate to="/users" replace />;
+}
 
 export default function App() {
   const [mode, setModeState] = useState<ColorMode>(
@@ -166,7 +176,7 @@ export default function App() {
                     </Authenticated>
                   }
                 >
-                  <Route index element={<DashboardPage />} />
+                  <Route index element={<HomeGate />} />
                   <Route path="/users" element={<UserList />} />
                   <Route path="/users/show/:id" element={<UserShow />} />
                   <Route path="/proxies" element={<ProxyList />} />

@@ -5,21 +5,36 @@ from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from redis.asyncio.client import Redis
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 import config
 from app.logger import get_logger
+
+# Auto-reconnect through Redis restarts: without retry, a platform Redis
+# restart turns every in-flight call into "Connection closed by server" /
+# "Connection refused" until the process is restarted.
+_REDIS_RETRY = dict(
+    retry=Retry(ExponentialBackoff(cap=3), 5),
+    retry_on_error=[RedisConnectionError, RedisTimeoutError],
+    health_check_interval=30,
+)
 
 redis = Redis(
     host=config.REDIS_HOST,
     port=config.REDIS_PORT,
     db=config.REDIS_DB,
     decode_responses=True,
+    **_REDIS_RETRY,
 )  # because it is used as the fsm_storage, it will be closed automatically on shutdown
 raw_redis = Redis(
     host=config.REDIS_HOST,
     port=config.REDIS_PORT,
     db=config.REDIS_DB,
     decode_responses=False,
+    **_REDIS_RETRY,
 )  # additional redis connection that does not decode responses. has to be closed on shutdown
 storage = RedisStorage(
     redis=redis,

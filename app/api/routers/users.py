@@ -166,14 +166,19 @@ async def update_user(
         if k in dump
     }
     if set_fields:
-        st, _ = await UserSetting.get_or_create(user_id=u.id)
+        await UserSetting.get_or_create(user_id=u.id)
+        # queryset update, NOT instance.save(): UserSetting's pk is a
+        # OneToOneField and Tortoise 0.20 builds the UPDATE's WHERE with the
+        # field name (`user`) while the migrated column is `user_id` →
+        # OperationalError 1054 on MariaDB
+        vals: dict = {}
         if "daily_test_services" in set_fields:
-            st.daily_test_services = max(0, int(set_fields["daily_test_services"] or 0))
+            vals["daily_test_services"] = max(0, int(set_fields["daily_test_services"] or 0))
         if "discount_percentage" in set_fields:
-            st.discount_percentage = max(0, min(100, int(set_fields["discount_percentage"] or 0)))
+            vals["discount_percentage"] = max(0, min(100, int(set_fields["discount_percentage"] or 0)))
         if "proxy_username_prefix" in set_fields:
-            st.proxy_username_prefix = (set_fields["proxy_username_prefix"] or "").strip()[:25] or None
-        await st.save()
+            vals["proxy_username_prefix"] = (set_fields["proxy_username_prefix"] or "").strip()[:25] or None
+        await UserSetting.filter(user_id=u.id).update(**vals)
         changed += list(set_fields)
 
     if changed:
