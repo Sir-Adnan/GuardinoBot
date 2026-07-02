@@ -106,14 +106,18 @@ def format_number(value: int | float) -> str:
     return f"{value:,}" if value is not None else None
 
 
-def format_config_links(value: list[str]) -> str | None:
-    if value:
-        return "\n\n".join([f"<code>{link}</code>" for link in value])
+def format_config_links(value: list[str]) -> str:
+    if not value:
+        return ""
+    return "\n\n".join([f"<code>{link}</code>" for link in value])
 
 
 def format_active_inbounds(value: list[str]) -> str:
-    if value:
-        return ", ".join([f"<b>{t.upper()}</b>" for t in value])
+    # PasarGuard/Guardino user records carry no inbound list — never render a
+    # literal "None"; the sub link activates every protocol automatically.
+    if not value:
+        return "<b>خودکار (از طریق لینک اشتراک)</b>"
+    return ", ".join([f"<b>{t.upper()}</b>" for t in value])
 
 
 def format_card_number(value: str) -> str:

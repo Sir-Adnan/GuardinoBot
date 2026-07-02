@@ -28,17 +28,20 @@ async def _subscription_links_text(dbproxy: Proxy) -> str:
         return ""
     if not sv_proxy:
         return ""
-    parts: list[str] = []
+    # Sub link is THE deliverable (one link, auto-updating). Per-config links
+    # only when there is no sub link — the full list clutters the message and
+    # is always available via the «دریافت لینک‌های اتصال» button.
     if sv_proxy.subscription_url:
-        parts.append(
-            f"🔗 لینک اشتراک (Sub):\n<code>{sv_proxy.subscription_url}</code>"
+        return (
+            "⚡️ <b>لینک اشتراک هوشمند شما</b> (برای کپی، روی آن بزنید):\n"
+            f"<code>{sv_proxy.subscription_url}</code>\n\n"
+            "📲 همین یک لینک را در اپلیکیشن خود وارد کنید — همه کانفیگ‌ها "
+            "به‌صورت خودکار دریافت و همیشه به‌روز می‌شوند.\n\n"
         )
     if sv_proxy.links:
         cfgs = "\n\n".join(f"<code>{link}</code>" for link in sv_proxy.links)
-        parts.append(f"🔗 لینک‌های اتصال:\n{cfgs}")
-    if not parts:
-        return ""
-    return "\n\n".join(parts) + "\n\n"
+        return f"🔗 لینک‌های اتصال:\n{cfgs}\n\n"
+    return ""
 
 
 @bg_job
@@ -60,9 +63,9 @@ async def activate_service(transaction: Transaction, message: Message) -> None:
             )
             links_section = await _subscription_links_text(dbproxy)
             text = f"""
-✅ سرویس {draft_invoice.service.display_name} با موفقیت فعال شد!
+🎉 پرداخت شما تأیید شد و سرویس <b>{draft_invoice.service.display_name}</b> با موفقیت فعال شد!
 
-{links_section}💡 برای مدیریت اشتراک خریداری شده دکمه زیر را کلیک کنید👇
+{links_section}🛠 برای مشاهده جزئیات و مدیریت اشتراک، دکمه زیر را بزنید👇
 """
             markup = ProxySettings(proxy=dbproxy).as_markup()
             await bot.send_message(transaction.user_id, text=text, reply_markup=markup)

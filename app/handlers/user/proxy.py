@@ -569,31 +569,34 @@ async def show_proxy(
             else ""
         ),
     ]
-    text = (
-        "\n".join(line for line in _header_lines if line)
-        + "\n"
-        + _usage_block
-        + f"\n\n📊 حجم مصرفی تمام دوره‌ها: {helpers.hr_size(sv_proxy.lifetime_used_traffic, lang='fa')}\n\n"
-    )
+    _lifetime = sv_proxy.lifetime_used_traffic or 0
+    text = "\n".join(line for line in _header_lines if line) + "\n" + _usage_block
+    # only when it adds info beyond the current period (and is non-zero)
+    if _lifetime and _lifetime > sv_proxy.used_traffic:
+        text += f"\n\n📈 مصرف کل از ابتدای سرویس: {helpers.hr_size(_lifetime, lang='fa')}"
+    text += "\n\n"
     if sv_proxy.data_limit_reset_strategy != "no_reset":
         text += f"♻️ بازنشانی خودکار حجم: {USAGE_RESET_STRATEGY.get(sv_proxy.data_limit_reset_strategy)}\n\n"
+    # Marzban fills `inbounds`; PasarGuard/Guardino don't — fall back to the
+    # URI schemes of the config links so the user never sees a bare "None".
+    _protocols = list(sv_proxy.inbounds) or sorted(
+        {l.split("://", 1)[0] for l in (sv_proxy.links or []) if "://" in l}
+    )
     text += texts.Texts.format(
         texts.get_texts().proxy_help,
         SUBSCRIPTION_URL=sv_proxy.subscription_url,
         CONFIG_LINKS=sv_proxy.links,
-        ACTIVE_INBOUNDS=[
-            protocol for protocol in sv_proxy.inbounds
-        ],
+        ACTIVE_INBOUNDS=_protocols,
     )
     if sv_proxy.status == PanelUserStatus.active and _settings.reset_password_button:
         text += """
 
-💡 برای قطع اتصال افراد متصل می‌توانید از دکمه «تغییر پسوورد» استفاده کنید!"""
+🔐 اتصال را با کسی به اشتراک گذاشته‌اید؟ با دکمه «تغییر پسوورد» دسترسی دیگران قطع می‌شود."""
 
     if sv_proxy.status in (PanelUserStatus.active, PanelUserStatus.on_hold):
         text += """
 
-💡 برای دریافت لینک‌های اتصال و Qr Code میتوانید از دکمه زیر استفاده کنید👇
+💡 اپلیکیشن شما لینک اشتراک را قبول نمی‌کند؟ با دکمه «دریافت لینک‌های اتصال» کانفیگ‌ها را جداگانه و با Qr Code دریافت کنید👇
 """
     await proxy.fetch_related("reserve")
     reply_markup = ProxyPanel(
@@ -1659,11 +1662,12 @@ async def renew_proxy_now(
                         # Guardino: renew is a single hub op (reset + recharge),
                         # priced by the hub from days/total_gb.
                         cfg = service.panel_config or {}
-                        days = (
-                            service.expire_duration // 86400
-                            if service.expire_duration
-                            else 0
-                        )
+                        # same derivation as the adapter's quote/create (cfg
+                        # days first, then ceil) — the hub's RenewRequest
+                        # requires days > 0 and floor would under-bill vs quote
+                        days = int(cfg.get("days") or 0)
+                        if not days and service.expire_duration:
+                            days = max(1, -(-service.expire_duration // 86400))
                         total_gb = int(
                             cfg.get("total_gb")
                             or (

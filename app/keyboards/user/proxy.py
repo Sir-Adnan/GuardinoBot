@@ -885,13 +885,16 @@ class ProxySettings(InlineKeyboardBuilder):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.button(
-            text="⚙️ تنظیمات پروکسی",
-            callback_data=Proxies.Callback(
-                proxy_id=proxy.id,
-                user_id=user_id,
-                action=ProxiesActions.show_proxy,
-            ),
+        self.add(
+            premium_button(
+                text="⚙️ مدیریت اشتراک",
+                key="proxy_manage",
+                callback_data=Proxies.Callback(
+                    proxy_id=proxy.id,
+                    user_id=user_id,
+                    action=ProxiesActions.show_proxy,
+                ),
+            )
         )
 
 

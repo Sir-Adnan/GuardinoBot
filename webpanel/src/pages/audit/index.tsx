@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { App as AntdApp, Button, Card, DatePicker, Input, Select, Space, Tag, Typography } from "antd";
+import {
+  App as AntdApp,
+  Button,
+  Card,
+  DatePicker,
+  Input,
+  Select,
+  Space,
+  Tag,
+  Typography,
+  theme as antdTheme,
+} from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
 import { useTranslation } from "react-i18next";
@@ -7,6 +18,7 @@ import { api } from "../../providers/axios";
 import { fmtDate, fmtToman } from "../../utils/format";
 import { PageHeader } from "../../components/PageHeader";
 import { ResponsiveTable } from "../../components/ResponsiveTable";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -24,8 +36,21 @@ const ROLE_COLORS: Record<number, string> = {
   4: "magenta",
 };
 
+// Colour an action tag by what it does (derived from the verb suffix) so the
+// list scans at a glance: destructive = red, grants = green, edits = blue.
+const actionColor = (a: string): string => {
+  const v = a.split(".").pop() || "";
+  if (/delete|remove|reject|revoke/.test(v)) return "error";
+  if (/block|disable|decharge/.test(v)) return "warning";
+  if (/add|create|enable|unblock|approve|promote|charge/.test(v)) return "success";
+  if (/update|edit|reorder|duplicate|adjust|button/.test(v)) return "processing";
+  return "default";
+};
+
 export function AuditPage() {
   const { t } = useTranslation();
+  const { token } = antdTheme.useToken();
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -90,14 +115,16 @@ export function AuditPage() {
       title: t("audit.time"),
       dataIndex: "created_at",
       width: 165,
-      render: (v: string) => fmtDate(v),
+      render: (v: string) => (
+        <Text style={{ fontVariantNumeric: "tabular-nums", fontSize: 12.5 }}>{fmtDate(v)}</Text>
+      ),
     },
     {
       title: t("audit.actor"),
       render: (_: any, r: any) => (
         <Space size={4} wrap>
           <span>{r.actor_name || r.actor_id || "—"}</span>
-          <Tag color={ROLE_COLORS[r.actor_role] || "default"}>
+          <Tag color={ROLE_COLORS[r.actor_role] || "default"} style={{ margin: 0 }}>
             {t(`roles.${r.actor_role}`)}
           </Tag>
         </Space>
@@ -106,15 +133,21 @@ export function AuditPage() {
     {
       title: t("audit.source"),
       dataIndex: "source",
-      width: 90,
+      width: 95,
       render: (v: string) => (
-        <Tag color={SOURCE_COLORS[v] || "default"}>{t(`audit.src.${v}`)}</Tag>
+        <Tag color={SOURCE_COLORS[v] || "default"} style={{ margin: 0 }}>
+          {t(`audit.src.${v}`)}
+        </Tag>
       ),
     },
     {
       title: t("audit.action"),
       dataIndex: "action",
-      render: (v: string) => <Tag>{actionLabel(v)}</Tag>,
+      render: (v: string) => (
+        <Tag color={actionColor(v)} style={{ margin: 0 }}>
+          {actionLabel(v)}
+        </Tag>
+      ),
     },
     {
       title: t("audit.target"),
@@ -122,7 +155,9 @@ export function AuditPage() {
         r.target_type ? (
           <Text>
             {r.target_label || r.target_id || "—"}{" "}
-            <Text type="secondary">({r.target_type})</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              ({r.target_type})
+            </Text>
           </Text>
         ) : (
           "—"
@@ -132,8 +167,20 @@ export function AuditPage() {
       title: t("audit.amount"),
       dataIndex: "amount",
       className: "mono",
-      width: 120,
-      render: (v: number | null) => (v == null ? "—" : fmtToman(v)),
+      width: 130,
+      render: (v: number | null) =>
+        v == null ? (
+          "—"
+        ) : (
+          <Text
+            style={{
+              color: v > 0 ? token.colorSuccess : v < 0 ? token.colorError : undefined,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {fmtToman(v)}
+          </Text>
+        ),
     },
   ];
 
@@ -143,50 +190,63 @@ export function AuditPage() {
         title={t("audit.title")}
         subtitle={t("audit.subtitle")}
         extra={
-          <Space wrap>
-            <Input.Search
-              allowClear
-              placeholder={t("audit.search")}
-              style={{ width: 220 }}
-              onSearch={(v) => {
-                setSearch(v);
-                setPage(1);
-              }}
-            />
-            <Select
-              allowClear
-              placeholder={t("audit.source")}
-              style={{ width: 140 }}
-              value={source}
-              onChange={(v) => {
-                setSource(v);
-                setPage(1);
-              }}
-              options={[
-                { value: "web", label: t("audit.src.web") },
-                { value: "bot", label: t("audit.src.bot") },
-                { value: "system", label: t("audit.src.system") },
-              ]}
-            />
-            <RangePicker
-              value={range as any}
-              onChange={(v) => {
-                setRange(v && v[0] && v[1] ? [v[0], v[1]] : null);
-                setPage(1);
-              }}
-              allowClear
-            />
-            <Button icon={<DownloadOutlined />} onClick={exportCsv}>
-              {t("reports.export")}
-            </Button>
-          </Space>
+          <Button icon={<DownloadOutlined />} onClick={exportCsv}>
+            {t("reports.export")}
+          </Button>
         }
       />
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          marginBottom: 16,
+          padding: 10,
+          borderRadius: 12,
+          background: token.colorFillQuaternary,
+          border: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
+        <Input.Search
+          allowClear
+          placeholder={t("audit.search")}
+          style={{ flex: "1 1 220px", minWidth: 180 }}
+          onSearch={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+        />
+        <Select
+          allowClear
+          placeholder={t("audit.source")}
+          style={{ flex: isMobile ? "1 1 45%" : "0 0 140px" }}
+          value={source}
+          onChange={(v) => {
+            setSource(v);
+            setPage(1);
+          }}
+          options={[
+            { value: "web", label: t("audit.src.web") },
+            { value: "bot", label: t("audit.src.bot") },
+            { value: "system", label: t("audit.src.system") },
+          ]}
+        />
+        <RangePicker
+          value={range as any}
+          style={{ flex: isMobile ? "1 1 100%" : "0 0 auto" }}
+          onChange={(v) => {
+            setRange(v && v[0] && v[1] ? [v[0], v[1]] : null);
+            setPage(1);
+          }}
+          allowClear
+        />
+      </div>
       <ResponsiveTable
         rowKey="id"
         loading={loading}
         dataSource={rows}
         columns={columns}
+        size="middle"
         scroll={{ x: 900 }}
         expandable={{
           expandedRowRender: (r: any) => (
@@ -196,6 +256,10 @@ export function AuditPage() {
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-all",
                 fontSize: 12,
+                background: token.colorFillQuaternary,
+                border: `1px solid ${token.colorBorderSecondary}`,
+                borderRadius: 10,
+                padding: "8px 12px",
               }}
             >
               {JSON.stringify(r.detail ?? {}, null, 2)}
@@ -208,6 +272,7 @@ export function AuditPage() {
           pageSize,
           total,
           showSizeChanger: true,
+          showTotal: (n: number) => t("audit.total", { n }),
           onChange: (p, ps) => {
             setPage(p);
             setPageSize(ps);

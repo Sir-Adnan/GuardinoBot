@@ -460,6 +460,7 @@
     "target": "Target",
     "amount": "Amount",
     "search": "Search action / target…",
+    "total": "{{n}} events",
     "src": { "web": "Web panel", "bot": "Bot", "system": "System" },
     "a": {
       "proxy.enable": "Enable subscription",
@@ -505,6 +506,8 @@
     "chars": "chars",
     "preview": "Preview",
     "previewTitle": "Message preview:",
+    "save_all": "Save all",
+    "unsaved": "unsaved",
     "emoji_hint": "Texts support HTML. For premium/custom emoji use <tg-emoji emoji-id=\"...\">💎</tg-emoji> — they render only if the bot's creator account has Telegram Premium. Keep {VARIABLE} tokens intact. Empty = reset to default.",
     "k": {
       "start": "Start",
@@ -531,6 +534,10 @@
     "default": "Default",
     "save": "Save",
     "saved": "Buttons saved",
+    "unsaved": "You have unsaved changes",
+    "discard": "Discard changes",
+    "menu_preview": "Bot menu preview",
+    "preview": "Preview",
     "tab_menu": "Main menu (labels)",
     "tab_inline": "Inline buttons (premium)",
     "search_ph": "Search button…",

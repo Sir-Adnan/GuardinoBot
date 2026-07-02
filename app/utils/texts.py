@@ -108,15 +108,16 @@ class CommandNotFoundText(TextValue):
 
 class ProxyHelpText(TextValue):
     value: str = """
-🔑 پروکسی های فعال: {ACTIVE_INBOUNDS}
+🔑 پروتکل‌های فعال: {ACTIVE_INBOUNDS}
 
-🔗 لینک اتصال هوشمند: 
+⚡️ <b>لینک اشتراک هوشمند شما</b> (برای کپی، روی آن بزنید):
 <code>{SUBSCRIPTION_URL}</code>
 
-❕برای اطلاع یافتن از وضعیت پروکسی بدون وارد شدن به ربات، میتونید لینک اتصال هوشمند رو ذخیره کنید و در مروگر باز کنید، یا اینکه روی لینک زیر کلیک کنید:
-<a href='{SUBSCRIPTION_URL}'>🔺 اتصال هوشمند</a>
+📲 همین یک لینک را در اپلیکیشن خود وارد کنید — همه کانفیگ‌ها به‌صورت خودکار دریافت و همیشه به‌روز می‌شوند.
 
-💡 برای دریافت راهنمای اتصال و استفاده دستور /help را ارسال کنید!
+🌐 <a href='{SUBSCRIPTION_URL}'>مشاهده وضعیت اشتراک در مرورگر</a>
+
+📚 راهنمای اتصال و استفاده: /help
 """
     _allowed_variables: dict[str, Callable[[Any], str]] = {
         "SUBSCRIPTION_URL": lambda v: v,

@@ -33,9 +33,9 @@ detail lives in the **Done log** + the **Pxx blocks** below.
    Appearance defaults · P11b micro-interactions + broader audit · P7 orders view · P8 reseller
    wallet/permission flags.
 3. [ ] Deferred infra: aiogram bump (`parse_mode=` ctor → `DefaultBotProperties`) · Guardino
-   reserves + efficient paginated sync + `on_hold` create · PasarGuard native
-   `reset_proxy_credentials` · brand migration `marzbot`/`Marzdemo` → Guardino · observability
-   (structured metrics/logs for panel + gateway errors).
+   efficient paginated sync + `on_hold` create (reserve **activation** now works via the hub renew
+   op — see Recently fixed) · PasarGuard native `reset_proxy_credentials` · brand migration
+   `marzbot`/`Marzdemo` → Guardino · observability (structured metrics/logs).
 
 Recently fixed (2026-07-02):
 
@@ -59,6 +59,33 @@ Recently fixed (2026-07-02):
   manual approve of a review payment is intended).
 - ✅ Dead `middlewares/rate_limit.py` (never registered, latent TypeError) **deleted**; live
   throttling stays `utils/rate_limit.py` (`RateLimit` + `lock()`).
+- ✅ Reserve activation — an unreachable/erroring panel no longer retries forever every ~60s
+  (the log-storm case): **exponential backoff** per proxy (Redis `reserves:fail/cooldown:{id}`,
+  60s → doubling → 1h cap) + a **one-time admin alert** after 5 consecutive failures; counters
+  clear on success/404/park. `check_reserves` skips reserves inside their backoff window.
+- ✅ **Guardino reserve activation** — was a silent money bug: a reserve on a Guardino proxy could
+  be *bought* but activation went through reset+modify, which the adapter rejects → never
+  activated. `_activate_reserve` now has a `panel_managed_billing` branch using the hub's
+  **renew op** (days/total_gb from `panel_config`, ceil like quote/create — RenewRequest requires
+  > 0), verified against `Guardino-API.json`. `renew_proxy_now`'s Guardino `days` derivation
+  aligned too (cfg days first, then ceil — floor could under-bill vs the hub quote / send 0).
+- ✅ Proxy details — "پروکسی های فعال: **None**" fixed (`format_active_inbounds([])` returned
+  None; PasarGuard/Guardino user records carry no inbounds): protocol list now falls back to the
+  config-link URI schemes, else a friendly "خودکار" label. `format_config_links` empty → "".
+- ✅ Copy polish (sub-link-first everywhere): `proxy_help` default text, proxy-detail hints,
+  purchase-activation message (sub link prominent; per-config dump only when no sub link — the
+  «لینک‌های اتصال» button stays the fallback), reserve-activated message. Zero "مصرف کل" line
+  hidden when it adds nothing.
+- ✅ `ProxySettings` («⚙️ مدیریت اشتراک», shown after purchase + in webhook alerts) now routes
+  through `premium_button` with a new registered `proxy_manage` key → premium emoji/colour/rename
+  editable in the web Buttons page like the rest.
+- ✅ **Web UI redesign — Buttons / Texts / Audit pages** (responsive xs→xxl, token/theme-aware,
+  `tsc --noEmit` clean): Buttons = live Telegram-style **menu preview** beside the layout editor,
+  per-button **colour pill preview** (+✨ premium marker), collapsible categories with counts,
+  `gb-setting-item` rows + sticky `gb-savebar` with dirty-detect/discard. Texts = skeleton load,
+  2-col grid (xl+), per-tab dirty badges, theme-aware Telegram-bubble preview, **Save all** bar.
+  Audit = filter toolbar (mobile-stacking), verb-coloured action tags, signed-amount colouring,
+  `showTotal`, styled JSON detail. +7 locale keys (fa+en).
 
 ---
 
@@ -171,8 +198,8 @@ Guardino nodes (`GET /services/provisioning`).
 
 **P11b (polish):**
 
-- ✅ **Shared `StatCard`** — polished KPI card whose value uses the **inherited (configured) font**
-  + tabular-nums (fixes the hard-coded-mono bug where dashboard/report numbers ignored the font
+- ✅ **Shared `StatCard`** — polished KPI card whose value uses the **inherited (configured) font** +
+  tabular-nums (fixes the hard-coded-mono bug where dashboard/report numbers ignored the font
   picker).
 - ✅ **Dashboard redesign — minimal/modern** (neumorphism dropped per owner): hover KPI cards
   (lift + shadow, **hover colour = theme accent**, gray→accent icon chips), soft 14px corners,
@@ -182,8 +209,8 @@ Guardino nodes (`GET /services/provisioning`).
   (`PeriodStat`: income·sales·orders·gb via `Sum(service__data_limit)`). Fixed mislabel
   (active subscriptions, not "active users"). Responsive (xs→xl).
 - ✅ **Global button/link polish** (index.css): smooth transitions + subtle primary-button lift.
-- ✅ **Shell redesign** (Layout.tsx): **collapsible** desktop sidebar (icon-only mini mode, persisted)
-  + drawer on mobile; **consolidated "Appearance" dropdown** in the header (theme · language ·
+- ✅ **Shell redesign** (Layout.tsx): **collapsible** desktop sidebar (icon-only mini mode, persisted) +
+  drawer on mobile; **consolidated "Appearance" dropdown** in the header (theme · language ·
   calendar · accent · font — declutters the toolbar) keyed to the theme accent; added a **footer**;
   responsive header (xs→xl). Dashboard ops KPIs now wrap to multiple rows on desktop.
 - ✅ **Cohesion pass**: moved the shared card/chart CSS into `index.css` (`.stat-card`/`.stat-icon`
@@ -425,8 +452,8 @@ architectural → build per stage, confirm each before starting.
 - ✅ **Phase 1 — Smart proxy alerts** — `app/jobs/proxy_alerts.py` (cron `hour="6,16"`),
   migration **49** adds `Proxy.notified` JSON. Batch `get_users`, evaluates expiry-soon /
   low-data / unused / ended with **self-healing dedup** (flag drops when condition clears).
-  Throttled non-blocking send + glass renew/links buttons. 4 Persian templates (`texts.alert_*`)
-  + 9 settings, both editable in the web panel.
+  Throttled non-blocking send + glass renew/links buttons. 4 Persian templates (`texts.alert_*`) +
+  9 settings, both editable in the web panel.
 - ✅ **Phase 4a/4b — Button customization (customer-facing)** — inline rename + premium emoji +
   colour across account/purchase/payment/renew/proxy-panel; double-emoji auto-fix; main reply-menu
   builder (`main_menu_layout`: enable/disable + reorder + row layout). Web Buttons page (2 tabs).

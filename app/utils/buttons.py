@@ -93,6 +93,7 @@ INLINE_BUTTONS: dict[str, str] = {
     "proxy_remove": "🗑 حذف از لیست",
     "proxy_set_name": "✏️ تنظیم اسم دلخواه",
     "proxy_delete_payback": "🗑 حذف و بازگشت وجه",
+    "proxy_manage": "⚙️ مدیریت اشتراک (پیام‌ها)",
     # -- proxy alert messages (jobs.proxy_alerts) --
     "alert_renew": "🔄 تمدید (آلارم)",
     "alert_links": "🔗 لینک اتصال (آلارم)",
